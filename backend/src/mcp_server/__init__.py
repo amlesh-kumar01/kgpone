@@ -1,0 +1,1 @@
+# FastMCP wrapper initialization
