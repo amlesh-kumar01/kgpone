@@ -13,6 +13,9 @@ from src.core.security import SECRET_KEY
 
 from src.infrastructure.database import Base, engine
 
+# Load environment variables from .env file
+load_dotenv()
+
 app = FastAPI(title="KgpOne Backend API")
 
 # Create database tables
