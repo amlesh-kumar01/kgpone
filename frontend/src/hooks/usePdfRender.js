@@ -1,9 +1,9 @@
 import { useState } from 'react';
 
 export const usePdfRender = () => {
-  const [pdfData, setPdfData] = useState(null);
+  const [pdfData] = useState(null);
 
-  const loadPdf = (url) => {
+  const loadPdf = () => {
     // Implementation
   };
 
