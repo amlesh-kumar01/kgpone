@@ -1,9 +1,9 @@
 import { useState } from 'react';
 
 export const useChatStream = () => {
-  const [messages, setMessages] = useState([]);
+  const [messages] = useState([]);
   
-  const startStream = (workspaceId) => {
+  const startStream = () => {
     // Implementation for SSE stream
   };
 
