@@ -1,3 +1,47 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light Theme (emerald & slate) */
+    --theme-bg: #f8fafc; /* slate-50 */
+    --theme-surface: #ffffff; /* white */
+    --theme-text: #0f172a; /* slate-900 */
+    --theme-text-muted: #64748b; /* slate-500 */
+    --theme-text-strong: #334155; /* slate-700 */
+    --theme-accent: #10b981; /* emerald-500 */
+    --theme-accent-dark: #059669; /* emerald-600 */
+    --theme-accent-hover: #047857; /* emerald-700 */
+    --theme-accent-light: rgba(16, 185, 129, 0.2); /* emerald-500/20 */
+    --theme-border: #e2e8f0; /* slate-200 */
+    --theme-border-strong: #cbd5e1; /* slate-300 */
+    --theme-input-placeholder: #94a3b8; /* slate-400 */
+  }
+
+  .dark {
+    /* Dark Theme (existing kgpone dark green) */
+    --theme-bg: #0e1511;
+    --theme-surface: #16201a;
+    --theme-text: #dde4dd;
+    --theme-text-muted: #bbcabf;
+    --theme-text-strong: #dde4dd;
+    --theme-accent: #4edea3;
+    --theme-accent-dark: #4edea3;
+    --theme-accent-hover: rgba(78, 222, 163, 0.8);
+    --theme-accent-light: rgba(78, 222, 163, 0.2);
+    --theme-border: rgba(60, 74, 66, 0.3);
+    --theme-border-strong: rgba(60, 74, 66, 0.5);
+    --theme-input-placeholder: #bbcabf;
+  }
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
