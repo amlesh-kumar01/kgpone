@@ -1,5 +1,9 @@
 from fastapi import FastAPI
+from dotenv import load_dotenv
 from src.api.routers import workspace, auth, marketplace
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = FastAPI(title="KgpOne Backend API")
 
