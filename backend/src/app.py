@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 from fastapi.responses import JSONResponse
 from fastapi_csrf_protect import CsrfProtect
 from fastapi_csrf_protect.exceptions import CsrfProtectError
@@ -7,14 +8,15 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 
+
+# Load environment variables from .env file before importing local modules
+load_dotenv()
+
 from src.routes import workspace_routes as workspace, auth_routes as auth, marketplace_routes as marketplace
 from src.middleware.logging_middleware import SecurityHeadersMiddleware
 from src.services.auth.jwt_service import SECRET_KEY
 
 from src.config.database import Base, engine
-
-# Load environment variables from .env file
-load_dotenv()
 
 app = FastAPI(title="KgpOne Backend API")
 
