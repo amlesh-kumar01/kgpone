@@ -55,7 +55,19 @@ export default {
         "surface-tint": "#565e74",
         "on-secondary-fixed-variant": "#005236",
         "outline": "#76777d",
-        "secondary-fixed-dim": "#4edea3"
+        "secondary-fixed-dim": "#4edea3",
+        "theme-bg": "var(--theme-bg)",
+        "theme-surface": "var(--theme-surface)",
+        "theme-text": "var(--theme-text)",
+        "theme-text-muted": "var(--theme-text-muted)",
+        "theme-text-strong": "var(--theme-text-strong)",
+        "theme-accent": "var(--theme-accent)",
+        "theme-accent-dark": "var(--theme-accent-dark)",
+        "theme-accent-hover": "var(--theme-accent-hover)",
+        "theme-accent-light": "var(--theme-accent-light)",
+        "theme-border": "var(--theme-border)",
+        "theme-border-strong": "var(--theme-border-strong)",
+        "theme-input-placeholder": "var(--theme-input-placeholder)"
       },
       borderRadius: {
         "DEFAULT": "0.25rem",
