@@ -49,6 +49,8 @@ class Content(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     file_url: Mapped[str] = mapped_column(String, nullable=False)
     content_type: Mapped[str] = mapped_column(String, nullable=False)
+    course_code: Mapped[str] = mapped_column(String, nullable=False, default="UNKNOWN")
+    academic_year: Mapped[str] = mapped_column(String, nullable=False, default="UNKNOWN")
     status: Mapped[ContentStatus] = mapped_column(Enum(ContentStatus), default=ContentStatus.PUBLISHED, nullable=False)
     
     uploader_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)

@@ -7,7 +7,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 
-from src.api.routers import workspace, auth, marketplace
+from src.api.routers import workspace, auth, marketplace, content
 from src.api.middleware import SecurityHeadersMiddleware
 from src.core.security import SECRET_KEY
 
@@ -52,6 +52,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(marketplace.router, prefix="/api/marketplace", tags=["marketplace"])
 app.include_router(workspace.router, prefix="/api/workspace", tags=["workspace"])
+app.include_router(content.router, prefix="/api/content", tags=["content"])
 
 @app.get("/api")
 def read_root():

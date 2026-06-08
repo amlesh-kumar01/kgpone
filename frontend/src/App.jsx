@@ -8,6 +8,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Marketplace from './pages/Marketplace';
 import CourseWorkspace from './pages/CourseWorkspace';
+import PublisherPortal from './pages/PublisherPortal';
 
 const HomeRoute = () => {
   const { user, isLoading } = useAuth();
@@ -29,6 +30,12 @@ function App() {
               <Route element={<ProtectedRoute />}>
                 <Route path="/marketplace" element={<Marketplace />} />
                 <Route path="/workspace/:courseId" element={<CourseWorkspace />} />
+                
+                {/* Publisher Portal (Role-protected) */}
+                <Route element={<RoleRoute allowedRoles={['PUBLISHER', 'ADMIN']} />}>
+                  <Route path="/publisher" element={<PublisherPortal />} />
+                </Route>
+
                 {/* Example of a role-protected route */}
                 <Route element={<RoleRoute allowedRoles={['ADMIN']} />}>
                   <Route path="/admin" element={<div className="p-10">Admin Panel</div>} />
