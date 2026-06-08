@@ -3,9 +3,9 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 from uuid import UUID
 
-from src.infrastructure.database import get_db
-from src.infrastructure.models import User, UserRole
-from src.core.security import SECRET_KEY, ALGORITHM
+from src.config.database import get_db
+from src.models.user_model import User, UserRole
+from src.services.auth.jwt_service import SECRET_KEY, ALGORITHM
 
 def get_token_from_cookie(request: Request) -> str:
     """Extracts the HttpOnly access token from cookies."""

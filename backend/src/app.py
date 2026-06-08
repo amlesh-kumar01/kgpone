@@ -7,11 +7,11 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 
-from src.api.routers import workspace, auth, marketplace
-from src.api.middleware import SecurityHeadersMiddleware
-from src.core.security import SECRET_KEY
+from src.routes import workspace_routes as workspace, auth_routes as auth, marketplace_routes as marketplace
+from src.middleware.logging_middleware import SecurityHeadersMiddleware
+from src.services.auth.jwt_service import SECRET_KEY
 
-from src.infrastructure.database import Base, engine
+from src.config.database import Base, engine
 
 # Load environment variables from .env file
 load_dotenv()

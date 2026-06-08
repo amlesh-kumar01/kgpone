@@ -5,9 +5,9 @@ from fastapi_csrf_protect import CsrfProtect
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from src.infrastructure.database import get_db
-from src.infrastructure.models import User, UserRole
-from src.core.security import (
+from src.config.database import get_db
+from src.models.user_model import User, UserRole
+from src.services.auth.jwt_service import (
     verify_password,
     get_password_hash,
     create_access_token,
@@ -16,7 +16,7 @@ from src.core.security import (
     REFRESH_TOKEN_EXPIRE_DAYS
 )
 from pydantic import BaseModel
-from src.api.dependencies import get_current_user
+from src.middleware.auth_middleware import get_current_user
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -130,7 +130,7 @@ def refresh_session(request: Request, response: Response, db: Session = Depends(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token found")
         
     from jose import jwt, JWTError
-    from src.core.security import SECRET_KEY, ALGORITHM
+    from src.services.auth.jwt_service import SECRET_KEY, ALGORITHM
     
     try:
         payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])

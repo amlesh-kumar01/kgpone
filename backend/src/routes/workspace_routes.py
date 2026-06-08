@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, status
 from fastapi.responses import StreamingResponse, JSONResponse
-from src.infrastructure.parser import parse_pdf
+from src.services.ingestion.parser_service import parse_pdf
 
 router = APIRouter()
 
