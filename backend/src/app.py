@@ -12,7 +12,7 @@ from pydantic import BaseModel
 # Load environment variables from .env file before importing local modules
 load_dotenv()
 
-from src.routes import workspace_routes as workspace, auth_routes as auth, marketplace_routes as marketplace
+from src.routes import workspace_routes as workspace, auth_routes as auth, marketplace_routes as marketplace, task_routes as tasks
 from src.middleware.logging_middleware import SecurityHeadersMiddleware
 from src.services.auth.jwt_service import SECRET_KEY
 
@@ -57,6 +57,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(marketplace.router, prefix="/api/marketplace", tags=["marketplace"])
 app.include_router(workspace.router, prefix="/api/workspace", tags=["workspace"])
+app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 
 @app.get("/api")
 def read_root():

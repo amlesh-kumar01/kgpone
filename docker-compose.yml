@@ -40,8 +40,16 @@ services:
       - ./infra/localstack:/etc/localstack/init/ready.d
       - localstack_data:/var/lib/localstack
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
 volumes:
   postgres_data:
   qdrant_data:
   neo4j_data:
   localstack_data:
+  redis_data:
