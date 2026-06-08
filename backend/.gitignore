@@ -8,3 +8,12 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local environment variables
+.env
+
+# Runtime data/uploads/outputs
+data/
+
+# Local run outputs
+llamaparse_output.md
