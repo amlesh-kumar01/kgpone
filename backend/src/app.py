@@ -12,7 +12,7 @@ from pydantic import BaseModel
 # Load environment variables from .env file before importing local modules
 load_dotenv()
 
-from src.routes import workspace_routes as workspace, auth_routes as auth, marketplace_routes as marketplace, task_routes as tasks
+from src.routes import workspace_routes as workspace, auth_routes as auth, marketplace_routes as marketplace, task_routes as tasks, upload_routes as upload
 from src.middleware.logging_middleware import SecurityHeadersMiddleware
 from src.services.auth.jwt_service import SECRET_KEY
 
@@ -20,8 +20,8 @@ from src.config.database import Base, engine
 
 app = FastAPI(title="KgpOne Backend API")
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# Database tables are now managed by Alembic migrations
+# Base.metadata.create_all(bind=engine)
 
 # Setup CORS for the frontend origin
 app.add_middleware(
@@ -58,6 +58,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(marketplace.router, prefix="/api/marketplace", tags=["marketplace"])
 app.include_router(workspace.router, prefix="/api/workspace", tags=["workspace"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(upload.router, prefix="/api/content", tags=["content"])
 
 @app.get("/api")
 def read_root():

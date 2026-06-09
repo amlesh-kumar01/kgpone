@@ -29,4 +29,12 @@ dependencies = [
     "python-jose>=3.5.0",
     "celery>=5.4.0",
     "redis>=5.0.4",
+    "alembic>=1.18.4",
+    "argon2-cffi>=25.1.0",
+]
+
+[tool.pyright]
+include = ["src", "alembic"]
+executionEnvironments = [
+  { root = "." }
 ]
