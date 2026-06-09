@@ -48,14 +48,43 @@ def get_presigned_url(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+from sqlalchemy.orm import Session
+from src.models.user_model import Content, ContentStatus
+from src.config.database import get_db
+import os
+
 @router.post("/confirm-upload")
 def confirm_upload(
     req: ConfirmUploadRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Called by the frontend after a successful S3 upload. 
-    Here we would save the content metadata to the database.
+    Here we save the content metadata to the database.
     """
-    # For now, we will just return success until the Content model logic is fully written
-    return {"message": "Upload confirmed and metadata saved", "file_key": req.file_key}
+    try:
+        # Construct the static public S3 URL
+        bucket_name = os.environ.get("S3_BUCKET_NAME")
+        region = os.environ.get("AWS_DEFAULT_REGION", "eu-north-1")
+        file_url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{req.file_key}"
+
+        new_content = Content(
+            title=req.title,
+            description=req.description,
+            course_code=req.course_code,
+            academic_year=req.academic_year,
+            content_type=req.content_type,
+            file_url=file_url,
+            status=ContentStatus.PUBLISHED,
+            uploader_id=current_user.id
+        )
+
+        db.add(new_content)
+        db.commit()
+        db.refresh(new_content)
+
+        return {"message": "Upload confirmed and metadata saved", "content_id": str(new_content.id), "file_url": file_url}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
