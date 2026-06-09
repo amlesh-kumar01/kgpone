@@ -16,6 +16,7 @@ from sqlalchemy import pool
 from alembic import context
 
 # Import our Base and all Models
+# pyrefly: ignore [missing-import]
 from src.config.database import Base
 from src.models.user_model import User, Content
 
