@@ -17,9 +17,9 @@ PARSED_DIR = BASE_DIR / "data" / "parsed"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 PARSED_DIR.mkdir(parents=True, exist_ok=True)
 
-def process_and_save_notes(file_id: str, temp_pdf_path: Path, parsed_md_path: Path):
+def process_and_save_notes(file_id: str, temp_pdf_path: Path, parsed_md_path: Path, filename: str):
     """
-    Background task to run LlamaParse on the uploaded PDF and clean up.
+    Background task to run LlamaParse on the uploaded PDF, ingest it into Qdrant/Neo4j, and clean up.
     """
     try:
         # Parse using LlamaParse (blocks, but runs in the background thread)
@@ -28,6 +28,15 @@ def process_and_save_notes(file_id: str, temp_pdf_path: Path, parsed_md_path: Pa
         # Save the parsed markdown output
         with open(parsed_md_path, "w", encoding="utf-8") as f:
             f.write(parsed_content)
+
+        # Triggers chunking, embedding, and vector/graph DB population
+        from src.services.ingestion.ingestion_service import IngestionService
+        ingestor = IngestionService()
+        ingestor.ingest_parsed_markdown(file_id, parsed_content, {
+            "title": filename,
+            "course_code": "GEN101",
+            "academic_year": "1st Year"
+        })
 
     except Exception as e:
         # Log failure (we could write a status/error file to PARSED_DIR if needed)
@@ -69,7 +78,8 @@ async def upload_notes(background_tasks: BackgroundTasks, file: UploadFile = Fil
             process_and_save_notes,
             file_id=file_id,
             temp_pdf_path=temp_pdf_path,
-            parsed_md_path=parsed_md_path
+            parsed_md_path=parsed_md_path,
+            filename=file.filename
         )
 
         return {

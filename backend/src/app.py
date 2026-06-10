@@ -12,7 +12,7 @@ from pydantic import BaseModel
 # Load environment variables from .env file before importing local modules
 load_dotenv()
 
-from src.routes import workspace_routes as workspace, auth_routes as auth, marketplace_routes as marketplace, task_routes as tasks, upload_routes as upload
+from src.routes import workspace_routes as workspace, auth_routes as auth, marketplace_routes as marketplace, task_routes as tasks, upload_routes as upload, chat_routes as chat
 from src.middleware.logging_middleware import SecurityHeadersMiddleware
 from src.services.auth.jwt_service import SECRET_KEY
 
@@ -59,6 +59,7 @@ app.include_router(marketplace.router, prefix="/api/marketplace", tags=["marketp
 app.include_router(workspace.router, prefix="/api/workspace", tags=["workspace"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(upload.router, prefix="/api/content", tags=["content"])
+app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 
 @app.get("/api")
 def read_root():
