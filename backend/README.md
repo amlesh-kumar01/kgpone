@@ -69,3 +69,81 @@ Check the status or fetch the final LaTeX markdown output using the `file_id` re
     "detail": "Parsing task failed: <error message>"
   }
   ```
+
+---
+
+## API Endpoints (GraphRAG & Chat Query)
+
+### 1. Execute Chat Query
+Performs hybrid GraphRAG retrieval (semantic vector search in Qdrant + recursive prerequisite path traversal in Neo4j) to generate grounded tutor responses with citations.
+
+* **Endpoint:** `POST /api/chat/query`
+* **Headers:** Enforces security context authentication (expects HttpOnly JWT token cookies).
+* **Body (JSON):**
+  ```json
+  {
+    "query": "Explain A* search optimizations",
+    "course_code": "CSE301"
+  }
+  ```
+* **Response Example (Status 200):**
+  ```json
+  {
+    "answer": "A* search uses evaluation f(n) = g(n) + h(n) [CIT-1]. Since you asked about optimization, note that A* search has a prerequisite Graph Theory Basics [CIT-2] in course MTH201...",
+    "citations": [
+      {
+        "citation_id": "CIT-1",
+        "source_title": "lecture_notes.pdf",
+        "course_code": "CSE301",
+        "academic_year": "3rd Year",
+        "page_number": 1,
+        "section": "A* Heuristic Search",
+        "confidence": "High",
+        "score": 0.892,
+        "is_prerequisite": false,
+        "prerequisite_concept": null,
+        "text_snippet": "A* Search uses f(n)..."
+      },
+      {
+        "citation_id": "CIT-2",
+        "source_title": "discrete_math.pdf",
+        "course_code": "MTH201",
+        "academic_year": "2nd Year",
+        "page_number": 4,
+        "section": "Graph Basics",
+        "confidence": "Medium",
+        "score": 0.710,
+        "is_prerequisite": true,
+        "prerequisite_concept": "Graph Theory Basics",
+        "text_snippet": "A graph is defined as G=(V,E)..."
+      }
+    ],
+    "graph_visualization": {
+      "nodes": [
+        {
+          "id": "A* Heuristic Search",
+          "label": "A* Heuristic Search",
+          "course": "CSE301",
+          "type": "target"
+        },
+        {
+          "id": "Graph Theory Basics",
+          "label": "Graph Theory Basics",
+          "course": "MTH201",
+          "description": "Fundamental graph theory...",
+          "type": "prerequisite"
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge_A* Heuristic Search_Graph Theory Basics",
+          "source": "A* Heuristic Search",
+          "target": "Graph Theory Basics",
+          "label": "HAS_PREREQUISITE"
+        }
+      ]
+    },
+    "has_missing_prerequisites": true
+  }
+  ```
+
