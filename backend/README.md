@@ -1,149 +1,64 @@
-# KgpOne Backend Service
+# KgpOne Backend API
 
-This is the FastAPI backend service for KnowledgeOS. It includes an asynchronous document ingestion pipeline powered by **LlamaParse** to parse PDF notes and extract clean Markdown text with full LaTeX mathematical notation.
+Welcome to the KgpOne Backend! This repository serves as the intelligence and API layer for the platform, leveraging modern FastAPI, Celery, LlamaParse, Gemini, PostgreSQL, and Qdrant to ingest and retrieve academic documents securely.
+
+## 📚 Developer Documentation
+To understand how the system is architected, please read the documentation inside the `/docs` folder:
+
+1. [Project Information](docs/project_info.md)
+2. [Folder Structure (DDD)](docs/folder_structure.md)
+3. [API Guidelines & RBAC](docs/api_guidelines.md)
+4. [Schema & Database Explanation](docs/schema_explanation.md)
+5. [The Modular AI Ingestion Pipeline](docs/ingestion.md)
 
 ---
 
-## Setup & Running
+## 🚀 Quick Start Guide
 
-### 1. Prerequisites
-* [uv](https://github.com/astral-sh/uv) (Python package manager)
-* LlamaParse Account (API Key)
+### Prerequisites
+- Python 3.11+
+- [uv](https://github.com/astral-sh/uv) (Extremely fast Python package manager)
+- Docker & Docker Compose
 
-### 2. Environment Configuration
-Create a `.env` file in this directory and populate it with your LlamaParse key:
-```env
-LLAMA_CLOUD_API_KEY=your_llamaparse_api_key_here
+### 1. Environment Setup
+Copy the example environment file and configure your API keys (especially `LLAMA_CLOUD_API_KEY` and `GEMINI_API_KEY`).
+```bash
+cp .env.example .env
 ```
 
-### 3. Install Dependencies & Start Server
-Run the FastAPI development server:
+### 2. Install Dependencies
+Use `uv` to automatically sync the lockfile into a virtual environment.
+```bash
+uv sync
+```
+
+### 3. Start Infrastructure Dependencies
+The backend relies on external cloud providers for PostgreSQL and Qdrant. However, for local asynchronous queue management, we must run Redis.
+```bash
+# Go to the parent directory and spin up Redis
+cd ../
+docker compose up -d redis
+```
+
+### 4. Run Database Migrations
+Ensure your remote/local PostgreSQL database is fully migrated to the latest schema:
+```bash
+cd backend/
+uv run alembic upgrade head
+```
+
+### 5. Start the FastAPI Server
+Spin up the main application. It will run on `http://localhost:8000`.
 ```bash
 uv run uvicorn src.main:app --reload
 ```
-The server will start at `http://localhost:8000`. You can access the interactive Swagger documentation at **`http://localhost:8000/docs`**.
+You can now access the interactive Swagger documentation at [http://localhost:8000/docs](http://localhost:8000/docs).
+
+### 6. Start the Celery Worker
+To enable the background AI ingestion pipeline (which parses PDFs and embeds chunks into Qdrant), you must run the Celery worker in a separate terminal:
+```bash
+uv run celery -A src.workers.app.celery_app worker --loglevel=info
+```
 
 ---
-
-## API Endpoints (Document Ingestion)
-
-Because LlamaParse processing runs in the cloud and can take time on larger PDFs, the ingestion pipeline runs asynchronously using FastAPI's background tasks.
-
-### 1. Ingest/Upload PDF Notes
-Upload a PDF file to trigger parsing in the background.
-
-* **Endpoint:** `POST /workspace/upload-notes`
-* **Content-Type:** `multipart/form-data`
-* **Body:** `file` (the PDF file)
-* **Response Example:**
-  ```json
-  {
-    "file_id": "fe90337e-2d6d-48ee-bf94-5e6a49b09298",
-    "status": "processing",
-    "filename": "lecture_notes.pdf"
-  }
-  ```
-
-### 2. Retrieve Parsed Output (Polling)
-Check the status or fetch the final LaTeX markdown output using the `file_id` returned during upload.
-
-* **Endpoint:** `GET /workspace/notes/{file_id}`
-* **Response (Still Processing - Status 202):**
-  ```json
-  {
-    "file_id": "fe90337e-2d6d-48ee-bf94-5e6a49b09298",
-    "status": "processing"
-  }
-  ```
-* **Response (Completed - Status 200):**
-  ```json
-  {
-    "file_id": "fe90337e-2d6d-48ee-bf94-5e6a49b09298",
-    "status": "completed",
-    "content": "# Lecture 1\n\nThis is text... $$\int_0^L \psi^2 \, dx = 1$$"
-  }
-  ```
-* **Response (Failed - Status 500):**
-  ```json
-  {
-    "detail": "Parsing task failed: <error message>"
-  }
-  ```
-
----
-
-## API Endpoints (GraphRAG & Chat Query)
-
-### 1. Execute Chat Query
-Performs hybrid GraphRAG retrieval (semantic vector search in Qdrant + recursive prerequisite path traversal in Neo4j) to generate grounded tutor responses with citations.
-
-* **Endpoint:** `POST /api/chat/query`
-* **Headers:** Enforces security context authentication (expects HttpOnly JWT token cookies).
-* **Body (JSON):**
-  ```json
-  {
-    "query": "Explain A* search optimizations",
-    "course_code": "CSE301"
-  }
-  ```
-* **Response Example (Status 200):**
-  ```json
-  {
-    "answer": "A* search uses evaluation f(n) = g(n) + h(n) [CIT-1]. Since you asked about optimization, note that A* search has a prerequisite Graph Theory Basics [CIT-2] in course MTH201...",
-    "citations": [
-      {
-        "citation_id": "CIT-1",
-        "source_title": "lecture_notes.pdf",
-        "course_code": "CSE301",
-        "academic_year": "3rd Year",
-        "page_number": 1,
-        "section": "A* Heuristic Search",
-        "confidence": "High",
-        "score": 0.892,
-        "is_prerequisite": false,
-        "prerequisite_concept": null,
-        "text_snippet": "A* Search uses f(n)..."
-      },
-      {
-        "citation_id": "CIT-2",
-        "source_title": "discrete_math.pdf",
-        "course_code": "MTH201",
-        "academic_year": "2nd Year",
-        "page_number": 4,
-        "section": "Graph Basics",
-        "confidence": "Medium",
-        "score": 0.710,
-        "is_prerequisite": true,
-        "prerequisite_concept": "Graph Theory Basics",
-        "text_snippet": "A graph is defined as G=(V,E)..."
-      }
-    ],
-    "graph_visualization": {
-      "nodes": [
-        {
-          "id": "A* Heuristic Search",
-          "label": "A* Heuristic Search",
-          "course": "CSE301",
-          "type": "target"
-        },
-        {
-          "id": "Graph Theory Basics",
-          "label": "Graph Theory Basics",
-          "course": "MTH201",
-          "description": "Fundamental graph theory...",
-          "type": "prerequisite"
-        }
-      ],
-      "edges": [
-        {
-          "id": "edge_A* Heuristic Search_Graph Theory Basics",
-          "source": "A* Heuristic Search",
-          "target": "Graph Theory Basics",
-          "label": "HAS_PREREQUISITE"
-        }
-      ]
-    },
-    "has_missing_prerequisites": true
-  }
-  ```
-
+Happy Coding!
