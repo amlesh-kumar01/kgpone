@@ -21,10 +21,29 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=response.model_dump())
 
 async def generic_exception_handler(request: Request, exc: Exception):
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.exception(f"Unhandled Exception: {str(exc)}")
     response = StandardResponse(
         status="error",
-        message="An unexpected error occurred",
+        message=str(exc) or "An unexpected error occurred",
         data=None
     )
-    # Log the full exception `exc` here in a real app
     return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=response.model_dump())
+
+async def value_error_handler(request: Request, exc: ValueError):
+    response = StandardResponse(
+        status="error",
+        message=str(exc),
+        data=None
+    )
+    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=response.model_dump())
+
+from sqlalchemy.exc import IntegrityError
+async def integrity_error_handler(request: Request, exc: IntegrityError):
+    response = StandardResponse(
+        status="error",
+        message="Database integrity error. The record might already exist or a constraint was violated.",
+        data={"detail": str(exc.orig) if hasattr(exc, "orig") else str(exc)}
+    )
+    return JSONResponse(status_code=status.HTTP_409_CONFLICT, content=response.model_dump())
