@@ -18,7 +18,9 @@ from alembic import context
 # Import our Base and all Models
 # pyrefly: ignore [missing-import]
 from src.infrastructure.database import Base
-from src.models.user_model import User, Content
+from src.models.user_model import User, RefreshToken, EmailOtp
+from src.models.course_model import Department, Course, CourseOffering, FacultyInfo
+from src.models.document_model import Document, DocumentMetadata
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
