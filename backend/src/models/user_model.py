@@ -1,7 +1,7 @@
 import enum
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, Enum, Text, ForeignKey, DateTime, Uuid
+from sqlalchemy import String, Boolean, Enum, ForeignKey, DateTime, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.infrastructure.database import Base
@@ -11,11 +11,6 @@ class UserRole(str, enum.Enum):
     PUBLISHER = "PUBLISHER"
     STUDENT = "STUDENT"
 
-class ContentStatus(str, enum.Enum):
-    PUBLISHED = "PUBLISHED"
-    DRAFT = "DRAFT"
-    PENDING_APPROVAL = "PENDING_APPROVAL"
-
 def utcnow():
     return datetime.now(timezone.utc)
 
@@ -23,44 +18,40 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
-    password_hash: Mapped[str] = mapped_column(String, nullable=False)
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    role: Mapped[UserRole] = mapped_column(Enum(UserRole), nullable=False, default=UserRole.STUDENT)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     
-    # Dynamic capability flag to allow specific students to upload content
-    can_upload: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), 
-        default=utcnow, 
-        onupdate=utcnow, 
-        nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
-    contents: Mapped[list["Content"]] = relationship("Content", back_populates="uploader")
+    # Relationships
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
+    documents: Mapped[list["Document"]] = relationship("Document", back_populates="uploader", cascade="all, delete-orphan")
 
-
-class Content(Base):
-    __tablename__ = "content"
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    title: Mapped[str] = mapped_column(String, nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    file_url: Mapped[str] = mapped_column(String, nullable=False)
-    content_type: Mapped[str] = mapped_column(String, nullable=False)
-    course_code: Mapped[str] = mapped_column(String, nullable=False)
-    academic_year: Mapped[str] = mapped_column(String, nullable=False)
-    status: Mapped[ContentStatus] = mapped_column(Enum(ContentStatus), default=ContentStatus.PUBLISHED, nullable=False)
-    
-    uploader_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), 
-        default=utcnow, 
-        onupdate=utcnow, 
-        nullable=False
-    )
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    uploader: Mapped["User"] = relationship("User", back_populates="contents")
+    # Relationship
+    user: Mapped["User"] = relationship("User", back_populates="refresh_tokens")
+
+class EmailOtp(Base):
+    __tablename__ = "email_otps"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    otp_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(50), nullable=False) # 'VERIFICATION', 'PASSWORD_RESET'
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    is_used: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

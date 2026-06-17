@@ -1,0 +1,51 @@
+from pydantic import BaseModel, ConfigDict
+from uuid import UUID
+from datetime import datetime
+from src.models.document_model import DocFormat, ProcessingStatus
+
+# ----------------- DocumentMetadata Schemas -----------------
+class DocumentMetadataBase(BaseModel):
+    key: str
+    value: str
+
+class DocumentMetadataCreate(DocumentMetadataBase):
+    pass
+
+class DocumentMetadataRead(DocumentMetadataBase):
+    id: UUID
+    document_id: UUID
+    model_config = ConfigDict(from_attributes=True)
+
+# ----------------- Document Schemas -----------------
+class DocumentBase(BaseModel):
+    title: str
+    description: str | None = None
+    doc_type: str
+    format: DocFormat
+
+class DocumentCreate(DocumentBase):
+    course_offering_id: UUID
+    uploader_id: UUID | None = None
+    s3_url: str
+    file_size_bytes: int | None = None
+    metadata_entries: list[DocumentMetadataCreate] = []
+
+class DocumentRead(DocumentBase):
+    id: UUID
+    course_offering_id: UUID
+    uploader_id: UUID | None
+    s3_url: str
+    file_size_bytes: int | None
+    status: ProcessingStatus
+    qdrant_collection_id: str | None
+    created_at: datetime
+    updated_at: datetime
+    metadata_entries: list[DocumentMetadataRead] = []
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class DocumentUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    status: ProcessingStatus | None = None
+    qdrant_collection_id: str | None = None
