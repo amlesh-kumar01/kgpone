@@ -20,6 +20,7 @@ class DocumentMetadataRead(DocumentMetadataBase):
 class DocumentBase(BaseModel):
     title: str
     description: str | None = None
+    parsing_instructions: str | None = None
     doc_type: str
     format: DocFormat
 
@@ -47,5 +48,15 @@ class DocumentRead(DocumentBase):
 class DocumentUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
+    parsing_instructions: str | None = None
     status: ProcessingStatus | None = None
     qdrant_collection_id: str | None = None
+
+# ----------------- S3 Upload Schemas -----------------
+class PresignedUrlRequest(BaseModel):
+    filename: str
+    content_type: str
+
+class PresignedUrlResponse(BaseModel):
+    upload_url: str
+    file_key: str

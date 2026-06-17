@@ -1,18 +1,36 @@
 from uuid import UUID
 from fastapi import HTTPException
 from src.repositories.postgres.document_repository import DocumentRepository
-from src.schemas.document_schema import DocumentCreate, DocumentUpdate
+from src.schemas.document_schema import DocumentCreate, DocumentUpdate, PresignedUrlResponse
 from src.models.document_model import Document, ProcessingStatus
+from src.repositories.s3.storage_repository import S3Storage
+from src.workers.tasks.ingestion_tasks import process_document_task
+import uuid
 
 class DocumentService:
-    def __init__(self, repository: DocumentRepository):
+    def __init__(self, repository: DocumentRepository, s3_storage: S3Storage = None):
         self.repository = repository
+        self.s3_storage = s3_storage or S3Storage()
+
+    def generate_upload_url(self, user_id: UUID, filename: str, content_type: str) -> PresignedUrlResponse:
+        unique_file_key = f"documents/{user_id}/{uuid.uuid4()}_{filename}"
+        presigned_data = self.s3_storage.generate_presigned_url(
+            file_key=unique_file_key,
+            content_type=content_type
+        )
+        return PresignedUrlResponse(
+            upload_url=presigned_data["upload_url"],
+            file_key=presigned_data["file_key"]
+        )
 
     def upload_document(self, doc_in: DocumentCreate) -> Document:
-        # In a real scenario, this service might also trigger the S3 upload
-        # or a Celery background task to process the document in Qdrant.
-        # For now, we simply save the record with PENDING status.
-        return self.repository.create_document(doc_in)
+        # Save the record with PENDING status.
+        doc = self.repository.create_document(doc_in)
+        
+        # Trigger the asynchronous Celery pipeline
+        process_document_task.delay(str(doc.id))
+        
+        return doc
 
     def get_document(self, document_id: UUID) -> Document:
         doc = self.repository.get_document(document_id)

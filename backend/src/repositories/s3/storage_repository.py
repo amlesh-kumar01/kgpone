@@ -20,6 +20,17 @@ class S3Storage(IS3Storage):
             Body=file_content
         )
 
+    def download_file(self, file_key: str, download_path: str):
+        """Downloads a file from S3 to the local filesystem."""
+        client = get_s3_client()
+        if client is None:
+            raise RuntimeError("S3 client is not initialized.")
+        client.download_file(
+            Bucket=self.bucket_name,
+            Key=file_key,
+            Filename=download_path
+        )
+
     def generate_presigned_url(self, file_key: str, content_type: str, expiration: int = 3600) -> dict:
         """Generates a presigned URL for direct upload."""
         client = get_s3_client()
