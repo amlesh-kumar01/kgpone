@@ -10,7 +10,11 @@ class S3Storage:
     def __init__(self):
         # We assume credentials and region are loaded via environment variables 
         # (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION)
-        self.s3_client = boto3.client('s3')
+        endpoint_url = os.getenv('AWS_ENDPOINT_URL') or os.getenv('S3_ENDPOINT_URL')
+        if endpoint_url:
+            self.s3_client = boto3.client('s3', endpoint_url=endpoint_url)
+        else:
+            self.s3_client = boto3.client('s3')
         self.bucket_name = os.getenv('S3_BUCKET_NAME', 'kgpone-course-materials')
 
     def generate_presigned_url(self, file_key: str, content_type: str, expiration: int = 900) -> Dict[str, Any]:
