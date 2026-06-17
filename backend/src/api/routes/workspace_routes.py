@@ -22,14 +22,11 @@ def process_and_save_notes(file_id: str, temp_pdf_path: Path, parsed_md_path: Pa
     Background task to run LlamaParse on the uploaded PDF, ingest it into Qdrant/Neo4j, and clean up.
     """
     try:
-        # Parse using LlamaParse (blocks, but runs in the background thread)
         parsed_content = parse_pdf(temp_pdf_path)
 
-        # Save the parsed markdown output
         with open(parsed_md_path, "w", encoding="utf-8") as f:
             f.write(parsed_content)
 
-        # Triggers chunking, embedding, and vector/graph DB population
         from src.services.ingestion.ingestion_service import IngestionService
         ingestor = IngestionService()
         ingestor.ingest_parsed_markdown(file_id, parsed_content, {
@@ -39,13 +36,11 @@ def process_and_save_notes(file_id: str, temp_pdf_path: Path, parsed_md_path: Pa
         })
 
     except Exception as e:
-        # Log failure (we could write a status/error file to PARSED_DIR if needed)
         error_md_path = PARSED_DIR / f"{file_id}.error"
         with open(error_md_path, "w", encoding="utf-8") as f:
             f.write(f"Parsing failed: {str(e)}")
 
     finally:
-        # Clean up temp PDF to save disk space
         if temp_pdf_path.exists():
             os.remove(temp_pdf_path)
 
@@ -69,11 +64,9 @@ async def upload_notes(background_tasks: BackgroundTasks, file: UploadFile = Fil
     parsed_md_path = PARSED_DIR / f"{file_id}.md"
 
     try:
-        # Save uploaded PDF to temp location
         with open(temp_pdf_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Add parsing to background tasks
         background_tasks.add_task(
             process_and_save_notes,
             file_id=file_id,
@@ -89,7 +82,6 @@ async def upload_notes(background_tasks: BackgroundTasks, file: UploadFile = Fil
         }
 
     except Exception as e:
-        # Clean up if saving the file itself fails before task starts
         if temp_pdf_path.exists():
             os.remove(temp_pdf_path)
         raise HTTPException(status_code=500, detail=f"Failed to initiate upload: {str(e)}")
@@ -98,13 +90,11 @@ async def upload_notes(background_tasks: BackgroundTasks, file: UploadFile = Fil
 async def get_parsed_notes(file_id: str):
     """
     Endpoint to retrieve the parsed markdown text for a given file_id.
-    Returns 202 if still processing, 200 if completed, or 404/500 on error.
     """
     parsed_md_path = PARSED_DIR / f"{file_id}.md"
     temp_pdf_path = UPLOADS_DIR / f"{file_id}.pdf"
     error_path = PARSED_DIR / f"{file_id}.error"
 
-    # 1. Check if processing has completed successfully
     if parsed_md_path.exists():
         try:
             with open(parsed_md_path, "r", encoding="utf-8") as f:
@@ -117,12 +107,10 @@ async def get_parsed_notes(file_id: str):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error reading parsed notes: {str(e)}")
 
-    # 2. Check if processing failed with an error
     if error_path.exists():
         try:
             with open(error_path, "r", encoding="utf-8") as f:
                 error_msg = f.read()
-            # Clean up error file
             os.remove(error_path)
             raise HTTPException(status_code=500, detail=f"Parsing task failed: {error_msg}")
         except Exception as e:
@@ -130,7 +118,6 @@ async def get_parsed_notes(file_id: str):
                 raise
             raise HTTPException(status_code=500, detail=f"Error reading failure log: {str(e)}")
 
-    # 3. Check if file is still processing (PDF exists in upload folder)
     if temp_pdf_path.exists():
         return JSONResponse(
             status_code=status.HTTP_202_ACCEPTED,
@@ -140,5 +127,4 @@ async def get_parsed_notes(file_id: str):
             }
         )
 
-    # 4. Otherwise, the file ID does not exist
     raise HTTPException(status_code=404, detail="Notes not found for the given ID.")

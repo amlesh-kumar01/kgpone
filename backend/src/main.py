@@ -12,11 +12,11 @@ from pydantic import BaseModel
 # Load environment variables from .env file before importing local modules
 load_dotenv()
 
-from src.routes import workspace_routes as workspace, auth_routes as auth, marketplace_routes as marketplace, task_routes as tasks, upload_routes as upload, chat_routes as chat
-from src.middleware.logging_middleware import SecurityHeadersMiddleware
+from src.api.routes import workspace_routes as workspace, auth_routes as auth, marketplace_routes as marketplace, task_routes as tasks, upload_routes as upload, chat_routes as chat
+from src.api.middleware.logging_middleware import SecurityHeadersMiddleware
 from src.services.auth.jwt_service import SECRET_KEY
 
-from src.config.database import Base, engine
+from src.infrastructure.database import Base, engine
 
 app = FastAPI(title="KgpOne Backend API")
 

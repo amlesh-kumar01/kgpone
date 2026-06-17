@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import List, Dict, Any
 
-from src.middleware.auth_middleware import get_current_user
+from src.api.middleware.auth_middleware import get_current_user
 from src.models.user_model import User
 from src.services.rag.retrieval_service import RetrievalService
 from src.services.rag.rerank_service import RerankService

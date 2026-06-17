@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from src.middleware.auth_middleware import get_current_user
+from src.api.middleware.auth_middleware import get_current_user
 from src.models.user_model import User
 from src.repositories.s3.storage_repository import S3Storage
 
@@ -28,12 +28,10 @@ def get_presigned_url(
     """
     Returns a presigned URL that the frontend can use to upload a file directly to S3.
     """
-    # Verify user has upload privileges (ADMIN or PUBLISHER)
     if getattr(current_user.role, 'value', current_user.role) not in ["ADMIN", "PUBLISHER"] and not current_user.can_upload:
         raise HTTPException(status_code=403, detail="You do not have permission to upload files.")
 
     try:
-        # Generate a unique key for the file to prevent overwriting
         import uuid
         unique_file_key = f"uploads/{current_user.id}/{uuid.uuid4()}_{req.filename}"
         
@@ -44,7 +42,6 @@ def get_presigned_url(
         )
         upload_url = presigned_data["upload_url"]
         
-        # Rewrite internal S3 endpoint to host-accessible endpoint for the client browser
         external_s3_url = os.getenv("EXTERNAL_S3_ENDPOINT_URL")
         if external_s3_url:
             internal_endpoint = os.getenv("AWS_ENDPOINT_URL") or os.getenv("S3_ENDPOINT_URL")
@@ -60,7 +57,7 @@ def get_presigned_url(
 
 from sqlalchemy.orm import Session
 from src.models.user_model import Content, ContentStatus
-from src.config.database import get_db
+from src.infrastructure.database import get_db
 import os
 
 @router.post("/confirm-upload")
@@ -74,7 +71,6 @@ def confirm_upload(
     Here we save the content metadata to the database.
     """
     try:
-        # Construct the static public S3 URL
         bucket_name = os.environ.get("S3_BUCKET_NAME")
         region = os.environ.get("AWS_DEFAULT_REGION", "eu-north-1")
         file_url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{req.file_key}"

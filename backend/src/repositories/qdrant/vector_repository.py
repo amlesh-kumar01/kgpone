@@ -1,7 +1,7 @@
 import logging
 from typing import List, Dict, Any, Optional
 from qdrant_client.http import models
-from src.config.qdrant import get_qdrant_client
+from src.infrastructure.qdrant import get_qdrant_client
 
 logger = logging.getLogger("qdrant_repository")
 

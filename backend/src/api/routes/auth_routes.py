@@ -5,7 +5,7 @@ from fastapi_csrf_protect import CsrfProtect
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from src.config.database import get_db
+from src.infrastructure.database import get_db
 from src.models.user_model import User, UserRole
 from src.services.auth.jwt_service import (
     verify_password,
@@ -16,7 +16,7 @@ from src.services.auth.jwt_service import (
     REFRESH_TOKEN_EXPIRE_DAYS
 )
 from pydantic import BaseModel
-from src.middleware.auth_middleware import get_current_user
+from src.api.middleware.auth_middleware import get_current_user
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -103,9 +103,6 @@ def login(
 @router.post("/logout")
 def logout(response: Response, csrf_protect: CsrfProtect = Depends()):
     """Invalidates the session server-side by clearing the cookies."""
-    # To protect the logout route from CSRF
-    # csrf_protect.validate_csrf(request) # You can enable this if the frontend sends the token on logout
-    
     response.delete_cookie(key="access_token", samesite="lax", secure=False)
     response.delete_cookie(key="refresh_token", samesite="lax", secure=False)
     csrf_protect.unset_csrf_cookie(response)

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 from celery.result import AsyncResult
-from src.tasks.sample_tasks import add_numbers
+from src.workers.tasks.sample_tasks import add_numbers
 
 router = APIRouter()
 
