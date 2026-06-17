@@ -8,25 +8,5 @@ services:
     volumes:
       - redis_data:/data
 
-  celery_worker:
-    build:
-      context: ./backend
-    command: uv run celery -A src.workers.app.celery_app worker --loglevel=info
-    environment:
-      # These variables should point to your hosted external services
-      - DATABASE_URL=${DATABASE_URL}
-      - QDRANT_URL=${QDRANT_URL}
-      - QDRANT_API_KEY=${QDRANT_API_KEY}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - LLAMA_CLOUD_API_KEY=${LLAMA_CLOUD_API_KEY}
-    depends_on:
-      - redis
-
 volumes:
   redis_data:
