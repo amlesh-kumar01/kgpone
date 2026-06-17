@@ -8,6 +8,8 @@ from pydantic import BaseModel
 
 from src.schemas.response_schema import StandardResponse
 
+from fastapi import APIRouter, Depends, HTTPException, status, Response
+
 router = APIRouter(prefix="/users", tags=["Users"])
 
 def get_user_service(db: Session = Depends(get_db)) -> UserService:
@@ -27,8 +29,19 @@ def register_user(user_in: UserCreate, service: UserService = Depends(get_user_s
     return StandardResponse(status="success", message="User registered successfully", data=user)
 
 @router.post("/login", response_model=StandardResponse[TokenResponse])
-def login_user(login_data: LoginRequest, service: UserService = Depends(get_user_service)):
+def login_user(login_data: LoginRequest, response: Response, service: UserService = Depends(get_user_service)):
     tokens = service.authenticate_user(login_data.email, login_data.password)
+    
+    # Set HTTPOnly Cookie
+    response.set_cookie(
+        key="access_token",
+        value=tokens.access_token,
+        httponly=True,
+        max_age=1800,  # 30 minutes
+        samesite="lax",
+        secure=False  # In production, set to True with HTTPS
+    )
+    
     return StandardResponse(status="success", message="Login successful", data=tokens)
 
 @router.post("/refresh", response_model=StandardResponse[TokenResponse])
