@@ -53,6 +53,10 @@ app.include_router(user_routes.router, prefix="/api/v1")
 app.include_router(course_routes.router, prefix="/api/v1")
 app.include_router(document_routes.router, prefix="/api/v1")
 
-@app.get("/api")
+@app.get("/")
 def read_root():
+    return {"message": "Welcome to KgpOne Secure API"}
+
+@app.get("/api")
+def read_api_root():
     return {"message": "Welcome to KgpOne Secure API"}
