@@ -37,12 +37,22 @@ def get_presigned_url(
         import uuid
         unique_file_key = f"uploads/{current_user.id}/{uuid.uuid4()}_{req.filename}"
         
+        import os
         presigned_data = s3_storage.generate_presigned_url(
             file_key=unique_file_key,
             content_type=req.content_type
         )
+        upload_url = presigned_data["upload_url"]
+        
+        # Rewrite internal S3 endpoint to host-accessible endpoint for the client browser
+        external_s3_url = os.getenv("EXTERNAL_S3_ENDPOINT_URL")
+        if external_s3_url:
+            internal_endpoint = os.getenv("AWS_ENDPOINT_URL") or os.getenv("S3_ENDPOINT_URL")
+            if internal_endpoint and internal_endpoint in upload_url:
+                upload_url = upload_url.replace(internal_endpoint, external_s3_url)
+
         return {
-            "upload_url": presigned_data["upload_url"],
+            "upload_url": upload_url,
             "file_key": unique_file_key
         }
     except Exception as e:
