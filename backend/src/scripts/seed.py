@@ -1,8 +1,15 @@
 import logging
+from passlib.context import CryptContext
 from src.infrastructure.database import SessionLocal, Base, engine
 from src.models.user_model import User, UserRole
-from src.models.academic_model import Department, Course, CourseOffering, SemesterType
-from src.utils.auth import get_password_hash
+from src.models.course_model import Department, Course, CourseOffering, SemesterType, FacultyInfo
+from src.models.document_model import Document, DocumentMetadata
+from src.models.system_model import CleanupJob
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("seed")

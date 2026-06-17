@@ -32,15 +32,15 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
-    op.add_column('courses', sa.Column('is_deleted', sa.Boolean(), nullable=False))
-    op.add_column('courses', sa.Column('deletion_status', sa.String(length=50), nullable=False))
+    op.add_column('courses', sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default=sa.text('false')))
+    op.add_column('courses', sa.Column('deletion_status', sa.String(length=50), nullable=False, server_default='NONE'))
     op.alter_column('courses', 'credits',
                existing_type=sa.INTEGER(),
                nullable=False)
     op.add_column('documents', sa.Column('parsing_instructions', sa.Text(), nullable=True))
-    op.add_column('documents', sa.Column('version', sa.Integer(), nullable=False))
-    op.add_column('documents', sa.Column('is_deleted', sa.Boolean(), nullable=False))
-    op.add_column('documents', sa.Column('deletion_status', sa.String(length=50), nullable=False))
+    op.add_column('documents', sa.Column('version', sa.Integer(), nullable=False, server_default=sa.text('1')))
+    op.add_column('documents', sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default=sa.text('false')))
+    op.add_column('documents', sa.Column('deletion_status', sa.String(length=50), nullable=False, server_default='NONE'))
     # ### end Alembic commands ###
 
 

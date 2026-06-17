@@ -5,7 +5,11 @@ from uuid import UUID
 
 from src.infrastructure.database import get_db
 from src.models.user_model import User, UserRole
-from src.services.auth.jwt_service import SECRET_KEY, ALGORITHM
+from src.config.settings import Settings
+
+settings = Settings()
+SECRET_KEY = settings.SECRET_KEY
+ALGORITHM = settings.ALGORITHM
 
 def get_token_from_cookie(request: Request) -> str:
     """Extracts the HttpOnly access token from cookies."""
