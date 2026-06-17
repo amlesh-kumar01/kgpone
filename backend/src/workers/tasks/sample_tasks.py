@@ -1,7 +1,7 @@
 import os
 import time
 from pathlib import Path
-from src.tasks.celery_app import celery_app
+from src.workers.app import celery_app
 from src.services.ingestion.parser_service import parse_pdf
 
 @celery_app.task(name="tasks.add_numbers")

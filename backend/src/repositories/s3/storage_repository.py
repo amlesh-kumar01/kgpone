@@ -1,6 +1,6 @@
 import logging
 from src.utils.interfaces import IS3Storage
-from src.config.s3 import get_s3_client
+from src.infrastructure.s3 import get_s3_client
 from src.config.settings import Settings
 
 logger = logging.getLogger("s3_repository")

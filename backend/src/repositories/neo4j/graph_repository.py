@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict, Any, Optional
-from src.config.neo4j import get_neo4j_driver
+from src.infrastructure.neo4j import get_neo4j_driver
 
 logger = logging.getLogger("neo4j_repository")
 

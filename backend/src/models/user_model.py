@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import String, Boolean, Enum, Text, ForeignKey, DateTime, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.config.database import Base
+from src.infrastructure.database import Base
 
 class UserRole(str, enum.Enum):
     ADMIN = "ADMIN"
