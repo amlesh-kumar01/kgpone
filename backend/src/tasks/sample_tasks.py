@@ -15,7 +15,7 @@ def add_numbers(x: int, y: int) -> int:
 @celery_app.task(name="tasks.process_document_notes")
 def process_document_notes(file_id: str, temp_pdf_path_str: str, parsed_md_path_str: str) -> dict:
     """
-    Celery task to run LlamaParse on an uploaded PDF.
+    Celery task to run LlamaParse on an uploaded PDF, parse, and ingest chunks.
     Takes paths as strings for JSON serialization compatibility in Celery.
     """
     temp_pdf_path = Path(temp_pdf_path_str)
@@ -31,6 +31,15 @@ def process_document_notes(file_id: str, temp_pdf_path_str: str, parsed_md_path_
         # Save the parsed markdown output
         with open(parsed_md_path, "w", encoding="utf-8") as f:
             f.write(parsed_content)
+
+        # Triggers chunking, embedding, and vector/graph DB population
+        from src.services.ingestion.ingestion_service import IngestionService
+        ingestor = IngestionService()
+        ingestor.ingest_parsed_markdown(file_id, parsed_content, {
+            "title": temp_pdf_path.name,
+            "course_code": "GEN101",
+            "academic_year": "1st Year"
+        })
 
         return {"file_id": file_id, "status": "completed"}
 
