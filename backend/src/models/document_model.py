@@ -29,6 +29,7 @@ class Document(Base):
     
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parsing_instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
     doc_type: Mapped[str] = mapped_column(String(50), nullable=False) # 'PYQ', 'SLIDES', 'NOTES', 'SYLLABUS'
     format: Mapped[DocFormat] = mapped_column(Enum(DocFormat), nullable=False)
     

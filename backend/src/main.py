@@ -2,10 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from fastapi.responses import JSONResponse
-from fastapi_csrf_protect import CsrfProtect
-from fastapi_csrf_protect.exceptions import CsrfProtectError
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.exceptions import RequestValidationError
@@ -45,24 +42,6 @@ app.add_middleware(SecurityHeadersMiddleware)
 # Apply Centralized Request Logging
 app.add_middleware(RequestLoggerMiddleware)
 
-# Setup CSRF Protection Configuration
-class CsrfSettings(BaseModel):
-    secret_key: str = Settings().SECRET_KEY
-    cookie_samesite: str = "lax"
-    cookie_secure: bool = False # Set to True in production (HTTPS)
-    cookie_httponly: bool = False # Important: Needs to be readable by frontend JS to send back as X-CSRF-Token
-
-@CsrfProtect.load_config
-def get_csrf_config():
-    return CsrfSettings()
-
-@app.exception_handler(CsrfProtectError)
-def csrf_protect_exception_handler(request: Request, exc: CsrfProtectError):
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
-
-# Apply Rate Limiter Handler
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
 # Apply Global Exception Handlers for Standard Responses
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -70,9 +49,9 @@ app.add_exception_handler(ValueError, value_error_handler)
 app.add_exception_handler(IntegrityError, integrity_error_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 # RBAC Routers
-app.include_router(user_routes.router, prefix="/api")
-app.include_router(course_routes.router, prefix="/api")
-app.include_router(document_routes.router, prefix="/api")
+app.include_router(user_routes.router, prefix="/api/v1")
+app.include_router(course_routes.router, prefix="/api/v1")
+app.include_router(document_routes.router, prefix="/api/v1")
 
 @app.get("/api")
 def read_root():

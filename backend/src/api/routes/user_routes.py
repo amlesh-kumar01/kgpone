@@ -18,6 +18,9 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
 @router.post("/register", response_model=StandardResponse[UserRead], status_code=status.HTTP_201_CREATED)
 def register_user(user_in: UserCreate, service: UserService = Depends(get_user_service)):
     user = service.register_user(user_in)
@@ -27,3 +30,8 @@ def register_user(user_in: UserCreate, service: UserService = Depends(get_user_s
 def login_user(login_data: LoginRequest, service: UserService = Depends(get_user_service)):
     tokens = service.authenticate_user(login_data.email, login_data.password)
     return StandardResponse(status="success", message="Login successful", data=tokens)
+
+@router.post("/refresh", response_model=StandardResponse[TokenResponse])
+def refresh_token(request: RefreshRequest, service: UserService = Depends(get_user_service)):
+    tokens = service.refresh_access_token(request.refresh_token)
+    return StandardResponse(status="success", message="Token refreshed successfully", data=tokens)

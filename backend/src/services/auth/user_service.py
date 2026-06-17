@@ -28,9 +28,42 @@ class UserService:
         else:
             expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         
-        to_encode = {"exp": expire, "sub": str(subject)}
+        to_encode = {"exp": expire, "sub": str(subject), "type": "access"}
         encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
         return encoded_jwt
+
+    def create_refresh_token(self, subject: str | Any) -> str:
+        expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+        encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        return encoded_jwt
+
+    def refresh_access_token(self, refresh_token: str) -> TokenResponse:
+        try:
+            payload = jwt.decode(refresh_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            if payload.get("type") != "refresh":
+                raise HTTPException(status_code=401, detail="Invalid token type")
+            user_id = payload.get("sub")
+            if user_id is None:
+                raise HTTPException(status_code=401, detail="Invalid token")
+        except JWTError:
+            raise HTTPException(status_code=401, detail="Could not validate credentials")
+        
+        # Optionally, verify user still exists and is active
+        user = self.repository.get_by_id(UUID(user_id))
+        if not user or not user.is_active:
+            raise HTTPException(status_code=401, detail="User not found or inactive")
+
+        new_access_token = self.create_access_token(subject=user_id)
+        # We can issue a new refresh token or keep the old one depending on policy.
+        # Let's issue a new one for rotating refresh tokens.
+        new_refresh_token = self.create_refresh_token(subject=user_id)
+
+        return TokenResponse(
+            access_token=new_access_token,
+            refresh_token=new_refresh_token,
+            token_type="bearer"
+        )
 
     def register_user(self, user_in: UserCreate) -> User:
         user = self.repository.get_by_email(user_in.email)
@@ -58,9 +91,7 @@ class UserService:
             subject=str(user.id), expires_delta=access_token_expires
         )
         
-        # We can implement proper refresh token generation and storage here
-        # For now, returning a dummy refresh token to satisfy schema
-        refresh_token = "dummy_refresh_token" 
+        refresh_token = self.create_refresh_token(subject=str(user.id))
 
         return TokenResponse(
             access_token=access_token,
