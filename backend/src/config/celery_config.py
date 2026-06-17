@@ -1,11 +1,7 @@
-import os
-from dotenv import load_dotenv
+from src.config.settings import Settings
 
-# Load environment variables
-load_dotenv()
-
-broker_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+broker_url = Settings.CELERY_BROKER_URL
+result_backend = Settings.CELERY_RESULT_BACKEND
 
 # Serialization settings
 task_serializer = "json"

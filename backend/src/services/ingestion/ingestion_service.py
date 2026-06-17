@@ -3,8 +3,8 @@ import logging
 from typing import Dict, Any
 from src.services.ingestion.chunking_service import ChunkingService
 from src.services.ingestion.embedding_service import EmbeddingService
-from src.config.qdrant import QdrantRepo
-from src.config.neo4j import Neo4jRepo
+from src.repositories.qdrant.vector_repository import QdrantRepo
+from src.repositories.neo4j.graph_repository import Neo4jRepo
 
 logger = logging.getLogger("ingestion_service")
 

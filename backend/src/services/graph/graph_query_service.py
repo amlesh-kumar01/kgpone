@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict, Any
-from src.config.neo4j import Neo4jRepo
+from src.repositories.neo4j.graph_repository import Neo4jRepo
 
 logger = logging.getLogger("graph_query_service")
 

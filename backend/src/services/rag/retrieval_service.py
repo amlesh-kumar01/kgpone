@@ -1,7 +1,7 @@
 import logging
 from typing import List, Dict, Any
 from src.services.ingestion.embedding_service import EmbeddingService
-from src.config.qdrant import QdrantRepo
+from src.repositories.qdrant.vector_repository import QdrantRepo
 from src.services.graph.prerequisite_service import PrerequisiteService
 
 logger = logging.getLogger("retrieval_service")
