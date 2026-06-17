@@ -7,7 +7,7 @@ from src.schemas.document_schema import (
     PresignedUrlRequest, PresignedUrlResponse
 )
 from src.repositories.postgres.document_repository import DocumentRepository
-from src.services.ingestion.document_service import DocumentService
+from src.services.ingestion.upload_manager.document_service import DocumentService
 from src.models.user_model import User, UserRole
 from src.api.middleware.auth_middleware import get_current_user, require_role
 from src.schemas.response_schema import StandardResponse

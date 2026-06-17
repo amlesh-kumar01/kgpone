@@ -14,6 +14,7 @@ from src.services.ingestion.chunking.recursive_chunker import RecursiveChunker
 from src.services.ingestion.embedding.gemini_embedding import GeminiEmbedder
 from src.repositories.qdrant.vector_repository import QdrantRepository
 from src.services.ingestion.pipeline import IngestionPipeline
+from src.services.ingestion.metadata_builder import MetadataBuilder
 
 logger = logging.getLogger("ingestion_tasks")
 
@@ -63,15 +64,8 @@ def process_document_task(self, document_id: str):
             collection_name="documents" # Single collection for all documents
         )
         
-        metadata_base = {
-            "document_id": str(doc.id),
-            "course_offering_id": str(doc.course_offering_id),
-            "document_title": doc.title,
-            "document_type": doc.doc_type,
-            "format": doc.format.value,
-            "course_code": doc.course_offering.course.code,
-            "course_name": doc.course_offering.course.title
-        }
+        # Build flattened metadata payload using the builder
+        metadata_base = MetadataBuilder.build(doc)
         
         # Build dynamic course-aware parsing instructions
         course = doc.course_offering.course

@@ -1,6 +1,6 @@
 import uuid
 import asyncio
-from qdrant_client.models import VectorParams, Distance, PointStruct
+from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, FieldCondition, MatchValue, PayloadSchemaType
 from src.infrastructure.qdrant import get_qdrant_client
 from src.utils.interfaces import IVectorRepo
 
@@ -11,9 +11,21 @@ class QdrantRepository(IVectorRepo):
         if self.client is None:
             raise RuntimeError("Qdrant client could not be initialized.")
 
-    def search(self, query: str):
-        # Implementation to be added later
-        pass
+    def search(self, collection_name: str, query_vector: list[float], filters: dict | None = None, limit: int = 5):
+        query_filter = None
+        if filters:
+            conditions = [
+                FieldCondition(key=k, match=MatchValue(value=v))
+                for k, v in filters.items()
+            ]
+            query_filter = Filter(must=conditions)
+            
+        return self.client.search(
+            collection_name=collection_name,
+            query_vector=query_vector,
+            query_filter=query_filter,
+            limit=limit
+        )
 
     def _ensure_collection_exists(self, collection_name: str):
         collections_response = self.client.get_collections()
@@ -24,6 +36,13 @@ class QdrantRepository(IVectorRepo):
                 collection_name=collection_name,
                 vectors_config=VectorParams(size=self.vector_size, distance=Distance.COSINE),
             )
+            
+            # Create payload indexes for frequently filtered fields
+            self.client.create_payload_index(collection_name, "course_code", field_schema=PayloadSchemaType.KEYWORD)
+            self.client.create_payload_index(collection_name, "course_offering_id", field_schema=PayloadSchemaType.KEYWORD)
+            self.client.create_payload_index(collection_name, "document_type", field_schema=PayloadSchemaType.KEYWORD)
+            self.client.create_payload_index(collection_name, "semester", field_schema=PayloadSchemaType.KEYWORD)
+            self.client.create_payload_index(collection_name, "year", field_schema=PayloadSchemaType.INTEGER)
 
     async def upsert(self, collection_name: str, vectors: list[list[float]], metadata: list[dict]):
         if len(vectors) != len(metadata):
