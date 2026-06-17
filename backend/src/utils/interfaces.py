@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 class IVectorRepo(ABC):
     @abstractmethod
-    def search(self, query: str):
+    def search(self, collection_name: str, query_vector: list[float], filters: dict | None = None, limit: int = 5):
         pass
         
     @abstractmethod
