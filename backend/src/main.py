@@ -9,15 +9,18 @@ from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.exceptions import RequestValidationError
-from src.api.exceptions.handlers import http_exception_handler, validation_exception_handler, generic_exception_handler
-
+from src.api.exceptions.handlers import (
+    http_exception_handler, validation_exception_handler, 
+    generic_exception_handler, value_error_handler, 
+    integrity_error_handler
+)
+from sqlalchemy.exc import IntegrityError
 
 # Load environment variables from .env file before importing local modules
 load_dotenv()
-
-from src.api.routes import workspace_routes as workspace, auth_routes as auth, marketplace_routes as marketplace, task_routes as tasks, upload_routes as upload, chat_routes as chat
 from src.api.routes import user_routes, course_routes, document_routes
-from src.api.middleware.logging_middleware import SecurityHeadersMiddleware
+from src.api.middleware.security_middleware import SecurityHeadersMiddleware
+from src.api.middleware.request_logger import RequestLoggerMiddleware
 from src.config.settings import Settings
 
 from src.infrastructure.database import Base, engine
@@ -38,6 +41,9 @@ app.add_middleware(
 
 # Apply custom Security Headers (CSP, HSTS, etc.)
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Apply Centralized Request Logging
+app.add_middleware(RequestLoggerMiddleware)
 
 # Setup CSRF Protection Configuration
 class CsrfSettings(BaseModel):
@@ -60,16 +66,9 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Apply Global Exception Handlers for Standard Responses
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(ValueError, value_error_handler)
+app.add_exception_handler(IntegrityError, integrity_error_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
-
-# Include Routers
-app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
-app.include_router(marketplace.router, prefix="/api/marketplace", tags=["marketplace"])
-app.include_router(workspace.router, prefix="/api/workspace", tags=["workspace"])
-app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
-app.include_router(upload.router, prefix="/api/content", tags=["content"])
-app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
-
 # RBAC Routers
 app.include_router(user_routes.router, prefix="/api")
 app.include_router(course_routes.router, prefix="/api")
