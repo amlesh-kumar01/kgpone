@@ -3,8 +3,10 @@ from fastapi import HTTPException
 from src.repositories.postgres.document_repository import DocumentRepository
 from src.schemas.document_schema import DocumentCreate, DocumentUpdate, PresignedUrlResponse
 from src.models.document_model import Document, ProcessingStatus
+from src.models.system_model import CleanupJob, DeletionStatus
 from src.repositories.s3.storage_repository import S3Storage
 from src.workers.tasks.ingestion_tasks import process_document_task
+from src.workers.tasks.cleanup_tasks import cleanup_document_task
 import uuid
 
 class DocumentService:
@@ -34,8 +36,29 @@ class DocumentService:
 
     def get_document(self, document_id: UUID) -> Document:
         doc = self.repository.get_document(document_id)
-        if not doc:
+        if not doc or doc.is_deleted:
             raise HTTPException(status_code=404, detail="Document not found")
+        return doc
+
+    def delete_document(self, document_id: UUID):
+        doc = self.repository.get_document(document_id)
+        if not doc or doc.is_deleted:
+            raise HTTPException(status_code=404, detail="Document not found")
+            
+        # Soft delete
+        doc.is_deleted = True
+        doc.deletion_status = DeletionStatus.PENDING
+        self.repository.session.commit()
+        
+        # Create cleanup job
+        job = CleanupJob(resource_type="DOCUMENT", resource_id=document_id)
+        self.repository.session.add(job)
+        self.repository.session.commit()
+        self.repository.session.refresh(job)
+        
+        # Dispatch Celery Task
+        cleanup_document_task.delay(str(document_id), str(job.id))
+        
         return doc
 
     def get_documents_for_offering(self, offering_id: UUID) -> list[Document]:

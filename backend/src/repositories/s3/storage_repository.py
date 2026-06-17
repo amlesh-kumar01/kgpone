@@ -46,3 +46,17 @@ class S3Storage(IS3Storage):
             ExpiresIn=expiration
         )
         return {"upload_url": url, "file_key": file_key}
+
+    def delete_file(self, file_key: str):
+        client = get_s3_client()
+        if client is None:
+            raise RuntimeError("S3 client is not initialized.")
+        try:
+            client.delete_object(
+                Bucket=self.bucket_name,
+                Key=file_key
+            )
+        except Exception as e:
+            # Idempotent: Ignore errors when deleting missing files
+            logger.warning(f"S3 deletion error for {file_key}: {e}")
+            pass

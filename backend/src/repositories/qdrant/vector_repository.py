@@ -27,6 +27,24 @@ class QdrantRepository(IVectorRepo):
             limit=limit
         )
 
+    def delete_by_filter(self, collection_name: str, filters: dict):
+        if not filters:
+            return
+            
+        conditions = [
+            FieldCondition(key=k, match=MatchValue(value=v))
+            for k, v in filters.items()
+        ]
+        
+        try:
+            self.client.delete(
+                collection_name=collection_name,
+                points_selector=Filter(must=conditions)
+            )
+        except Exception as e:
+            # Qdrant throws error if collection doesn't exist, we treat it as idempotent success
+            pass
+
     def _ensure_collection_exists(self, collection_name: str):
         collections_response = self.client.get_collections()
         collection_names = [col.name for col in collections_response.collections]

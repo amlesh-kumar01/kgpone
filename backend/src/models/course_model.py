@@ -5,6 +5,7 @@ from sqlalchemy import String, Integer, Boolean, Enum, Text, ForeignKey, DateTim
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.infrastructure.database import Base
+from src.models.system_model import DeletionStatus
 from src.models.user_model import utcnow
 
 class SemesterType(str, enum.Enum):
@@ -31,7 +32,11 @@ class Course(Base):
     code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    credits: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    credits: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    deletion_status: Mapped[str] = mapped_column(String(50), default=DeletionStatus.NONE)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

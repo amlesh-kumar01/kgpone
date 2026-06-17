@@ -41,4 +41,9 @@ def get_document(document_id: UUID, service: DocumentService = Depends(get_docum
 @router.patch("/{document_id}", response_model=StandardResponse[DocumentRead])
 def update_document(document_id: UUID, doc_update: DocumentUpdate, service: DocumentService = Depends(get_document_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):
     data = service.update_document(document_id, doc_update)
-    return StandardResponse(status="success", message="Document updated successfully", data=data)
+    return StandardResponse(status="success", message="Document updated successfully. Re-ingestion started.", data=data)
+
+@router.delete("/{document_id}", response_model=StandardResponse[DocumentRead])
+def delete_document(document_id: UUID, service: DocumentService = Depends(get_document_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):
+    data = service.delete_document(document_id)
+    return StandardResponse(status="success", message="Document soft-deleted. Cleanup job dispatched successfully.", data=data)
