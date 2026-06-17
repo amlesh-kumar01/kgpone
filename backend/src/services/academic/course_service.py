@@ -6,6 +6,8 @@ from src.schemas.course_schema import (
     FacultyInfoCreate
 )
 from src.models.course_model import Department, Course, CourseOffering, FacultyInfo
+from src.models.system_model import CleanupJob, DeletionStatus
+from src.workers.tasks.cleanup_tasks import cleanup_course_task
 
 class CourseService:
     def __init__(self, repository: CourseRepository):
@@ -34,8 +36,29 @@ class CourseService:
 
     def get_course(self, course_id: UUID) -> Course:
         course = self.repository.get_course(course_id)
-        if not course:
+        if not course or course.is_deleted:
             raise HTTPException(status_code=404, detail="Course not found")
+        return course
+
+    def delete_course(self, course_id: UUID):
+        course = self.repository.get_course(course_id)
+        if not course or course.is_deleted:
+            raise HTTPException(status_code=404, detail="Course not found")
+            
+        # Soft delete
+        course.is_deleted = True
+        course.deletion_status = DeletionStatus.PENDING
+        self.repository.session.commit()
+        
+        # Create cleanup job
+        job = CleanupJob(resource_type="COURSE", resource_id=course_id)
+        self.repository.session.add(job)
+        self.repository.session.commit()
+        self.repository.session.refresh(job)
+        
+        # Dispatch Celery Task
+        cleanup_course_task.delay(str(course_id), str(job.id))
+        
         return course
 
     def create_offering(self, offering_in: CourseOfferingCreate) -> CourseOffering:

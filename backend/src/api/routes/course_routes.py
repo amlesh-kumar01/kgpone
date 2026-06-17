@@ -52,6 +52,11 @@ def get_course(course_id: UUID, service: CourseService = Depends(get_course_serv
     data = service.get_course(course_id)
     return StandardResponse(status="success", message="Course retrieved successfully", data=data)
 
+@router.delete("/{course_id}", response_model=StandardResponse[CourseRead])
+def delete_course(course_id: UUID, service: CourseService = Depends(get_course_service), user: User = Depends(require_role([UserRole.ADMIN]))):
+    data = service.delete_course(course_id)
+    return StandardResponse(status="success", message="Course soft-deleted. Cleanup job dispatched successfully.", data=data)
+
 # --- Offerings ---
 @router.post("/{course_id}/offerings", response_model=StandardResponse[CourseOfferingRead], status_code=status.HTTP_201_CREATED)
 def create_offering(offering_in: CourseOfferingCreate, service: CourseService = Depends(get_course_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):

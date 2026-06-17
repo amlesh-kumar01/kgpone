@@ -15,11 +15,12 @@ from src.services.ingestion.embedding.gemini_embedding import GeminiEmbedder
 from src.repositories.qdrant.vector_repository import QdrantRepository
 from src.services.ingestion.pipeline import IngestionPipeline
 from src.services.ingestion.metadata_builder import MetadataBuilder
+from src.workers.tasks.cleanup_tasks import delete_old_vectors_task
 
 logger = logging.getLogger("ingestion_tasks")
 
-@shared_task(bind=True, max_retries=3)
-def process_document_task(self, document_id: str):
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
+def process_document_task(self, document_id: str, old_version: int = None):
     """
     Celery task that orchestrates the ingestion pipeline for a given document.
     """
@@ -92,12 +93,16 @@ def process_document_task(self, document_id: str):
             os.remove(temp_path)
             
         # 6. Update document status
-        # Since we use a single collection, qdrant_collection_id is just 'documents'
-        repo.update_status(doc.id, ProcessingStatus.COMPLETED, "documents")
-        logger.info(f"Ingestion completed for document {document_id}")
+        doc.status = ProcessingStatus.COMPLETED
+        db.commit()
+        logger.info(f"Successfully processed Document: {document_id}")
+        
+        # If this was a re-ingestion, trigger deletion of the old vectors safely
+        if old_version is not None:
+            delete_old_vectors_task.delay(document_id, old_version)
 
     except Exception as e:
-        logger.exception(f"Ingestion pipeline failed for {document_id}")
+        logger.error(f"Failed to process Document {document_id}: {str(e)}")
         repo.update_status(document_id, ProcessingStatus.FAILED, None)
         # Re-raise to trigger celery retry logic
         raise self.retry(exc=e, countdown=60)

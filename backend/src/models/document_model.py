@@ -1,10 +1,11 @@
 import enum
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Enum, Text, ForeignKey, DateTime, Uuid, BigInteger, UniqueConstraint
+from sqlalchemy import String, Enum, Text, ForeignKey, DateTime, Uuid, BigInteger, UniqueConstraint, Integer, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.infrastructure.database import Base
+from src.models.system_model import DeletionStatus
 from src.models.user_model import utcnow
 
 class DocFormat(str, enum.Enum):
@@ -38,6 +39,10 @@ class Document(Base):
     
     status: Mapped[ProcessingStatus] = mapped_column(Enum(ProcessingStatus), default=ProcessingStatus.PENDING)
     qdrant_collection_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    deletion_status: Mapped[str] = mapped_column(String(50), default=DeletionStatus.NONE)
     
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
