@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from src.middleware.auth_middleware import get_current_user
 from src.models.user_model import User
-from src.infrastructure.s3_storage import S3Storage
+from src.repositories.s3.storage_repository import S3Storage
 
 router = APIRouter()
 s3_storage = S3Storage()
