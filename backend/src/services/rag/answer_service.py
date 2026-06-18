@@ -12,13 +12,15 @@ class AnswerService:
         if not self.api_key or self.api_key == "your_gemini_api_key_here":
             logger.warning("GEMINI_API_KEY is not set or template. Enabling offline answer fallback.")
             self.use_fallback = True
+            self.client = None
         else:
             try:
-                import google.generativeai as genai
-                genai.configure(api_key=self.api_key)
+                from google import genai
+                self.client = genai.Client(api_key=self.api_key)
             except Exception as e:
                 logger.error(f"Failed to configure Gemini in AnswerService: {e}. Enabling fallback.")
                 self.use_fallback = True
+                self.client = None
 
     def generate_answer(self, query: str, ranked_chunks: List[Dict[str, Any]], citations: List[Dict[str, Any]]) -> str:
         """
@@ -65,9 +67,14 @@ class AnswerService:
             return self._generate_offline_grounded_answer(query, ranked_chunks, citations)
 
         try:
-            import google.generativeai as genai
-            model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=system_instruction)
-            response = model.generate_content(prompt)
+            from google.genai import types
+            response = self.client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
+                )
+            )
             return response.text
         except Exception as e:
             logger.error(f"Gemini API generation failed: {e}. Falling back to offline synthesis.")
