@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 
 # Load environment variables from .env file before importing local modules
 load_dotenv()
-from src.api.routes import user_routes, academic_routes, document_routes, auth_routes, content_routes
+from src.api.routes import user_routes, academic_routes, document_routes
 from src.api.middleware.security_middleware import SecurityHeadersMiddleware
 from src.api.middleware.request_logger import RequestLoggerMiddleware
 from src.config.settings import Settings
@@ -54,8 +54,6 @@ app.add_exception_handler(Exception, generic_exception_handler)
 app.include_router(user_routes.router, prefix="/api/v1")
 app.include_router(academic_routes.router, prefix="/api/v1")
 app.include_router(document_routes.router, prefix="/api/v1")
-app.include_router(auth_routes.router, prefix="/api/auth")
-app.include_router(content_routes.router, prefix="/api/content")
 
 @app.get("/")
 def read_root():
