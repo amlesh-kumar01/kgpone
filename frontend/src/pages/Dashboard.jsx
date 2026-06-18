@@ -72,11 +72,14 @@ export default function Dashboard() {
           </p>
         </section>
 
-        {/* Placeholder Grid for Future Features */}
+        {/* Feature Navigation Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           
-          {/* Card 1 */}
-          <div className="group rounded-2xl bg-theme-surface border border-theme-border p-6 hover:border-theme-accent transition-all duration-300 cursor-pointer shadow-sm hover:shadow-[0_0_20px_rgba(78,222,163,0.05)]">
+          {/* Card 1: Marketplace */}
+          <div 
+            onClick={() => navigate('/marketplace')}
+            className="group rounded-2xl bg-theme-surface border border-theme-border p-6 hover:border-theme-accent transition-all duration-300 cursor-pointer shadow-sm hover:shadow-[0_0_20px_rgba(78,222,163,0.05)]"
+          >
             <div className="w-12 h-12 rounded-xl bg-theme-accent-light flex items-center justify-center mb-4 group-hover:bg-theme-accent-light/50 transition-colors">
               <span className="material-symbols-outlined text-theme-accent">account_tree</span>
             </div>
@@ -86,8 +89,11 @@ export default function Dashboard() {
             </p>
           </div>
 
-          {/* Card 2 */}
-          <div className="group rounded-2xl bg-theme-surface border border-theme-border p-6 hover:border-theme-accent transition-all duration-300 cursor-pointer shadow-sm hover:shadow-[0_0_20px_rgba(78,222,163,0.05)]">
+          {/* Card 2: Course Workspace */}
+          <div 
+            onClick={() => navigate('/workspace/CS30002')}
+            className="group rounded-2xl bg-theme-surface border border-theme-border p-6 hover:border-theme-accent transition-all duration-300 cursor-pointer shadow-sm hover:shadow-[0_0_20px_rgba(78,222,163,0.05)]"
+          >
             <div className="w-12 h-12 rounded-xl bg-theme-accent-light flex items-center justify-center mb-4 group-hover:bg-theme-accent-light/50 transition-colors">
               <span className="material-symbols-outlined text-theme-accent">splitscreen</span>
             </div>
@@ -97,16 +103,34 @@ export default function Dashboard() {
             </p>
           </div>
 
-          {/* Card 3 */}
-          <div className="group rounded-2xl bg-theme-surface border border-theme-border p-6 hover:border-theme-accent transition-all duration-300 cursor-pointer shadow-sm hover:shadow-[0_0_20px_rgba(78,222,163,0.05)]">
-            <div className="w-12 h-12 rounded-xl bg-theme-accent-light flex items-center justify-center mb-4 group-hover:bg-theme-accent-light/50 transition-colors">
-              <span className="material-symbols-outlined text-theme-accent">analytics</span>
+          {/* Card 3: Dynamic Publisher Portal or Progress Analytics */}
+          {user?.role === 'ADMIN' || user?.role === 'PUBLISHER' ? (
+            <div 
+              onClick={() => navigate('/publisher')}
+              className="group rounded-2xl bg-theme-surface border border-theme-border p-6 hover:border-theme-accent transition-all duration-300 cursor-pointer shadow-sm hover:shadow-[0_0_20px_rgba(78,222,163,0.05)]"
+            >
+              <div className="w-12 h-12 rounded-xl bg-theme-accent-light flex items-center justify-center mb-4 group-hover:bg-theme-accent-light/50 transition-colors">
+                <span className="material-symbols-outlined text-theme-accent">publish</span>
+              </div>
+              <h3 className="text-xl font-medium text-theme-text mb-2">Publisher Portal</h3>
+              <p className="text-theme-text-muted text-sm leading-relaxed">
+                Upload study materials, manage syllabus references, and configure course dependencies.
+              </p>
             </div>
-            <h3 className="text-xl font-medium text-theme-text mb-2">Progress Analytics</h3>
-            <p className="text-theme-text-muted text-sm leading-relaxed">
-              Track your learning milestones, completed modules, and mastery over complex topics.
-            </p>
-          </div>
+          ) : (
+            <div 
+              onClick={() => alert("Progress Analytics module is coming soon!")}
+              className="group rounded-2xl bg-theme-surface border border-theme-border p-6 hover:border-theme-accent transition-all duration-300 cursor-pointer shadow-sm hover:shadow-[0_0_20px_rgba(78,222,163,0.05)]"
+            >
+              <div className="w-12 h-12 rounded-xl bg-theme-accent-light flex items-center justify-center mb-4 group-hover:bg-theme-accent-light/50 transition-colors">
+                <span className="material-symbols-outlined text-theme-accent">analytics</span>
+              </div>
+              <h3 className="text-xl font-medium text-theme-text mb-2">Progress Analytics</h3>
+              <p className="text-theme-text-muted text-sm leading-relaxed">
+                Track your learning milestones, completed modules, and mastery over complex topics.
+              </p>
+            </div>
+          )}
 
         </div>
       </main>

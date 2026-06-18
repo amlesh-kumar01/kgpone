@@ -26,8 +26,18 @@ export default function Login() {
       }
       // Login/Registration successful, AuthContext will update user state and auto-redirect
       navigate('/');
-    } catch {
-      setError('Invalid credentials or server error.');
+    } catch (err) {
+      if (err.response) {
+        if (err.response.status === 401) {
+          setError('Invalid email or password. Please verify your credentials.');
+        } else {
+          setError(err.response.data?.detail || 'Server error. Please try again later.');
+        }
+      } else if (err.request) {
+        setError('Cannot connect to the server. Please make sure the backend is running on port 8000.');
+      } else {
+        setError(err.message || 'An unexpected error occurred.');
+      }
     } finally {
       setLoading(false);
     }
