@@ -28,6 +28,7 @@ This document provides a comprehensive mapping of all files in the backend works
     - [user_routes.py](../src/api/routes/user_routes.py)
   - Exceptions
     - [handlers.py](../src/api/exceptions/handlers.py)
+    - [openapi.py](../src/api/exceptions/openapi.py)
 - **Configuration**
   - [settings.py](../src/config/settings.py)
 - **Infrastructure Connectors**
@@ -151,6 +152,9 @@ Authentication routing for registration, cookie login, session refresh checks, a
 
 #### [handlers.py](../src/api/exceptions/handlers.py)
 Defines central response mapping for validation failures, duplicate keys, and generic server errors.
+
+#### [openapi.py](../src/api/exceptions/openapi.py)
+Configures custom OpenAPI specs, overriding default FastAPI model validations to align document definitions with custom validation error structures.
 
 ---
 
