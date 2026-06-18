@@ -1,17 +1,65 @@
 import uuid
+import logging
 import asyncio
 from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, FieldCondition, MatchValue, PayloadSchemaType
 from src.infrastructure.qdrant import get_qdrant_client
 from src.utils.interfaces import IVectorRepo
 
+logger = logging.getLogger("qdrant_repository")
+
 class QdrantRepository(IVectorRepo):
+    # In-memory storage fallback for offline mode
+    _fallback_storage: list[dict] = []
+
     def __init__(self, vector_size: int = 768):
         self.client = get_qdrant_client()
         self.vector_size = vector_size
+        self.use_fallback = False
         if self.client is None:
-            raise RuntimeError("Qdrant client could not be initialized.")
+            logger.warning("[Qdrant Fallback] Qdrant service not connected. Enabling offline in-memory mock search.")
+            self.use_fallback = True
 
     def search(self, collection_name: str, query_vector: list[float], filters: dict | None = None, limit: int = 5):
+        if self.use_fallback:
+            import math
+            def dot_product(v1, v2):
+                return sum(x * y for x, y in zip(v1, v2))
+            def magnitude(v):
+                return math.sqrt(sum(x * x for x in v))
+
+            scored_results = []
+            for point in self._fallback_storage:
+                # Filter check
+                if filters:
+                    match = True
+                    for k, v in filters.items():
+                        if point["payload"].get(k) != v:
+                            match = False
+                            break
+                    if not match:
+                        continue
+
+                # Cosine similarity
+                vec = point["vector"]
+                mag1 = magnitude(query_vector)
+                mag2 = magnitude(vec)
+                if mag1 == 0 or mag2 == 0:
+                    sim = 0.5 # Neutral baseline
+                else:
+                    sim = dot_product(query_vector, vec) / (mag1 * mag2)
+
+                # Mock ScoredPoint structure matching qdrant return type attributes
+                class MockScoredPoint:
+                    def __init__(self, point_id, score, payload):
+                        self.id = point_id
+                        self.score = score
+                        self.payload = payload
+
+                scored_results.append(MockScoredPoint(point["id"], sim, point["payload"]))
+
+            scored_results.sort(key=lambda x: x.score, reverse=True)
+            return scored_results[:limit]
+
         query_filter = None
         if filters:
             conditions = [
@@ -28,6 +76,13 @@ class QdrantRepository(IVectorRepo):
         )
 
     def delete_by_filter(self, collection_name: str, filters: dict):
+        if self.use_fallback:
+            self._fallback_storage = [
+                p for p in self._fallback_storage
+                if not all(p["payload"].get(k) == v for k, v in filters.items())
+            ]
+            return
+
         if not filters:
             return
             
@@ -46,6 +101,8 @@ class QdrantRepository(IVectorRepo):
             pass
 
     def _ensure_collection_exists(self, collection_name: str):
+        if self.use_fallback:
+            return
         collections_response = self.client.get_collections()
         collection_names = [col.name for col in collections_response.collections]
         
@@ -66,6 +123,16 @@ class QdrantRepository(IVectorRepo):
         if len(vectors) != len(metadata):
             raise ValueError("The number of vectors must match the number of metadata entries.")
             
+        if self.use_fallback:
+            for vec, meta in zip(vectors, metadata):
+                self._fallback_storage.append({
+                    "id": str(uuid.uuid4()),
+                    "vector": vec,
+                    "payload": meta
+                })
+            logger.info(f"[Qdrant Fallback] Saved {len(vectors)} points in-memory.")
+            return
+
         # Ensure the collection exists before inserting (blocking call wrapped in thread)
         await asyncio.to_thread(self._ensure_collection_exists, collection_name)
 
