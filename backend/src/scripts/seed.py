@@ -1,25 +1,25 @@
 import logging
-from passlib.context import CryptContext
 from src.infrastructure.database import SessionLocal, Base, engine
 from src.models.user_model import User, UserRole
 from src.models.course_model import Department, Course, CourseOffering, SemesterType, FacultyInfo
 from src.models.document_model import Document, DocumentMetadata
 from src.models.system_model import CleanupJob
+from pwdlib import PasswordHash
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+password_hash = PasswordHash.recommended()
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    return password_hash.hash(password)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("seed")
 
 def init_db():
-    logger.info("Creating database tables if they do not exist...")
-    # It's usually better to run migrations via Alembic, but this will create tables 
-    # if you want to bypass migrations for local rapid development.
+    logger.info("Dropping all existing database tables...")
+    Base.metadata.drop_all(bind=engine)
+    logger.info("Creating database tables...")
     Base.metadata.create_all(bind=engine)
-    logger.info("Tables created or already exist.")
+    logger.info("Tables created successfully.")
 
 def seed_data():
     db = SessionLocal()
@@ -36,6 +36,11 @@ def seed_data():
                 is_active=True
             )
             db.add(admin)
+            db.commit()
+        elif admin.hashed_password == "hashed_admin_password_placeholder":
+            logger.info("Updating placeholder admin password to a valid hash...")
+            admin.hashed_password = get_password_hash("admin123")
+            admin.full_name = "System Administrator"
             db.commit()
 
         # Check if CSE Department exists
