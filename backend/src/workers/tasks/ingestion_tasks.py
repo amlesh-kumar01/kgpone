@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 from src.infrastructure.database import SessionLocal
 from src.repositories.postgres.document_repository import DocumentRepository
 from src.repositories.s3.storage_repository import S3Storage
-from src.models.document_model import ProcessingStatus
+from src.models.document_model import ProcessingStatus, Document
+from src.models.academic_model import CourseOffering, Course
+from src.models.user_model import User
 
 from src.services.ingestion.parser.llama_parser import LlamaParserImpl
 from src.services.ingestion.chunking.recursive_chunker import RecursiveChunker
