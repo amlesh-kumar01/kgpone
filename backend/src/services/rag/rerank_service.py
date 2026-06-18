@@ -1,10 +1,13 @@
 import logging
-from typing import List, Dict, Any
+from typing import Any
+
+from src.services.rag.base import BaseReranker
 
 logger = logging.getLogger("rerank_service")
 
-class RerankService:
-    def rerank_chunks(self, query: str, chunks: List[Dict[str, Any]], top_n: int = 5) -> List[Dict[str, Any]]:
+
+class RerankService(BaseReranker):
+    def rerank_chunks(self, query: str, chunks: list[dict[str, Any]], top_n: int = 5) -> list[dict[str, Any]]:
         """
         Reranks chunks by blending vector scores with simple term matches.
         Boosts scores of chunks containing direct keyword matches.
