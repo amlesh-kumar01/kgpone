@@ -38,3 +38,12 @@ class IGraphRepository(ABC):
     @abstractmethod
     def delete_course_nodes(self, course_id: str):
         pass
+
+class IRetrievalService(ABC):
+    @abstractmethod
+    async def retrieve_context(self, query: str, course_code: str) -> dict:
+        """
+        Coordinates context retrieval for the query.
+        Returns a dictionary containing retrieved_chunks, graph_visualization, and metadata.
+        """
+        pass

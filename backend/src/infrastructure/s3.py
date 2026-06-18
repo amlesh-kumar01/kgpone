@@ -21,7 +21,7 @@ def get_s3_client():
             client_kwargs = {
                 "region_name": Settings.AWS_DEFAULT_REGION
             }
-            if Settings.S3_ENDPOINT_URL:
+            if Settings.S3_ENDPOINT_URL and Settings.S3_ENDPOINT_URL.startswith(("http://", "https://")):
                 client_kwargs["endpoint_url"] = Settings.S3_ENDPOINT_URL
 
             # Enable modern S3 signature support (avoids signature version issues)
