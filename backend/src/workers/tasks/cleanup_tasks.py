@@ -3,7 +3,7 @@ from uuid import UUID
 from celery import shared_task
 from src.infrastructure.database import SessionLocal
 from src.models.document_model import Document
-from src.models.course_model import Course
+from src.models.academic_model import Course
 from src.models.system_model import CleanupJob, DeletionStatus
 from src.repositories.s3.storage_repository import S3Storage
 from src.repositories.qdrant.vector_repository import QdrantRepository
@@ -90,7 +90,7 @@ def cleanup_course_task(self, course_id: str, job_id: str):
             
         # 2. Fetch all documents related to this course
         # A bit tricky: Document -> CourseOffering -> Course
-        from src.models.course_model import CourseOffering
+        from src.models.academic_model import CourseOffering
         docs = db.query(Document).join(CourseOffering, Document.course_offering_id == CourseOffering.id).join(Course, CourseOffering.course_id == Course.id).filter(Course.id == UUID(course_id)).all()
         
         # 3. S3 Cleanup for all docs

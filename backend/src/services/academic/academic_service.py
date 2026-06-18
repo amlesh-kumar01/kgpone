@@ -1,16 +1,16 @@
 from uuid import UUID
 from fastapi import HTTPException
-from src.repositories.postgres.course_repository import CourseRepository
-from src.schemas.course_schema import (
+from src.repositories.postgres.academic_repository import AcademicRepository
+from src.schemas.academic_schema import (
     DepartmentCreate, CourseCreate, CourseOfferingCreate,
     FacultyInfoCreate
 )
-from src.models.course_model import Department, Course, CourseOffering, FacultyInfo
+from src.models.academic_model import Department, Course, CourseOffering, FacultyInfo
 from src.models.system_model import CleanupJob, DeletionStatus
 from src.workers.tasks.cleanup_tasks import cleanup_course_task
 
-class CourseService:
-    def __init__(self, repository: CourseRepository):
+class AcademicService:
+    def __init__(self, repository: AcademicRepository):
         self.repository = repository
 
     def create_department(self, dept_in: DepartmentCreate) -> Department:

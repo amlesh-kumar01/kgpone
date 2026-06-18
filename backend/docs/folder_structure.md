@@ -9,7 +9,7 @@ backend/
 ├── src/                    # Main application source code
 │   ├── api/                # API Presentation Layer
 │   │   ├── middleware/     # Auth, Logging, Security Middlewares
-│   │   ├── routes/         # FastAPI Routers (e.g. user_routes, course_routes)
+│   │   ├── routes/         # FastAPI Routers (e.g. user_routes, academic_routes)
 │   │
 │   ├── config/             # Application configuration mapping from .env
 │   │
