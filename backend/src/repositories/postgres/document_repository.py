@@ -23,7 +23,7 @@ class DocumentRepository:
             description=doc_in.description,
             doc_type=doc_in.doc_type,
             format=doc_in.format,
-            s3_url=doc_in.s3_url,
+            s3_key=doc_in.s3_key,
             file_size_bytes=doc_in.file_size_bytes
         )
         self.session.add(doc)

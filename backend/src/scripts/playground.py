@@ -222,7 +222,7 @@ async def ingest_test_documents():
                 title=item["title"],
                 doc_type="NOTES",
                 format=DocFormat.PDF,
-                s3_url=f"s3://playground/{idx}.pdf",
+                s3_key=f"s3://playground/{idx}.pdf",
                 status=ProcessingStatus.COMPLETED
             )
             db.add(doc)
@@ -308,7 +308,7 @@ def list_workspace_db_contents():
             for offering in c.offerings:
                 print(f"    Offering ID: {offering.id} | Year: {offering.year} | Semester: {offering.semester.value}")
                 for doc in offering.documents:
-                    print(f"      Document: [{doc.status.value}] {doc.title} (S3 URL: {doc.s3_url})")
+                    print(f"      Document: [{doc.status.value}] {doc.title} (S3 Key: {doc.s3_key})")
         print("=============================")
     finally:
         db.close()
