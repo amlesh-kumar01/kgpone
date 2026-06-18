@@ -7,6 +7,8 @@ from src.services.auth.user_service import UserService
 from pydantic import BaseModel
 
 from src.schemas.response_schema import StandardResponse
+from src.models.user_model import User, UserRole
+from src.api.middleware.auth_middleware import require_role
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 
@@ -25,8 +27,17 @@ class RefreshRequest(BaseModel):
 
 @router.post("/register", response_model=StandardResponse[UserRead], status_code=status.HTTP_201_CREATED)
 def register_user(user_in: UserCreate, service: UserService = Depends(get_user_service)):
+    # Enforce that public registration can only create students
+    user_in.role = UserRole.STUDENT
     user = service.register_user(user_in)
     return StandardResponse(status="success", message="User registered successfully", data=user)
+
+@router.post("/publishers", response_model=StandardResponse[UserRead], status_code=status.HTTP_201_CREATED)
+def create_publisher(user_in: UserCreate, service: UserService = Depends(get_user_service), admin: User = Depends(require_role([UserRole.ADMIN]))):
+    # Enforce PUBLISHER role
+    user_in.role = UserRole.PUBLISHER
+    user = service.register_user(user_in)
+    return StandardResponse(status="success", message="Publisher registered successfully", data=user)
 
 @router.post("/login", response_model=StandardResponse[TokenResponse])
 def login_user(login_data: LoginRequest, response: Response, service: UserService = Depends(get_user_service)):
