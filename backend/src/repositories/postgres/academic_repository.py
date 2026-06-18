@@ -1,13 +1,13 @@
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from src.models.course_model import Department, Course, CourseOffering, FacultyInfo
-from src.schemas.course_schema import (
+from src.models.academic_model import Department, Course, CourseOffering, FacultyInfo
+from src.schemas.academic_schema import (
     DepartmentCreate, CourseCreate, CourseOfferingCreate,
     FacultyInfoCreate
 )
 
-class CourseRepository:
+class AcademicRepository:
     def __init__(self, session: Session):
         self.session = session
 

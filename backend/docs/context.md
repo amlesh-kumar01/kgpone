@@ -23,7 +23,7 @@ This document provides a comprehensive mapping of all files in the backend works
     - [request_logger.py](../src/api/middleware/request_logger.py)
     - [security_middleware.py](../src/api/middleware/security_middleware.py)
   - Routes
-    - [course_routes.py](../src/api/routes/course_routes.py)
+    - [academic_routes.py](../src/api/routes/academic_routes.py)
     - [document_routes.py](../src/api/routes/document_routes.py)
     - [user_routes.py](../src/api/routes/user_routes.py)
   - Exceptions
@@ -39,13 +39,13 @@ This document provides a comprehensive mapping of all files in the backend works
   - [s3.py](../src/infrastructure/s3.py)
 - **Database Models**
   - [user_model.py](../src/models/user_model.py)
-  - [course_model.py](../src/models/course_model.py)
+  - [academic_model.py](../src/models/academic_model.py)
   - [document_model.py](../src/models/document_model.py)
   - [system_model.py](../src/models/system_model.py)
 - **Data Repositories**
   - Postgres
     - [user_repository.py](../src/repositories/postgres/user_repository.py)
-    - [course_repository.py](../src/repositories/postgres/course_repository.py)
+    - [academic_repository.py](../src/repositories/postgres/academic_repository.py)
     - [document_repository.py](../src/repositories/postgres/document_repository.py)
   - Qdrant Vector DB
     - [vector_repository.py](../src/repositories/qdrant/vector_repository.py)
@@ -55,11 +55,11 @@ This document provides a comprehensive mapping of all files in the backend works
     - [graph_repository.py](../src/repositories/neo4j/graph_repository.py)
 - **Pydantic Validation Schemas**
   - [user_schema.py](../src/schemas/user_schema.py)
-  - [course_schema.py](../src/schemas/course_schema.py)
+  - [academic_schema.py](../src/schemas/academic_schema.py)
   - [document_schema.py](../src/schemas/document_schema.py)
   - [response_schema.py](../src/schemas/response_schema.py)
 - **Business Logic Services**
-  - [course_service.py](../src/services/academic/course_service.py)
+  - [academic_service.py](../src/services/academic/academic_service.py)
   - [user_service.py](../src/services/auth/user_service.py)
   - [graph_builder_service.py](../src/services/graph/graph_builder_service.py)
   - [graph_query_service.py](../src/services/graph/graph_query_service.py)
@@ -139,7 +139,7 @@ Appends headers protecting the API from common client-side threats including Cli
 
 ### Routes
 
-#### [course_routes.py](../src/api/routes/course_routes.py)
+#### [academic_routes.py](../src/api/routes/academic_routes.py)
 Registers HTTP endpoints for departments, courses, offerings, and professors, returning standardized JSON responses.
 
 #### [document_routes.py](../src/api/routes/document_routes.py)
@@ -189,7 +189,7 @@ Creates and pools Boto3 connection clients connecting the service to the S3 buck
 ### [user_model.py](../src/models/user_model.py)
 Declarative mapping defining columns, passwords, roles, and dates for User records.
 
-### [course_model.py](../src/models/course_model.py)
+### [academic_model.py](../src/models/academic_model.py)
 SQLAlchemy schemas representing academic structures, supporting departments, courses, offerings, and soft deletes.
 
 ### [document_model.py](../src/models/document_model.py)
@@ -207,8 +207,8 @@ Auditing schema models defining the soft-delete state enum and the background as
 #### [user_repository.py](../src/repositories/postgres/user_repository.py)
 Direct database interfaces for inserting, querying, and updating system user records.
 
-#### [course_repository.py](../src/repositories/postgres/course_repository.py)
-SQL queries and operations mapping department structures and course offering models.
+#### [academic_repository.py](../src/repositories/postgres/academic_repository.py)
+SQLQueries and operations mapping department structures and course offering models.
 
 #### [document_repository.py](../src/repositories/postgres/document_repository.py)
 CRUD operations modifying document upload status records and tracking soft-deleted entities.
@@ -235,7 +235,7 @@ Executes Cypher scripts organizing prerequisites, entities, and topics within Ne
 ### [user_schema.py](../src/schemas/user_schema.py)
 Request and response constraints for user registration, user logins, and token responses.
 
-### [course_schema.py](../src/schemas/course_schema.py)
+### [academic_schema.py](../src/schemas/academic_schema.py)
 Input/Output formats representing academic departments, new course entries, and assignable faculty.
 
 ### [document_schema.py](../src/schemas/document_schema.py)
@@ -248,7 +248,7 @@ Defines the standard API response format `StandardResponse` used across all cont
 
 ## Business Logic Services
 
-### [course_service.py](../src/services/academic/course_service.py)
+### [academic_service.py](../src/services/academic/academic_service.py)
 Handles business constraints for departments, faculty roles, and course records, registering background soft deletion tasks.
 
 ### [user_service.py](../src/services/auth/user_service.py)

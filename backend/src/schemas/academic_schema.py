@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 from uuid import UUID
 from datetime import datetime
-from src.models.course_model import SemesterType
+from src.models.academic_model import SemesterType
 
 # ----------------- Department Schemas -----------------
 class DepartmentBase(BaseModel):
