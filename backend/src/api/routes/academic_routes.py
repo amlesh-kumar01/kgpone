@@ -57,6 +57,19 @@ def delete_course(course_id: UUID, service: AcademicService = Depends(get_academ
     data = service.delete_course(course_id)
     return StandardResponse(status="success", message="Course soft-deleted. Cleanup job dispatched successfully.", data=data)
 
+# --- Prerequisites ---
+@router.post("/{course_id}/prerequisites", response_model=StandardResponse[CourseRead], status_code=status.HTTP_201_CREATED)
+def add_course_prerequisite(course_id: UUID, req: dict, service: AcademicService = Depends(get_academic_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):
+    # Expecting {"prerequisite_id": "uuid"} in req
+    prerequisite_id = UUID(req["prerequisite_id"])
+    data = service.add_prerequisite(course_id, prerequisite_id)
+    return StandardResponse(status="success", message="Prerequisite added successfully", data=data)
+
+@router.delete("/{course_id}/prerequisites/{prereq_id}", response_model=StandardResponse[CourseRead])
+def remove_course_prerequisite(course_id: UUID, prereq_id: UUID, service: AcademicService = Depends(get_academic_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):
+    data = service.remove_prerequisite(course_id, prereq_id)
+    return StandardResponse(status="success", message="Prerequisite removed successfully", data=data)
+
 # --- Offerings ---
 @router.post("/{course_id}/offerings", response_model=StandardResponse[CourseOfferingRead], status_code=status.HTTP_201_CREATED)
 def create_offering(offering_in: CourseOfferingCreate, service: AcademicService = Depends(get_academic_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):
@@ -68,8 +81,30 @@ def list_offerings(course_id: UUID, service: AcademicService = Depends(get_acade
     data = service.get_offerings(course_id)
     return StandardResponse(status="success", message="Course offerings retrieved successfully", data=data)
 
+@router.get("/offerings/{offering_id}", response_model=StandardResponse[CourseOfferingRead])
+def get_offering(offering_id: UUID, service: AcademicService = Depends(get_academic_service), user: User = Depends(get_current_user)):
+    data = service.get_offering(offering_id)
+    return StandardResponse(status="success", message="Course offering retrieved successfully", data=data)
+
+@router.delete("/offerings/{offering_id}", response_model=StandardResponse[CourseOfferingRead])
+def delete_offering(offering_id: UUID, service: AcademicService = Depends(get_academic_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):
+    data = service.delete_offering(offering_id)
+    return StandardResponse(status="success", message="Course offering deleted successfully", data=data)
+
+@router.get("/offerings/{offering_id}/faculty", response_model=StandardResponse[list[FacultyInfoRead]])
+def list_faculty_for_offering(offering_id: UUID, service: AcademicService = Depends(get_academic_service), user: User = Depends(get_current_user)):
+    data = service.get_faculty_for_offering(offering_id)
+    return StandardResponse(status="success", message="Faculty retrieved successfully", data=data)
+
 @router.post("/offerings/{offering_id}/faculty", response_model=StandardResponse[FacultyInfoRead], status_code=status.HTTP_201_CREATED)
-def add_faculty_to_offering(faculty_in: FacultyInfoCreate, service: AcademicService = Depends(get_academic_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):
+def add_faculty_to_offering(offering_id: UUID, faculty_in: FacultyInfoCreate, service: AcademicService = Depends(get_academic_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):
+    if faculty_in.course_offering_id != offering_id:
+        faculty_in.course_offering_id = offering_id
     data = service.create_faculty(faculty_in)
     return StandardResponse(status="success", message="Faculty added to offering successfully", data=data)
+
+@router.delete("/faculty/{faculty_id}", response_model=StandardResponse[FacultyInfoRead])
+def delete_faculty(faculty_id: UUID, service: AcademicService = Depends(get_academic_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):
+    data = service.delete_faculty(faculty_id)
+    return StandardResponse(status="success", message="Faculty deleted successfully", data=data)
 

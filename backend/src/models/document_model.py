@@ -34,7 +34,7 @@ class Document(Base):
     doc_type: Mapped[str] = mapped_column(String(50), nullable=False) # 'PYQ', 'SLIDES', 'NOTES', 'SYLLABUS'
     format: Mapped[DocFormat] = mapped_column(Enum(DocFormat), nullable=False)
     
-    s3_url: Mapped[str] = mapped_column(Text, nullable=False)
+    s3_key: Mapped[str] = mapped_column(Text, nullable=False)
     file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     
     status: Mapped[ProcessingStatus] = mapped_column(Enum(ProcessingStatus), default=ProcessingStatus.PENDING)

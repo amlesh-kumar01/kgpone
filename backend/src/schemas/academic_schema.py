@@ -31,7 +31,11 @@ class CourseRead(CourseBase):
     department_id: UUID
     created_at: datetime
     updated_at: datetime
+    prerequisites: list[CourseBase] = []
     model_config = ConfigDict(from_attributes=True)
+
+class CoursePrerequisiteAdd(BaseModel):
+    prerequisite_id: UUID
 
 # ----------------- CourseOffering Schemas -----------------
 class CourseOfferingBase(BaseModel):

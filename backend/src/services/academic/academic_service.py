@@ -61,6 +61,19 @@ class AcademicService:
         
         return course
 
+    def add_prerequisite(self, course_id: UUID, prerequisite_id: UUID) -> Course:
+        course = self.get_course(course_id)
+        prereq = self.get_course(prerequisite_id)
+        if not course or not prereq:
+            raise HTTPException(status_code=404, detail="Course or prerequisite not found")
+        return self.repository.add_prerequisite(course_id, prerequisite_id)
+
+    def remove_prerequisite(self, course_id: UUID, prerequisite_id: UUID) -> Course:
+        course = self.get_course(course_id)
+        if not course:
+            raise HTTPException(status_code=404, detail="Course not found")
+        return self.repository.remove_prerequisite(course_id, prerequisite_id)
+
     def create_offering(self, offering_in: CourseOfferingCreate) -> CourseOffering:
         course = self.repository.get_course(offering_in.course_id)
         if not course:
@@ -76,6 +89,28 @@ class AcademicService:
             raise HTTPException(status_code=404, detail="Course Offering not found")
         return offering
 
+    def delete_offering(self, offering_id: UUID):
+        offering = self.repository.get_offering(offering_id)
+        if not offering:
+            raise HTTPException(status_code=404, detail="Course Offering not found")
+        self.repository.session.delete(offering)
+        self.repository.session.commit()
+        return offering
+
     def create_faculty(self, faculty_in: FacultyInfoCreate) -> FacultyInfo:
         return self.repository.create_faculty_info(faculty_in)
+
+    def get_faculty_for_offering(self, offering_id: UUID) -> list[FacultyInfo]:
+        from sqlalchemy import select
+        stmt = select(FacultyInfo).where(FacultyInfo.course_offering_id == offering_id)
+        return list(self.repository.session.scalars(stmt).all())
+
+    def delete_faculty(self, faculty_id: UUID):
+        faculty = self.repository.session.get(FacultyInfo, faculty_id)
+        if not faculty:
+            raise HTTPException(status_code=404, detail="Faculty not found")
+        self.repository.session.delete(faculty)
+        self.repository.session.commit()
+        return faculty
+
 
