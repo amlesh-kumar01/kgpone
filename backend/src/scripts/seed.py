@@ -37,10 +37,29 @@ def seed_data():
             )
             db.add(admin)
             db.commit()
-        elif admin.hashed_password == "hashed_admin_password_placeholder":
-            logger.info("Updating placeholder admin password to a valid hash...")
+        else:
+            logger.info("Force-updating default Admin user password...")
             admin.hashed_password = get_password_hash("admin123")
             admin.full_name = "System Administrator"
+            db.commit()
+
+        # Check if Student already exists
+        student = db.query(User).filter(User.email == "student@kgpone.edu").first()
+        if not student:
+            logger.info("Creating default Student user (student@kgpone.edu / student123)...")
+            student = User(
+                email="student@kgpone.edu",
+                hashed_password=get_password_hash("student123"),
+                full_name="Test Student",
+                role=UserRole.STUDENT,
+                is_active=True
+            )
+            db.add(student)
+            db.commit()
+        else:
+            logger.info("Force-updating default Student user password...")
+            student.hashed_password = get_password_hash("student123")
+            student.full_name = "Test Student"
             db.commit()
 
         # Check if CSE Department exists
