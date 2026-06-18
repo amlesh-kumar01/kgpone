@@ -12,7 +12,7 @@ KgpOne is a comprehensive academic knowledge management system and backend API. 
 - **Cloud Storage**: AWS S3 (or LocalStack for local dev)
 - **AI Integration**:
   - `llama-parse` (Vision LLM parsing of PDFs)
-  - `google-generativeai` (Gemini embeddings generation)
+  - `google-genai` (Gemini embeddings generation)
   - `langchain-text-splitters` (Markdown-aware chunking)
 
 ## Key Features
