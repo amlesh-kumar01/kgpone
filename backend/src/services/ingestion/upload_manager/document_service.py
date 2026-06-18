@@ -14,8 +14,18 @@ class DocumentService:
         self.repository = repository
         self.s3_storage = s3_storage or S3Storage()
 
-    def generate_upload_url(self, user_id: UUID, filename: str, content_type: str) -> PresignedUrlResponse:
-        unique_file_key = f"documents/{user_id}/{uuid.uuid4()}_{filename}"
+    def generate_upload_url(self, user_id: UUID, course_offering_id: UUID, filename: str, content_type: str) -> PresignedUrlResponse:
+        from src.models.academic_model import CourseOffering
+        offering = self.repository.session.get(CourseOffering, course_offering_id)
+        if not offering:
+            raise HTTPException(status_code=404, detail="Course Offering not found")
+        
+        department_code = offering.course.department.code
+        course_code = offering.course.code
+        year = offering.year
+        semester = offering.semester.value
+        
+        unique_file_key = f"documents/{department_code}/{course_code}/{year}_{semester}/{user_id}_{uuid.uuid4()}_{filename}"
         presigned_data = self.s3_storage.generate_presigned_url(
             file_key=unique_file_key,
             content_type=content_type

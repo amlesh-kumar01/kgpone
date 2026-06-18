@@ -9,14 +9,14 @@ class S3Storage(IS3Storage):
     def __init__(self):
         self.bucket_name = Settings.S3_BUCKET_NAME
 
-    def upload(self, file_name: str, file_content: bytes):
+    def upload(self, file_key: str, file_content: bytes):
         """Uploads a file directly to the S3 bucket."""
         client = get_s3_client()
         if client is None:
             raise RuntimeError("S3 client is not initialized.")
         client.put_object(
             Bucket=self.bucket_name,
-            Key=file_name,
+            Key=file_key,
             Body=file_content
         )
 

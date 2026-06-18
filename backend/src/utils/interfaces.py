@@ -15,7 +15,7 @@ class IVectorRepo(ABC):
 
 class IS3Storage(ABC):
     @abstractmethod
-    def upload(self, file_name: str, file_content: bytes):
+    def upload(self, file_key: str, file_content: bytes):
         pass
 
     @abstractmethod

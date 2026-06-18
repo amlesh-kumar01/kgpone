@@ -20,7 +20,7 @@ def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
 
 @router.post("/presigned-url", response_model=StandardResponse[PresignedUrlResponse], status_code=status.HTTP_201_CREATED)
 def get_presigned_url(req: PresignedUrlRequest, service: DocumentService = Depends(get_document_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):
-    data = service.generate_upload_url(user.id, req.filename, req.content_type)
+    data = service.generate_upload_url(user.id, req.course_offering_id, req.filename, req.content_type)
     return StandardResponse(status="success", message="Presigned URL generated successfully", data=data)
 
 @router.post("/", response_model=StandardResponse[DocumentRead], status_code=status.HTTP_201_CREATED)

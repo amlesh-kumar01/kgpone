@@ -190,7 +190,7 @@ Creates and pools Boto3 connection clients connecting the service to the S3 buck
 Declarative mapping defining columns, passwords, roles, and dates for User records.
 
 ### [academic_model.py](../src/models/academic_model.py)
-SQLAlchemy schemas representing academic structures, supporting departments, courses, offerings, and soft deletes.
+SQLAlchemy schemas representing academic structures, supporting departments, courses, course prerequisites, offerings, and soft deletes.
 
 ### [document_model.py](../src/models/document_model.py)
 Schema definitions for documents (versions, states, soft deletes) and secondary key-value metadata collections.
@@ -236,7 +236,7 @@ Executes Cypher scripts organizing prerequisites, entities, and topics within Ne
 Request and response constraints for user registration, user logins, and token responses.
 
 ### [academic_schema.py](../src/schemas/academic_schema.py)
-Input/Output formats representing academic departments, new course entries, and assignable faculty.
+Input/Output formats representing academic departments, new course entries, course prerequisites, and assignable faculty.
 
 ### [document_schema.py](../src/schemas/document_schema.py)
 Input formats for updating document metadata parameters, presigned configurations, and status responses.
