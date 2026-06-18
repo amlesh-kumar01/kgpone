@@ -27,7 +27,7 @@ class DocumentBase(BaseModel):
 class DocumentCreate(DocumentBase):
     course_offering_id: UUID
     uploader_id: UUID | None = None
-    s3_url: str
+    s3_key: str
     file_size_bytes: int | None = None
     metadata_entries: list[DocumentMetadataCreate] = []
 
@@ -35,7 +35,7 @@ class DocumentRead(DocumentBase):
     id: UUID
     course_offering_id: UUID
     uploader_id: UUID | None
-    s3_url: str
+    s3_key: str
     file_size_bytes: int | None
     status: ProcessingStatus
     qdrant_collection_id: str | None
@@ -54,6 +54,7 @@ class DocumentUpdate(BaseModel):
 
 # ----------------- S3 Upload Schemas -----------------
 class PresignedUrlRequest(BaseModel):
+    course_offering_id: UUID
     filename: str
     content_type: str
 

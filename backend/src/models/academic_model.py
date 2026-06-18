@@ -24,6 +24,15 @@ class Department(Base):
     # Relationship
     courses: Mapped[list["Course"]] = relationship("Course", back_populates="department", cascade="all, delete-orphan")
 
+class CoursePrerequisite(Base):
+    __tablename__ = "course_prerequisites"
+    __table_args__ = (UniqueConstraint('course_id', 'prerequisite_id'),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    course_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
+    prerequisite_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
 class Course(Base):
     __tablename__ = "courses"
 
@@ -43,6 +52,13 @@ class Course(Base):
     # Relationships
     department: Mapped["Department"] = relationship("Department", back_populates="courses")
     offerings: Mapped[list["CourseOffering"]] = relationship("CourseOffering", back_populates="course", cascade="all, delete-orphan")
+    prerequisites: Mapped[list["Course"]] = relationship(
+        "Course",
+        secondary="course_prerequisites",
+        primaryjoin="Course.id==CoursePrerequisite.course_id",
+        secondaryjoin="Course.id==CoursePrerequisite.prerequisite_id",
+        backref="prerequisite_for"
+    )
 
 class CourseOffering(Base):
     __tablename__ = "course_offerings"

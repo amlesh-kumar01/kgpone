@@ -48,6 +48,31 @@ class AcademicRepository:
         self.session.refresh(course)
         return course
 
+    def add_prerequisite(self, course_id: UUID, prerequisite_id: UUID) -> Course:
+        from src.models.academic_model import CoursePrerequisite
+        # Check if course and prerequisite exist
+        course = self.get_course(course_id)
+        prerequisite = self.get_course(prerequisite_id)
+        if course and prerequisite:
+            link = CoursePrerequisite(course_id=course_id, prerequisite_id=prerequisite_id)
+            self.session.add(link)
+            self.session.commit()
+            self.session.refresh(course)
+        return course
+
+    def remove_prerequisite(self, course_id: UUID, prerequisite_id: UUID) -> Course:
+        from src.models.academic_model import CoursePrerequisite
+        link = self.session.scalar(select(CoursePrerequisite).where(
+            CoursePrerequisite.course_id == course_id,
+            CoursePrerequisite.prerequisite_id == prerequisite_id
+        ))
+        if link:
+            self.session.delete(link)
+            self.session.commit()
+        course = self.get_course(course_id)
+        return course
+
+
     # --- CourseOffering ---
     def get_offering(self, offering_id: UUID) -> CourseOffering | None:
         return self.session.get(CourseOffering, offering_id)

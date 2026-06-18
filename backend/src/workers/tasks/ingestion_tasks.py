@@ -38,8 +38,8 @@ def process_document_task(self, document_id: str, old_version: int = None):
         # Update status to processing
         repo.update_status(doc.id, ProcessingStatus.PROCESSING, None)
         
-        # We assume doc.s3_url holds the S3 object key (from Presigned URL response)
-        file_key = doc.s3_url 
+        # We assume doc.s3_key holds the S3 object key (from Presigned URL response)
+        file_key = doc.s3_key 
         
         # 2. Download from S3 to a temporary file
         s3_storage = S3Storage()

@@ -7,7 +7,7 @@ The relational data is managed by SQLAlchemy and Alembic.
 2. **Departments**: Organizes the university into `code` (e.g. `CSE`) and `name` (e.g. `Computer Science`).
 3. **Courses**: Central `Course` entity linking back to a department.
 4. **CourseOfferings**: Represents a specific instance of a course (e.g., `Autumn 2026`). Links to the base `Course`.
-5. **Documents**: Represents an uploaded file (e.g., PDF notes, PyQ). Links to a `CourseOffering`. Contains `title`, `doc_type` (e.g., `PYQ`, `NOTES`), and the AWS `s3_url`. It also tracks Celery pipeline `ProcessingStatus`.
+5. **Documents**: Represents an uploaded file (e.g., PDF notes, PyQ). Links to a `CourseOffering`. Contains `title`, `doc_type` (e.g., `PYQ`, `NOTES`), and the AWS `s3_key`. It also tracks Celery pipeline `ProcessingStatus`.
 6. **DocumentMetadata**: Key-value pairs attached to a `Document` representing arbitrary extra data (e.g. `professor = Dr XYZ`).
 
 ## Qdrant (Vector) Database
