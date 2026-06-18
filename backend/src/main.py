@@ -11,6 +11,7 @@ from src.api.exceptions.handlers import (
     generic_exception_handler, value_error_handler, 
     integrity_error_handler
 )
+from src.api.exceptions.openapi import customize_openapi
 from sqlalchemy.exc import IntegrityError
 
 # Load environment variables from .env file before importing local modules
@@ -23,6 +24,7 @@ from src.config.settings import Settings
 from src.infrastructure.database import Base, engine
 
 app = FastAPI(title="KgpOne Backend API")
+customize_openapi(app)
 
 # Database tables are now managed by Alembic migrations
 # Base.metadata.create_all(bind=engine)
