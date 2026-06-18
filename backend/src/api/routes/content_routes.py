@@ -133,7 +133,7 @@ def confirm_upload(
         description=req.description,
         doc_type="NOTES",
         format=doc_format,
-        s3_url=req.file_key,
+        s3_key=req.file_key,
         status=ProcessingStatus.PENDING
     )
     db.add(doc)
