@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from src.schemas.response_schema import StandardResponse
 from src.models.user_model import User, UserRole
-from src.api.middleware.auth_middleware import require_role
+from src.api.middleware.auth_middleware import require_role, get_current_user
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 
@@ -59,3 +59,12 @@ def login_user(login_data: LoginRequest, response: Response, service: UserServic
 def refresh_token(request: RefreshRequest, service: UserService = Depends(get_user_service)):
     tokens = service.refresh_access_token(request.refresh_token)
     return StandardResponse(status="success", message="Token refreshed successfully", data=tokens)
+
+@router.get("/me", response_model=StandardResponse[UserRead])
+def get_me(current_user: User = Depends(get_current_user)):
+    return StandardResponse(status="success", message="Profile retrieved successfully", data=current_user)
+
+@router.post("/logout", response_model=StandardResponse[None])
+def logout_user(response: Response):
+    response.delete_cookie(key="access_token", httponly=True, samesite="lax", secure=False)
+    return StandardResponse(status="success", message="Logout successful", data=None)
