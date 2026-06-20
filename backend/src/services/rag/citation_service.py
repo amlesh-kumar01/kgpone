@@ -1,10 +1,13 @@
 import logging
-from typing import List, Dict, Any
+from typing import Any
+
+from src.services.rag.base import BaseCitationFormatter
 
 logger = logging.getLogger("citation_service")
 
-class CitationService:
-    def format_citations(self, ranked_chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+
+class CitationService(BaseCitationFormatter):
+    def format_citations(self, ranked_chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Builds transparent provenance metadata for every document source chunk.
         """
