@@ -1,10 +1,13 @@
 import os
 import logging
-from typing import List, Dict, Any
+from typing import Any
+
+from src.services.rag.base import BaseAnswerGenerator
 
 logger = logging.getLogger("answer_service")
 
-class AnswerService:
+
+class AnswerService(BaseAnswerGenerator):
     def __init__(self):
         self.api_key = os.getenv("GEMINI_API_KEY")
         self.use_fallback = False
@@ -22,7 +25,7 @@ class AnswerService:
                 self.use_fallback = True
                 self.client = None
 
-    def generate_answer(self, query: str, ranked_chunks: List[Dict[str, Any]], citations: List[Dict[str, Any]]) -> str:
+    def generate_answer(self, query: str, ranked_chunks: list[dict[str, Any]], citations: list[dict[str, Any]]) -> str:
         """
         Generates a grounded academic response. Highlight prerequisite sources.
         """
@@ -80,7 +83,7 @@ class AnswerService:
             logger.error(f"Gemini API generation failed: {e}. Falling back to offline synthesis.")
             return self._generate_offline_grounded_answer(query, ranked_chunks, citations)
 
-    def _generate_offline_grounded_answer(self, query: str, ranked_chunks: List[Dict[str, Any]], citations: List[Dict[str, Any]]) -> str:
+    def _generate_offline_grounded_answer(self, query: str, ranked_chunks: list[dict[str, Any]], citations: list[dict[str, Any]]) -> str:
         """
         Offline fallback matching algorithm. Synthesizes a grounded answer from the chunk payloads locally.
         """

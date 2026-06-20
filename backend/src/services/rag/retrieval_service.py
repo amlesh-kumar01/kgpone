@@ -1,21 +1,28 @@
 import logging
-import asyncio
-from typing import List, Dict, Any
-from src.utils.interfaces import IRetrievalService
-from src.services.ingestion.embedding.gemini_embedding import GeminiEmbedder
-from src.repositories.qdrant.vector_repository import QdrantRepository
-from src.services.graph.prerequisite_service import PrerequisiteService
+from typing import Any
+
+from src.services.rag.base import BaseRetriever
+from src.services.ingestion.embedding.base import BaseEmbedder
+from src.services.graph.base import BasePrerequisiteDiagnoser
+from src.utils.interfaces import IVectorRepo
 
 logger = logging.getLogger("retrieval_service")
 
-class RetrievalService(IRetrievalService):
-    def __init__(self):
-        self.embedder = GeminiEmbedder()
-        self.qdrant = QdrantRepository()
-        self.prereq_service = PrerequisiteService()
-        self.collection_name = "documents" # Unified collection name matching ingestion pipeline
 
-    async def retrieve_context(self, query: str, course_code: str) -> Dict[str, Any]:
+class RetrievalService(BaseRetriever):
+    def __init__(
+        self,
+        embedder: BaseEmbedder,
+        vector_store: IVectorRepo,
+        prereq_diagnoser: BasePrerequisiteDiagnoser,
+        collection_name: str = "documents",
+    ):
+        self.embedder = embedder
+        self.vector_store = vector_store
+        self.prereq_diagnoser = prereq_diagnoser
+        self.collection_name = collection_name
+
+    async def retrieve_context(self, query: str, course_code: str) -> dict[str, Any]:
         """
         Coordinates hybrid vector + graph retrieval:
         1. Embeds query asynchronously.
@@ -39,15 +46,15 @@ class RetrievalService(IRetrievalService):
             }
         query_vector = query_vectors[0]
 
-        # 2. Query Qdrant for active course chunks
-        active_search_results = self.qdrant.search(
+        # 2. Query vector store for active course chunks
+        active_search_results = self.vector_store.search(
             collection_name=self.collection_name,
             query_vector=query_vector,
             limit=5,
             filters={"course_code": course_code}
         )
         
-        # Convert Qdrant ScoredPoint objects to standard dictionaries
+        # Convert ScoredPoint objects to standard dictionaries
         active_chunks = []
         for r in active_search_results:
             active_chunks.append({
@@ -57,7 +64,7 @@ class RetrievalService(IRetrievalService):
             })
 
         # 3. Graph Diagnostic: Check for missing foundational prerequisite concepts
-        prereq_diagnosis = self.prereq_service.diagnose_missing_prerequisites(query, course_code)
+        prereq_diagnosis = self.prereq_diagnoser.diagnose_missing_prerequisites(query, course_code)
         
         prereq_chunks = []
         if prereq_diagnosis["has_missing_prerequisites"]:
@@ -68,8 +75,8 @@ class RetrievalService(IRetrievalService):
                 prereq_course = link["course_code"]
                 prereq_concept = link["prereq_concept"]
                 
-                # Retrieve chunks from Qdrant filtering by prerequisite course code
-                prereq_search_results = self.qdrant.search(
+                # Retrieve chunks from vector store filtering by prerequisite course code
+                prereq_search_results = self.vector_store.search(
                     collection_name=self.collection_name,
                     query_vector=query_vector,
                     limit=3,

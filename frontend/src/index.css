@@ -20,19 +20,19 @@
   }
 
   .dark {
-    /* Dark Theme (existing kgpone dark green) */
-    --theme-bg: #0e1511;
-    --theme-surface: #16201a;
-    --theme-text: #dde4dd;
-    --theme-text-muted: #bbcabf;
-    --theme-text-strong: #dde4dd;
-    --theme-accent: #4edea3;
-    --theme-accent-dark: #4edea3;
-    --theme-accent-hover: rgba(78, 222, 163, 0.8);
-    --theme-accent-light: rgba(78, 222, 163, 0.2);
-    --theme-border: rgba(60, 74, 66, 0.3);
-    --theme-border-strong: rgba(60, 74, 66, 0.5);
-    --theme-input-placeholder: #bbcabf;
+    /* Dark Theme (Stitch inspired neon cyan/teal theme) */
+    --theme-bg: #060d13;
+    --theme-surface: #0D1520;
+    --theme-text: #ffffff;
+    --theme-text-muted: #9CA3AF;
+    --theme-text-strong: #ffffff;
+    --theme-accent: #00D2FF;
+    --theme-accent-dark: #00D2FF;
+    --theme-accent-hover: rgba(0, 210, 255, 0.8);
+    --theme-accent-light: rgba(0, 210, 255, 0.15);
+    --theme-border: rgba(26, 209, 255, 0.15);
+    --theme-border-strong: rgba(26, 209, 255, 0.3);
+    --theme-input-placeholder: #6B7280;
   }
 }
 
