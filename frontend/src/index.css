@@ -4,44 +4,78 @@
 
 @layer base {
   :root {
-    /* Light Theme (emerald & slate) */
-    --theme-bg: #f8fafc; /* slate-50 */
-    --theme-surface: #ffffff; /* white */
-    --theme-text: #0f172a; /* slate-900 */
-    --theme-text-muted: #64748b; /* slate-500 */
-    --theme-text-strong: #334155; /* slate-700 */
-    --theme-accent: #10b981; /* emerald-500 */
-    --theme-accent-dark: #059669; /* emerald-600 */
-    --theme-accent-hover: #047857; /* emerald-700 */
-    --theme-accent-light: rgba(16, 185, 129, 0.2); /* emerald-500/20 */
-    --theme-border: #e2e8f0; /* slate-200 */
-    --theme-border-strong: #cbd5e1; /* slate-300 */
-    --theme-input-placeholder: #94a3b8; /* slate-400 */
+    /* Lumière Premium Luxury Jewelry Theme - Light */
+    --background: 38 33% 96%; /* #faf7f2 */
+    --foreground: 30 8% 9%; /* #1a1816 */
+
+    --card: 0 0% 100%; /* #ffffff */
+    --card-foreground: 30 8% 9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 30 8% 9%;
+
+    --primary: 24 13% 15%; /* #2a2420 */
+    --primary-foreground: 38 33% 96%; /* #faf7f2 */
+
+    --secondary: 31 29% 87%; /* #e8dfd6 */
+    --secondary-foreground: 24 13% 15%;
+
+    --muted: 31 29% 87%; /* #e8dfd6 */
+    --muted-foreground: 16 5% 40%; /* #6b6360 */
+
+    --accent: 46 65% 52%; /* #d4af37 */
+    --accent-foreground: 0 0% 100%; /* #ffffff */
+
+    --destructive: 0 84.2% 60.2%; /* #ef4444 */
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 31 29% 87%; /* #e8dfd6 */
+    --input: 31 29% 87%;
+    --ring: 46 65% 52%; /* #d4af37 */
+
+    --radius: 0.5rem;
   }
 
   .dark {
-    /* Dark Theme (Stitch inspired neon cyan/teal theme) */
-    --theme-bg: #060d13;
-    --theme-surface: #0D1520;
-    --theme-text: #ffffff;
-    --theme-text-muted: #9CA3AF;
-    --theme-text-strong: #ffffff;
-    --theme-accent: #00D2FF;
-    --theme-accent-dark: #00D2FF;
-    --theme-accent-hover: rgba(0, 210, 255, 0.8);
-    --theme-accent-light: rgba(0, 210, 255, 0.15);
-    --theme-border: rgba(26, 209, 255, 0.15);
-    --theme-border-strong: rgba(26, 209, 255, 0.3);
-    --theme-input-placeholder: #6B7280;
+    /* Lumière Premium Luxury Jewelry Theme - Dark */
+    --background: 30 15% 5%; /* #0f0d0b */
+    --foreground: 38 33% 96%; /* #faf7f2 */
+
+    --card: 30 8% 9%; /* #1a1816 */
+    --card-foreground: 38 33% 96%;
+
+    --popover: 30 8% 9%;
+    --popover-foreground: 38 33% 96%;
+
+    --primary: 38 33% 96%; /* #faf7f2 */
+    --primary-foreground: 30 8% 9%; /* #1a1816 */
+
+    --secondary: 24 13% 15%;
+    --secondary-foreground: 38 33% 96%;
+
+    --muted: 24 13% 15%;
+    --muted-foreground: 24 8% 63%; /* #a8a09b */
+
+    --accent: 46 65% 52%; /* #d4af37 */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 24 13% 15%;
+    --input: 24 13% 15%;
+    --ring: 46 65% 52%; /* #d4af37 */
   }
 }
 
-.material-symbols-outlined {
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-}
-
-.glass-card {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif;
+  }
 }
