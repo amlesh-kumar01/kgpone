@@ -40,12 +40,13 @@ const AppRoutes = () => {
       <Route element={<DashboardLayout />}>
         <Route path="/" element={
           <ProtectedRoute>
-            {user?.role === 'STUDENT' ? <Marketplace /> : <Dashboard />}
+            {user?.role === 'STUDENT' ? <Dashboard /> : <Dashboard />}
           </ProtectedRoute>
         } />
         <Route path="/departments" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><Departments /></ProtectedRoute>} />
         <Route path="/courses" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><Courses /></ProtectedRoute>} />
         <Route path="/marketplace" element={<ProtectedRoute allowedRoles={['STUDENT']}><Marketplace /></ProtectedRoute>} />
+        <Route path="/marketplace/departments/:departmentId" element={<ProtectedRoute allowedRoles={['STUDENT']}><Marketplace /></ProtectedRoute>} />
         <Route path="/documents" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><Documents /></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute allowedRoles={['ADMIN']}><ComingSoon title="Users" /></ProtectedRoute>} />
       </Route>
