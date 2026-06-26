@@ -2,23 +2,17 @@ import logging
 import json
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
-import google.generativeai as genai
+from google import genai
 from src.config.settings import Settings
 from src.services.rag.base import BaseQueryPlanner
+from src.schemas.query_schema import QueryPlan
 
 logger = logging.getLogger("planner_service")
-
-class QueryPlan(BaseModel):
-    intent: str
-    course_code: Optional[str] = None
-    entities_mentioned: List[str] = []
-    backends_needed: List[str] = []
 
 class PlannerService(BaseQueryPlanner):
     def __init__(self, model_name: str = "gemini-2.5-flash"):
         self.model_name = model_name
-        genai.configure(api_key=Settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel(self.model_name)
+        self.client = genai.Client(api_key=Settings.GEMINI_API_KEY)
 
     async def detect_intent(self, query: str, context_course: Optional[str] = None) -> QueryPlan:
         """
@@ -46,9 +40,10 @@ class PlannerService(BaseQueryPlanner):
         """
 
         try:
-            response = await self.model.generate_content_async(
-                prompt,
-                generation_config=genai.GenerationConfig(
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=genai.types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=QueryPlan,
                     temperature=0.0

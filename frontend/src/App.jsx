@@ -16,6 +16,7 @@ import Departments from './pages/Departments';
 import Courses from './pages/Courses';
 import Documents from './pages/Documents';
 import ComingSoon from './pages/ComingSoon';
+import Chat from './pages/Chat';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -50,6 +51,7 @@ const AppRoutes = () => {
           <Route path="/documents" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><Documents /></ProtectedRoute>} />
         </Route>
         <Route path="/marketplace" element={<ProtectedRoute allowedRoles={['STUDENT']}><Marketplace /></ProtectedRoute>} />
+        <Route path="/chat" element={<ProtectedRoute allowedRoles={['STUDENT', 'ADMIN', 'PUBLISHER']}><Chat /></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute allowedRoles={['ADMIN']}><ComingSoon title="Users" /></ProtectedRoute>} />
       </Route>
     </Routes>

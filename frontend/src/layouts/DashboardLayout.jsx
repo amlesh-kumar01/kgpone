@@ -9,7 +9,8 @@ import {
   BookOpen, 
   FileText,
   LogOut,
-  Menu
+  Menu,
+  MessageSquare
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -29,6 +30,7 @@ const DashboardLayout = () => {
   // Navigation config based on roles
   const navItems = [
     { label: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['ADMIN', 'PUBLISHER', 'STUDENT'] },
+    { label: 'Assistant', path: '/chat', icon: <MessageSquare className="w-5 h-5 text-primary" />, roles: ['ADMIN', 'PUBLISHER', 'STUDENT'] },
     { label: 'Departments', path: '/departments', icon: <Library className="w-5 h-5" />, roles: ['ADMIN', 'PUBLISHER'] },
     { label: 'Courses', path: '/courses', icon: <BookOpen className="w-5 h-5" />, roles: ['ADMIN', 'PUBLISHER'] },
     { label: 'Marketplace', path: '/marketplace', icon: <Library className="w-5 h-5" />, roles: ['STUDENT'] },

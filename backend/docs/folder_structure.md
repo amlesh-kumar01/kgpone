@@ -11,19 +11,26 @@ backend/
 │   │   ├── middleware/     # Auth, Logging, Security Middlewares
 │   │   ├── routes/         # FastAPI Routers (e.g. user_routes, academic_routes)
 │   │
+│   ├── mcp/                # Standalone FastMCP Server components
+│   │   ├── server.py       # MCP Server instance
+│   │   ├── tools.py        # External tools exposed to AI Assistants
+│   │   └── prompts.py      # Predefined AI prompts (Study guide, etc.)
+│   │
 │   ├── config/             # Application configuration mapping from .env
 │   │
-│   ├── infrastructure/     # External connections (Database, Qdrant, Celery setup)
+│   ├── infrastructure/     # External connections (Database, Qdrant, Celery, Neo4j)
 │   │
 │   ├── models/             # SQLAlchemy ORM Models (Database Tables)
 │   │
-│   ├── repositories/       # Data Access Layer (Postgres CRUD, Qdrant, S3)
+│   ├── repositories/       # Data Access Layer (Postgres, Qdrant, S3, Neo4j Graph)
 │   │
 │   ├── schemas/            # Pydantic validation schemas (Input/Output format)
 │   │
 │   ├── services/           # Core Business Logic Layer
 │   │   ├── auth/           # JWT generation, role validation
-│   │   ├── ingestion/      # The Ingestion Pipeline (Upload, Parsing, Chunking)
+│   │   ├── ingestion/      # The Ingestion Pipeline (Upload, Parsing, Chunking, Extraction)
+│   │   ├── graph/          # Graph construction and relationship management
+│   │   └── rag/            # Hybrid Retrieval-Augmented Generation logic (Planner, Reranker, Retrieval)
 │   │
 │   ├── utils/              # Helpers and abstract Interfaces (`interfaces.py`)
 │   │

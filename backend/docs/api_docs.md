@@ -44,7 +44,8 @@ backend/
 │   │   ├── routes/             # HTTP endpoint definitions (controllers)
 │   │   │   ├── user_routes.py
 │   │   │   ├── academic_routes.py
-│   │   │   └── document_routes.py
+│   │   │   ├── document_routes.py
+│   │   │   └── query_routes.py # Hybrid RAG query endpoints
 │   │   ├── middleware/         # Request/response interceptors
 │   │   │   ├── auth_middleware.py
 │   │   │   ├── cors_middleware.py
@@ -64,6 +65,7 @@ backend/
 │   │   ├── user_schema.py
 │   │   ├── academic_schema.py
 │   │   ├── document_schema.py
+│   │   ├── query_schema.py     # Schemas for hybrid RAG search and ask
 │   │   └── response_schema.py
 │   ├── repositories/           # ── DATA ACCESS LAYER (Repository Pattern) ──
 │   │   ├── postgres/
@@ -75,24 +77,29 @@ backend/
 │   │   ├── s3/
 │   │   │   └── storage_repository.py
 │   │   └── neo4j/
-│   │       └── graph_repository.py
+│   │       └── graph_repository.py # Graph logic via Cypher queries
 │   ├── services/               # ── BUSINESS LOGIC LAYER ──
 │   │   ├── auth/
 │   │   │   └── user_service.py
 │   │   ├── academic/
 │   │   │   └── academic_service.py
 │   │   ├── graph/
-│   │   │   ├── graph_builder_service.py
+│   │   │   ├── graph_builder_service.py # Map entities to Neo4j
 │   │   │   ├── graph_query_service.py
 │   │   │   └── prerequisite_service.py
 │   │   ├── rag/
-│   │   │   ├── answer_service.py
+│   │   │   ├── base.py                  # Base interfaces for RAG
+│   │   │   ├── planner_service.py       # LLM query intent planner
+│   │   │   ├── answer_service.py        # LLM final answer generator
 │   │   │   ├── citation_service.py
-│   │   │   ├── rerank_service.py
-│   │   │   └── retrieval_service.py
+│   │   │   ├── rerank_service.py        # LLM context reranking
+│   │   │   └── retrieval_service.py     # Orchestrator for graph + vector search
 │   │   └── ingestion/
 │   │       ├── pipeline.py
 │   │       ├── metadata_builder.py
+│   │       ├── extraction/
+│   │       │   ├── base.py
+│   │       │   └── gemini_extractor.py  # LLM entity extraction
 │   │       ├── chunking/
 │   │       │   ├── base.py
 │   │       │   └── recursive_chunker.py

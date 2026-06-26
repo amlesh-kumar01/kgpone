@@ -1,6 +1,6 @@
 import logging
 from typing import Any
-import google.generativeai as genai
+from google import genai
 from pydantic import BaseModel
 from src.config.settings import Settings
 from src.services.rag.base import BaseReranker
@@ -13,8 +13,7 @@ class ChunkScore(BaseModel):
 class RerankService(BaseReranker):
     def __init__(self, model_name: str = "gemini-2.5-flash"):
         self.model_name = model_name
-        genai.configure(api_key=Settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel(self.model_name)
+        self.client = genai.Client(api_key=Settings.GEMINI_API_KEY)
 
     async def rerank_chunks(self, query: str, chunks: list[dict[str, Any]], top_n: int = 5) -> list[dict[str, Any]]:
         """
@@ -43,9 +42,10 @@ class RerankService(BaseReranker):
                 Score the relevance from 0.0 (completely irrelevant) to 1.0 (highly relevant).
                 Return ONLY a JSON object with 'relevance_score'.
                 """
-                response = await self.model.generate_content_async(
-                    prompt,
-                    generation_config=genai.GenerationConfig(
+                response = await self.client.aio.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                    config=genai.types.GenerateContentConfig(
                         response_mime_type="application/json",
                         response_schema=ChunkScore,
                         temperature=0.0

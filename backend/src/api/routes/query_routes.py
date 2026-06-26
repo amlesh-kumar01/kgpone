@@ -76,7 +76,7 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
     )
     
     return StandardResponse(
-        success=True,
+        status="success",
         message="Query answered successfully",
         data=response_data
     )
@@ -109,7 +109,7 @@ async def semantic_search(req: QueryRequest, services: dict = Depends(get_rag_se
             ))
             
     return StandardResponse(
-        success=True,
+        status="success",
         message="Search completed successfully",
         data=results
     )

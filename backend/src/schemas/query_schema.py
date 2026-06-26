@@ -3,6 +3,12 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime
 
+class QueryPlan(BaseModel):
+    intent: str
+    course_code: Optional[str] = None
+    entities_mentioned: List[str] = []
+    backends_needed: List[str] = []
+
 class QueryRequest(BaseModel):
     query: str
     course_code: Optional[str] = None
