@@ -28,6 +28,9 @@ dependencies = [
     "langchain-text-splitters>=1.1.2",
     "google-genai>=2.8.0",
     "pwdlib[argon2]>=0.3.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "google-generativeai>=0.8.6",
 ]
 
 [tool.pyright]

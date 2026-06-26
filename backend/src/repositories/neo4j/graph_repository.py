@@ -5,15 +5,13 @@ from src.infrastructure.neo4j import get_neo4j_driver
 logger = logging.getLogger("neo4j_repository")
 
 class Neo4jRepo:
-    # Local fallback graph: nodes are dicts by unique ID, relationships are lists of connections
-    _fallback_nodes: Dict[str, Dict[str, Any]] = {}
-    _fallback_relationships: List[Dict[str, Any]] = []
-
     def __init__(self):
         self.use_fallback = False
         driver = get_neo4j_driver()
         if driver is None:
             self.use_fallback = True
+            
+        self.initialize_schema()
 
     def _get_driver(self):
         driver = get_neo4j_driver()
@@ -21,111 +19,169 @@ class Neo4jRepo:
             self.use_fallback = True
         return driver
 
-    def execute_query(self, query: str, parameters: Optional[dict] = None) -> List[Dict[str, Any]]:
-        """Runs a Cypher query. Returns a list of dict records."""
+    def initialize_schema(self):
+        """Creates constraints and indexes for production."""
         driver = self._get_driver()
-        if self.use_fallback or driver is None:
-            logger.debug(f"[Fallback Graph] Query not run directly: {query}")
-            return []
+        if not driver:
+            return
+            
+        queries = [
+            "CREATE CONSTRAINT dept_code IF NOT EXISTS FOR (d:Department) REQUIRE d.code IS UNIQUE",
+            "CREATE CONSTRAINT course_code IF NOT EXISTS FOR (c:Course) REQUIRE c.code IS UNIQUE",
+            "CREATE CONSTRAINT offering_id IF NOT EXISTS FOR (o:CourseOffering) REQUIRE o.offering_id IS UNIQUE",
+            "CREATE CONSTRAINT doc_id IF NOT EXISTS FOR (d:Document) REQUIRE d.doc_id IS UNIQUE",
+            "CREATE INDEX topic_name IF NOT EXISTS FOR (t:Topic) ON (t.name)",
+            "CREATE INDEX concept_name IF NOT EXISTS FOR (c:Concept) ON (c.name)",
+            "CREATE INDEX algo_name IF NOT EXISTS FOR (a:Algorithm) ON (a.name)",
+            "CREATE INDEX formula_name IF NOT EXISTS FOR (f:Formula) ON (f.name)",
+            "CREATE INDEX tech_name IF NOT EXISTS FOR (t:Technology) ON (t.name)"
+        ]
+        
+        try:
+            with driver.session() as session:
+                for q in queries:
+                    session.run(q)
+            logger.info("Successfully initialized Neo4j constraints and indexes.")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Neo4j schema (it may already exist): {e}")
 
+    def execute_read_query(self, query: str, parameters: Optional[dict] = None) -> List[Dict[str, Any]]:
+        """Executes a read transaction."""
+        driver = self._get_driver()
+        if not driver:
+            return []
+            
         try:
             parameters = parameters or {}
             with driver.session() as session:
-                result = session.run(query, parameters)
+                result = session.execute_read(lambda tx: list(tx.run(query, parameters)))
                 return [dict(record) for record in result]
         except Exception as e:
-            logger.error(f"Neo4j query execution failed: {e}. Enabling fallback mode.")
-            self.use_fallback = True
+            logger.error(f"Neo4j read query failed: {e}")
             return []
 
-    def upsert_node(self, label: str, node_id: str, properties: Dict[str, Any]) -> bool:
-        """Upserts a node uniquely by label and node_id key property."""
+    def execute_write_query(self, query: str, parameters: Optional[dict] = None) -> bool:
+        """Executes a write transaction."""
         driver = self._get_driver()
-        if self.use_fallback or driver is None:
-            unique_key = f"{label}:{node_id}"
-            self._fallback_nodes[unique_key] = {
-                "id": node_id,
-                "label": label,
-                "properties": properties
-            }
-            logger.info(f"[Fallback Graph] Upserted node: {unique_key}")
-            return True
-
+        if not driver:
+            return False
+            
+        try:
+            parameters = parameters or {}
+            with driver.session() as session:
+                session.execute_write(lambda tx: tx.run(query, parameters))
+                return True
+        except Exception as e:
+            logger.error(f"Neo4j write query failed: {e}")
+            return False
+            
+    # --- Node Merging Methods ---
+    
+    def merge_node(self, label: str, unique_key: str, unique_value: str, properties: dict) -> bool:
+        """Generic method to merge a node by a unique key."""
         query = f"""
-        MERGE (n:{label} {{id: $node_id}})
+        MERGE (n:{label} {{{unique_key}: $unique_value}})
         SET n += $properties
         RETURN n
         """
-        try:
-            self.execute_query(query, {"node_id": node_id, "properties": properties})
-            return True
-        except Exception as e:
-            logger.warning(f"Neo4j upsert node failed: {e}. Writing to fallback.")
-            self.use_fallback = True
-            return self.upsert_node(label, node_id, properties)
+        return self.execute_write_query(query, {"unique_value": unique_value, "properties": properties})
 
-    def create_relationship(self, from_label: str, from_id: str, to_label: str, to_id: str, rel_type: str) -> bool:
-        """Creates a directed relationship from node A to node B."""
-        driver = self._get_driver()
-        if self.use_fallback or driver is None:
-            from_key = f"{from_label}:{from_id}"
-            to_key = f"{to_label}:{to_id}"
-            
-            # Check if relationship already exists
-            exists = any(
-                r["start"] == from_key and r["end"] == to_key and r["type"] == rel_type
-                for r in self._fallback_relationships
-            )
-            if not exists:
-                self._fallback_relationships.append({
-                    "start": from_key,
-                    "end": to_key,
-                    "type": rel_type
-                })
-                logger.info(f"[Fallback Graph] Created relationship: {from_key} -[{rel_type}]-> {to_key}")
-            return True
+    def merge_department(self, code: str, properties: dict):
+        return self.merge_node("Department", "code", code, properties)
 
+    def merge_course(self, code: str, properties: dict):
+        return self.merge_node("Course", "code", code, properties)
+
+    def merge_course_offering(self, offering_id: str, properties: dict):
+        return self.merge_node("CourseOffering", "offering_id", offering_id, properties)
+
+    def merge_faculty(self, name: str, properties: dict):
+        return self.merge_node("Faculty", "name", name, properties)
+
+    def merge_document(self, doc_id: str, properties: dict):
+        return self.merge_node("Document", "doc_id", doc_id, properties)
+
+    def merge_topic(self, name: str, properties: dict):
+        return self.merge_node("Topic", "name", name, properties)
+
+    def merge_concept(self, name: str, properties: dict):
+        return self.merge_node("Concept", "name", name, properties)
+
+    def merge_algorithm(self, name: str, properties: dict):
+        return self.merge_node("Algorithm", "name", name, properties)
+
+    def merge_formula(self, name: str, properties: dict):
+        return self.merge_node("Formula", "name", name, properties)
+
+    def merge_technology(self, name: str, properties: dict):
+        return self.merge_node("Technology", "name", name, properties)
+
+    def merge_book(self, title: str, properties: dict):
+        return self.merge_node("Book", "title", title, properties)
+
+    def merge_research_paper(self, title: str, properties: dict):
+        return self.merge_node("ResearchPaper", "title", title, properties)
+        
+    # --- Relationship Merging Methods ---
+
+    def merge_relationship(self, from_label: str, from_key: str, from_val: str, 
+                           to_label: str, to_key: str, to_val: str, rel_type: str) -> bool:
+        """Generic method to merge a relationship."""
         query = f"""
-        MATCH (a:{from_label} {{id: $from_id}})
-        MATCH (b:{to_label} {{id: $to_id}})
+        MATCH (a:{from_label} {{{from_key}: $from_val}})
+        MATCH (b:{to_label} {{{to_key}: $to_val}})
         MERGE (a)-[r:{rel_type}]->(b)
         RETURN r
         """
-        try:
-            self.execute_query(query, {"from_id": from_id, "to_id": to_id})
-            return True
-        except Exception as e:
-            logger.warning(f"Neo4j relationship failed: {e}. Writing to fallback.")
-            self.use_fallback = True
-            return self.create_relationship(from_label, from_id, to_label, to_id, rel_type)
-
-    def find_prerequisites_recursive_local(self, concept_name: str) -> List[Dict[str, Any]]:
-        """Helper for recursive graph traversal in local fallback memory store."""
-        visited = set()
-        path = []
+        return self.execute_write_query(query, {"from_val": from_val, "to_val": to_val})
         
-        def traverse(current_concept):
-            current_key = f"Concept:{current_concept}"
-            if current_key in visited:
-                return
-            visited.add(current_key)
-            
-            for rel in self._fallback_relationships:
-                if rel["start"] == current_key and rel["type"] == "HAS_PREREQUISITE":
-                    target_key = rel["end"]
-                    prereq_node = self._fallback_nodes.get(target_key)
-                    if prereq_node:
-                        prereq_concept = prereq_node["id"]
-                        path.append({
-                            "source_concept": current_concept,
-                            "prereq_concept": prereq_concept,
-                            "course_code": prereq_node["properties"].get("course_code", ""),
-                            "description": prereq_node["properties"].get("description", "")
-                        })
-                        traverse(prereq_concept)
+    # --- Queries ---
+    
+    def get_document_entities(self, doc_id: str):
+        query = """
+        MATCH (d:Document {doc_id: $doc_id})-[r]->(e)
+        RETURN type(r) as rel_type, labels(e)[0] as entity_type, e as entity
+        """
+        return self.execute_read_query(query, {"doc_id": doc_id})
 
-        traverse(concept_name)
-        return path
+    # --- Deletion ---
+        
+    def delete_document_entities(self, document_id: str) -> bool:
+        """Deletes the document node and any dangling entities that only this document links to"""
+        query = """
+        MATCH (d:Document {doc_id: $doc_id})
+        OPTIONAL MATCH (d)-[:COVERS|:MENTIONS|:HAS_FORMULA|:REFERENCES]->(e)
+        DETACH DELETE d
+        WITH e
+        WHERE e IS NOT NULL AND NOT ()-->(e)
+        DETACH DELETE e
+        """
+        return self.execute_write_query(query, {"doc_id": document_id})
+        
+    def delete_course_subgraph(self, course_code: str) -> bool:
+        """Delete Course and cascading offerings and documents."""
+        query = """
+        MATCH (c:Course {code: $course_code})
+        OPTIONAL MATCH (c)-[:HAS_OFFERING]->(o:CourseOffering)
+        OPTIONAL MATCH (o)-[:HAS_DOCUMENT]->(d:Document)
+        DETACH DELETE c, o, d
+        """
+        return self.execute_write_query(query, {"course_code": course_code})
 
     def close(self):
         pass
+
+    # Aliases for older methods to prevent breaking changes during refactor
+    def execute_query(self, query: str, parameters: Optional[dict] = None) -> List[Dict[str, Any]]:
+        return self.execute_read_query(query, parameters)
+        
+    def upsert_node(self, label: str, node_id: str, properties: Dict[str, Any]) -> bool:
+        # Fallback for previous code
+        unique_key = "id" if label in ["Course", "Concept"] else "name"
+        return self.merge_node(label, unique_key, node_id, properties)
+
+    def create_relationship(self, from_label: str, from_id: str, to_label: str, to_id: str, rel_type: str) -> bool:
+        # Fallback for previous code
+        from_key = "id" if from_label in ["Course", "Concept"] else "name"
+        to_key = "id" if to_label in ["Course", "Concept"] else "name"
+        return self.merge_relationship(from_label, from_key, from_id, to_label, to_key, to_id, rel_type)

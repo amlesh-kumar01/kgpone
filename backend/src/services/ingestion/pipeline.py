@@ -13,17 +13,21 @@ class IngestionPipeline:
         chunker: BaseChunker,
         embedder: BaseEmbedder,
         vector_store: IVectorRepo,
-        collection_name: str = "documents"
+        collection_name: str = "documents",
+        entity_extractor = None,
+        graph_builder = None
     ):
         self.parser = parser
         self.chunker = chunker
         self.embedder = embedder
         self.vector_store = vector_store
         self.collection_name = collection_name
+        self.entity_extractor = entity_extractor
+        self.graph_builder = graph_builder
 
     async def process_document(self, file_path: str, metadata_base: dict, parsing_instructions: str | None = None):
         """
-        Executes the full pipeline: Parse -> Chunk -> Embed -> Store.
+        Executes the full pipeline: Parse -> Chunk -> Embed -> Store -> Extract Entities.
         `metadata_base` should contain things like course_offering_id, document_id, etc.
         """
         logger.info(f"Starting ingestion pipeline for {file_path}")
@@ -58,4 +62,15 @@ class IngestionPipeline:
         logger.info("Storing vectors in Qdrant...")
         await self.vector_store.upsert(self.collection_name, vectors, metadata_list)
         
+        # 5. Extract Entities (Optional)
+        if self.entity_extractor and self.graph_builder:
+            logger.info("Extracting entities for Knowledge Graph...")
+            try:
+                doc_id = metadata_base.get("document_id")
+                extracted = await self.entity_extractor.extract(chunk_texts, metadata_base)
+                if extracted and doc_id:
+                    self.graph_builder.add_extracted_entities(doc_id, extracted)
+            except Exception as e:
+                logger.error(f"Entity extraction failed (continuing pipeline): {e}")
+
         logger.info("Ingestion pipeline completed successfully.")

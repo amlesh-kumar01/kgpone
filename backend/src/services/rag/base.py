@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Optional
 
-
+class BaseQueryPlanner(ABC):
+    @abstractmethod
+    async def detect_intent(self, query: str, context_course: Optional[str] = None):
+        """Classifies query into routing categories."""
+        pass
 class BaseRetriever(ABC):
     """
     Abstract contract for context retrieval services.
@@ -10,16 +14,9 @@ class BaseRetriever(ABC):
     """
 
     @abstractmethod
-    async def retrieve_context(self, query: str, course_code: str) -> dict[str, Any]:
+    async def retrieve_context(self, query: str, plan: Any) -> dict[str, Any]:
         """
-        Retrieves relevant chunks for a query within a course context.
-
-        Returns a dictionary containing:
-            - query: The original query string
-            - course_code: The target course code
-            - retrieved_chunks: List of scored chunk dicts with payloads
-            - graph_visualization: Node-link graph data for frontend
-            - has_missing_prerequisites: Whether prerequisite gaps were detected
+        Retrieves relevant chunks based on a query and QueryPlan.
         """
         pass
 
@@ -32,7 +29,7 @@ class BaseReranker(ABC):
     """
 
     @abstractmethod
-    def rerank_chunks(
+    async def rerank_chunks(
         self, query: str, chunks: list[dict[str, Any]], top_n: int = 5
     ) -> list[dict[str, Any]]:
         """

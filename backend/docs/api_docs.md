@@ -758,14 +758,87 @@ All errors are caught by global exception handlers and returned in a consistent 
 | `IntegrityError` | `409 Conflict` | `integrity_error_handler` |
 | `Exception` (generic) | `500 Internal Server Error` | `generic_exception_handler` |
 
-### Common Error Codes
-
-| Code | Meaning | Typical Cause |
-|------|---------|---------------|
-| `400` | Bad Request | Invalid input, inactive user, duplicate email |
-| `401` | Unauthorized | Missing/invalid/expired JWT token |
-| `403` | Forbidden | Insufficient role permissions (RBAC) |
-| `404` | Not Found | Resource doesn't exist or is soft-deleted |
-| `409` | Conflict | Duplicate unique constraint (email, course code) |
-| `422` | Validation Error | Request body doesn't match Pydantic schema |
 | `500` | Server Error | Unhandled exception |
+
+---
+
+### 7.5 Query & Hybrid RAG
+
+**Prefix**: `/api/v1/query`  
+**Tag**: `Query & RAG`
+
+| Method | Path | Auth | Roles | Description |
+|--------|------|------|-------|-------------|
+| `POST` | `/api/v1/query/ask` | ❌ | Public | Full Hybrid RAG pipeline for answering academic queries |
+| `POST` | `/api/v1/query/search` | ❌ | Public | Vector-based semantic search for documents |
+
+#### `POST /api/v1/query/ask`
+
+Executes the intelligent routing pipeline: Intent Planning -> Retrieval (Vector + Graph) -> LLM Reranking -> LLM Answer Generation.
+
+**Request Body** (`QueryRequest`):
+```json
+{
+    "query": "What is the difference between DFS and BFS?",
+    "course_code": "CS101"
+}
+```
+
+**Response** `200 OK` (`StandardResponse[QueryResponse]`):
+```json
+{
+    "status": "success",
+    "message": "Query answered successfully",
+    "data": {
+        "answer": "DFS explores down a path fully before backtracking...",
+        "citations": [...],
+        "sources": [...],
+        "intent": "compare",
+        "backends_used": ["neo4j", "qdrant"]
+    }
+}
+```
+
+#### `POST /api/v1/query/search`
+
+Forces a semantic search against the Qdrant vector database to return raw chunks.
+
+**Request Body** (`QueryRequest`):
+```json
+{
+    "query": "graph traversal techniques",
+    "course_code": "CS101"
+}
+```
+
+**Response** `200 OK` (`StandardResponse[List[SearchResult]]`)
+
+---
+
+## 10. MCP Server Integration
+
+The backend includes a **Model Context Protocol (MCP)** server to allow external AI assistants (like Claude, Gemini, or ChatGPT Desktop) to natively interact with the KnowledgeOS platform.
+
+### Starting the Server
+```bash
+cd backend
+uv run src/mcp.py
+```
+Or use the MCP CLI to connect it directly:
+```bash
+mcp dev src/mcp.py
+```
+
+### Available Tools
+The MCP server exposes the following tools to the AI:
+- `list_departments()`: Fetch all departments
+- `search_courses(query, department_code)`: Find courses
+- `get_course_details(course_code)`: Retrieve syllabus and prerequisites
+- `search_documents(query, course_code)`: Perform semantic search over course materials
+- `answer_course_question(question, course_code)`: Run the full KnowledgeOS RAG pipeline for an answer
+- `get_course_topics(course_code)`: Query the Neo4j graph for extracted topics
+
+### Available Prompts
+The MCP server provides standard prompts for guided AI interactions:
+- `study_guide`: Creates a comprehensive course study guide based on catalog and graph data.
+- `debug_prerequisites`: Helps a student discover what foundational knowledge they are missing.

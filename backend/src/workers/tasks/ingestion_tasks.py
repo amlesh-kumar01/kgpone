@@ -58,12 +58,20 @@ def run_document_ingestion(document_id: str, old_version: int = None):
         embedder = GeminiEmbedder()
         vector_store = QdrantRepository()
         
+        from src.services.ingestion.extraction.gemini_extractor import GeminiEntityExtractor
+        from src.services.graph.graph_builder_service import GraphBuilderService
+        
+        entity_extractor = GeminiEntityExtractor()
+        graph_builder = GraphBuilderService()
+        
         pipeline = IngestionPipeline(
             parser=parser,
             chunker=chunker,
             embedder=embedder,
             vector_store=vector_store,
-            collection_name="documents" # Single collection for all documents
+            collection_name="documents", # Single collection for all documents
+            entity_extractor=entity_extractor,
+            graph_builder=graph_builder
         )
         
         # Build flattened metadata payload using the builder

@@ -32,11 +32,32 @@ class IS3Storage(ABC):
 
 class IGraphRepository(ABC):
     @abstractmethod
-    def delete_document_nodes(self, document_id: str):
+    def initialize_schema(self):
         pass
 
     @abstractmethod
-    def delete_course_nodes(self, course_id: str):
+    def merge_node(self, label: str, unique_key: str, unique_value: str, properties: dict) -> bool:
+        pass
+
+    @abstractmethod
+    def merge_relationship(self, from_label: str, from_key: str, from_val: str, 
+                           to_label: str, to_key: str, to_val: str, rel_type: str) -> bool:
+        pass
+
+    @abstractmethod
+    def delete_document_entities(self, document_id: str) -> bool:
+        pass
+
+    @abstractmethod
+    def delete_course_subgraph(self, course_code: str) -> bool:
+        pass
+
+    @abstractmethod
+    def execute_read_query(self, query: str, parameters: dict | None = None) -> list[dict]:
+        pass
+
+    @abstractmethod
+    def execute_write_query(self, query: str, parameters: dict | None = None) -> bool:
         pass
 
 class IRetrievalService(ABC):

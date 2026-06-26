@@ -41,9 +41,10 @@ def cleanup_document_task(self, document_id: str, job_id: str):
         # 3. Qdrant Cleanup
         qdrant_repo.delete_by_filter("documents", {"document_id": document_id})
         
-        # 4. Graph Cleanup (Placeholder)
-        # graph_repo.delete_document_nodes(document_id)
-        
+        # 4. Graph Cleanup
+        from src.repositories.neo4j.graph_repository import Neo4jRepo
+        graph_repo = Neo4jRepo()
+        graph_repo.delete_document_entities(document_id)        
         # 5. Mark Document and Job Completed
         job.status = DeletionStatus.COMPLETED
         doc.deletion_status = DeletionStatus.COMPLETED
@@ -103,9 +104,10 @@ def cleanup_course_task(self, course_id: str, job_id: str):
         for doc in docs:
             qdrant_repo.delete_by_filter("documents", {"document_id": str(doc.id)})
             
-        # 5. Graph Cleanup (Placeholder)
-        # graph_repo.delete_course_nodes(course_id)
-        
+        # 5. Graph Cleanup
+        from src.repositories.neo4j.graph_repository import Neo4jRepo
+        graph_repo = Neo4jRepo()
+        graph_repo.delete_course_subgraph(course.code)        
         # 6. Hard Delete the course (cascades to offerings and documents)
         job.status = DeletionStatus.COMPLETED
         db.delete(course)
