@@ -127,10 +127,13 @@ class Neo4jRepo:
     def merge_relationship(self, from_label: str, from_key: str, from_val: str, 
                            to_label: str, to_key: str, to_val: str, rel_type: str) -> bool:
         """Generic method to merge a relationship."""
+        # Sanitize rel_type for Cypher (replace spaces and hyphens with underscores, uppercase)
+        clean_rel = rel_type.strip().replace(' ', '_').replace('-', '_').upper()
+        
         query = f"""
         MATCH (a:{from_label} {{{from_key}: $from_val}})
         MATCH (b:{to_label} {{{to_key}: $to_val}})
-        MERGE (a)-[r:{rel_type}]->(b)
+        MERGE (a)-[r:`{clean_rel}`]->(b)
         RETURN r
         """
         return self.execute_write_query(query, {"from_val": from_val, "to_val": to_val})
@@ -150,7 +153,7 @@ class Neo4jRepo:
         """Deletes the document node and any dangling entities that only this document links to"""
         query = """
         MATCH (d:Document {doc_id: $doc_id})
-        OPTIONAL MATCH (d)-[:COVERS|:MENTIONS|:HAS_FORMULA|:REFERENCES]->(e)
+        OPTIONAL MATCH (d)-[:COVERS|MENTIONS|HAS_FORMULA|REFERENCES]->(e)
         DETACH DELETE d
         WITH e
         WHERE e IS NOT NULL AND NOT ()-->(e)

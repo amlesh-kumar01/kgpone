@@ -2,11 +2,11 @@ import logging
 import asyncio
 from typing import Dict, Any, List
 from pydantic import BaseModel
-import google.generativeai as genai
-from src.config.settings import settings
+from src.infrastructure.llm_factory import LLMFactory
 from src.services.ingestion.extraction.base import BaseEntityExtractor
+from langchain_core.prompts import ChatPromptTemplate
 
-logger = logging.getLogger("gemini_extractor")
+logger = logging.getLogger("llm_extractor")
 
 class TopicEntity(BaseModel):
     name: str
@@ -55,15 +55,24 @@ class ExtractedEntities(BaseModel):
     papers: List[PaperEntity]
     relationships: List[RelationshipEntity]
 
-class GeminiEntityExtractor(BaseEntityExtractor):
-    def __init__(self, model_name: str = "gemini-2.5-flash"):
-        self.model_name = model_name
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel(self.model_name)
+class LLMEntityExtractor(BaseEntityExtractor):
+    def __init__(self, model_name: str | None = None):
+        self.factory = LLMFactory()
+        try:
+            llm = self.factory.get_llm(model_name)
+            self.structured_llm = llm.with_structured_output(ExtractedEntities)
+        except Exception as e:
+            logger.error(f"Failed to initialize LLM with structured output: {e}")
+            self.structured_llm = None
+            
+        self.prompt_template = ChatPromptTemplate.from_messages([
+            ("system", "You are an expert academic knowledge graph extractor. Extract educational entities from the text chunks provided by the user. Do not include any explanations, just the structured data."),
+            ("user", "Document Context:\nTitle: {title}\nCourse: {course}\nType: {type}\n\nText Chunks:\n{text}")
+        ])
 
     async def extract(self, chunks: List[str], context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Extracts entities using Gemini structured output.
+        Extracts entities using Langchain structured output.
         Batches chunks to avoid context limits and rate limits.
         """
         all_entities = {
@@ -71,44 +80,32 @@ class GeminiEntityExtractor(BaseEntityExtractor):
             "technologies": [], "books": [], "papers": [], "relationships": []
         }
         
+        if not self.structured_llm:
+            return all_entities
+            
+        chain = self.prompt_template | self.structured_llm
+        
         # Batch size of 5 chunks
         batch_size = 5
         for i in range(0, len(chunks), batch_size):
             batch_chunks = chunks[i:i+batch_size]
             batch_text = "\n\n---\n\n".join(batch_chunks)
             
-            prompt = f"""
-            You are an expert academic knowledge graph extractor. 
-            Extract educational entities from the following text chunks.
-            
-            Document Context:
-            Title: {context.get('title', 'Unknown')}
-            Course: {context.get('course_code', 'Unknown')}
-            Type: {context.get('doc_type', 'Unknown')}
-            
-            Text Chunks:
-            {batch_text}
-            """
-            
             try:
-                response = await self.model.generate_content_async(
-                    prompt,
-                    generation_config=genai.GenerationConfig(
-                        response_mime_type="application/json",
-                        response_schema=ExtractedEntities,
-                        temperature=0.1
-                    )
-                )
+                result = await chain.ainvoke({
+                    "title": context.get('title', 'Unknown'),
+                    "course": context.get('course_code', 'Unknown'),
+                    "type": context.get('doc_type', 'Unknown'),
+                    "text": batch_text
+                })
                 
-                import json
-                try:
-                    result = json.loads(response.text)
+                # result is an ExtractedEntities object
+                if result:
+                    res_dict = result.dict()
                     for key in all_entities:
-                        if key in result and result[key]:
-                            all_entities[key].extend(result[key])
-                except json.JSONDecodeError as je:
-                    logger.error(f"Failed to parse JSON from Gemini: {je}")
-                    
+                        if key in res_dict and res_dict[key]:
+                            all_entities[key].extend(res_dict[key])
+                            
             except Exception as e:
                 logger.error(f"Failed to extract entities for batch {i}: {e}")
                 

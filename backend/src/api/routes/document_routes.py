@@ -38,6 +38,11 @@ def get_document(document_id: UUID, service: DocumentService = Depends(get_docum
     data = service.get_document(document_id)
     return StandardResponse(status="success", message="Document retrieved successfully", data=data)
 
+@router.get("/{document_id}/download", response_model=StandardResponse[str])
+def download_document(document_id: UUID, service: DocumentService = Depends(get_document_service), user: User = Depends(get_current_user)):
+    url = service.generate_download_url(document_id)
+    return StandardResponse(status="success", message="Download URL generated", data=url)
+
 @router.patch("/{document_id}", response_model=StandardResponse[DocumentRead])
 def update_document(document_id: UUID, doc_update: DocumentUpdate, service: DocumentService = Depends(get_document_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):
     data = service.update_document(document_id, doc_update)

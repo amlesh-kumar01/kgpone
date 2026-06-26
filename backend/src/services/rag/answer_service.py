@@ -1,29 +1,29 @@
-import os
 import logging
 from typing import Any
-
+from src.infrastructure.llm_factory import LLMFactory
 from src.services.rag.base import BaseAnswerGenerator
+from langchain_core.prompts import ChatPromptTemplate
 
 logger = logging.getLogger("answer_service")
 
-
 class AnswerService(BaseAnswerGenerator):
-    def __init__(self):
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        self.use_fallback = False
-        
-        if not self.api_key or self.api_key == "your_gemini_api_key_here":
-            logger.warning("GEMINI_API_KEY is not set or template. Enabling offline answer fallback.")
-            self.use_fallback = True
-            self.client = None
-        else:
-            try:
-                from google import genai
-                self.client = genai.Client(api_key=self.api_key)
-            except Exception as e:
-                logger.error(f"Failed to configure Gemini in AnswerService: {e}. Enabling fallback.")
-                self.use_fallback = True
-                self.client = None
+    def __init__(self, model_name: str | None = None):
+        self.factory = LLMFactory()
+        try:
+            self.llm = self.factory.get_llm(model_name)
+        except Exception as e:
+            logger.error(f"Failed to configure LLM in AnswerService: {e}. Enabling fallback.")
+            self.llm = None
+
+        self.prompt_template = ChatPromptTemplate.from_messages([
+            ("system", """You are an elite academic tutor. Answer the student's question grounded strictly on the study materials provided below.
+Follow these critical guidelines:
+1. Answer detailedly and accurately based ONLY on the context blocks.
+2. If you use information from a block, append the citation tag (e.g. [CIT-1] or [CIT-2]) at the end of the sentence.
+3. IMPORTANT: If the context contains prerequisite material from previous years/courses, clearly explain this connection. Point out that the student is missing this foundational knowledge and reference the specific prerequisite course/concept (e.g. 'I found this concept in your Discrete Math lecture notes').
+4. Format formulas in LaTeX style (e.g. $$ for block math, $ for inline math)."""),
+            ("user", "Context Study Materials:\n{context}\n\nStudent Query: {query}\n\nAcademic Answer:")
+        ])
 
     def generate_answer(self, query: str, ranked_chunks: list[dict[str, Any]], citations: list[dict[str, Any]]) -> str:
         """
@@ -48,39 +48,21 @@ class AnswerService(BaseAnswerGenerator):
             )
         
         context_str = "\n\n".join(context_blocks)
-        
-        # Grounding system prompt
-        system_instruction = (
-            "You are an elite academic tutor. Answer the student's question grounded strictly on the study materials provided below. "
-            "Follow these critical guidelines:\n"
-            "1. Answer detailedly and accurately based ONLY on the context blocks.\n"
-            "2. If you use information from a block, append the citation tag (e.g. [CIT-1] or [CIT-2]) at the end of the sentence.\n"
-            "3. IMPORTANT: If the context contains prerequisite material from previous years/courses, clearly explain this connection. "
-            "Point out that the student is missing this foundational knowledge and reference the specific prerequisite course/concept (e.g. 'I found this concept in your Discrete Math lecture notes').\n"
-            "4. Format formulas in LaTeX style (e.g. $$ for block math, $ for inline math)."
-        )
 
-        prompt = (
-            f"Context Study Materials:\n{context_str}\n\n"
-            f"Student Query: {query}\n\n"
-            f"Academic Answer:"
-        )
-
-        if self.use_fallback:
+        if not self.llm:
             return self._generate_offline_grounded_answer(query, ranked_chunks, citations)
 
         try:
-            from google.genai import types
-            response = self.client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                )
-            )
-            return response.text
+            chain = self.prompt_template | self.llm
+            # ainvoke isn't used here since route is synchronous internally,
+            # but we can use invoke. Wait, the route calls it synchronously: answer = services["answer_generator"].generate_answer(...)
+            response = chain.invoke({
+                "context": context_str,
+                "query": query
+            })
+            return response.content
         except Exception as e:
-            logger.error(f"Gemini API generation failed: {e}. Falling back to offline synthesis.")
+            logger.error(f"LLM API generation failed: {e}. Falling back to offline synthesis.")
             return self._generate_offline_grounded_answer(query, ranked_chunks, citations)
 
     def _generate_offline_grounded_answer(self, query: str, ranked_chunks: list[dict[str, Any]], citations: list[dict[str, Any]]) -> str:

@@ -29,8 +29,14 @@ class Settings:
     CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
     CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 
-    # Gemini Settings
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    # AI Providers Configuration
+    AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini").lower()
+    AI_MODEL = os.getenv("AI_MODEL", "")
+    AI_API_KEY = os.getenv("AI_API_KEY", "")
+    
+    EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "gemini").lower()
+    EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "")
+    EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY", "")
 
     # Auth Settings
     SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-for-development")

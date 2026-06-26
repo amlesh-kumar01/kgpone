@@ -31,21 +31,25 @@ class S3Storage(IS3Storage):
             Filename=download_path
         )
 
-    def generate_presigned_url(self, file_key: str, content_type: str, expiration: int = 3600) -> dict:
-        """Generates a presigned URL for direct upload."""
+    def generate_presigned_url(self, file_key: str, content_type: str = None, expiration: int = 3600, action: str = "put_object") -> dict:
+        """Generates a presigned URL for direct upload or download."""
         client = get_s3_client()
         if client is None:
             raise RuntimeError("S3 client is not initialized.")
+            
+        params = {
+            "Bucket": self.bucket_name,
+            "Key": file_key
+        }
+        if content_type and action == "put_object":
+            params["ContentType"] = content_type
+            
         url = client.generate_presigned_url(
-            ClientMethod="put_object",
-            Params={
-                "Bucket": self.bucket_name,
-                "Key": file_key,
-                "ContentType": content_type
-            },
+            ClientMethod=action,
+            Params=params,
             ExpiresIn=expiration
         )
-        return {"upload_url": url, "file_key": file_key}
+        return {"url": url, "file_key": file_key}
 
     def delete_file(self, file_key: str):
         client = get_s3_client()

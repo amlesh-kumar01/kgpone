@@ -26,11 +26,13 @@ dependencies = [
     "alembic>=1.18.4",
     "argon2-cffi>=25.1.0",
     "langchain-text-splitters>=1.1.2",
-    "google-genai>=2.8.0",
+    "langchain-google-genai>=1.0.1",
+    "langchain-openai>=0.1.22",
+    "langchain-groq>=0.1.9",
+    "langchain-huggingface>=0.0.3",
     "pwdlib[argon2]>=0.3.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
-    "google-generativeai>=0.8.6",
 ]
 
 [tool.pyright]

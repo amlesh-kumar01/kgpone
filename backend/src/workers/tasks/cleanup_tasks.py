@@ -36,7 +36,10 @@ def cleanup_document_task(self, document_id: str, job_id: str):
             return
             
         # 2. S3 Cleanup
-        s3_storage.delete_file(doc.s3_key)
+        try:
+            s3_storage.delete_file(doc.s3_key)
+        except Exception as s3_e:
+            logger.warning(f"Failed to delete file from S3 (continuing DB cleanup): {s3_e}")
         
         # 3. Qdrant Cleanup
         qdrant_repo.delete_by_filter("documents", {"document_id": document_id})
@@ -96,7 +99,10 @@ def cleanup_course_task(self, course_id: str, job_id: str):
         
         # 3. S3 Cleanup for all docs
         for doc in docs:
-            s3_storage.delete_file(doc.s3_key)
+            try:
+                s3_storage.delete_file(doc.s3_key)
+            except Exception as s3_e:
+                logger.warning(f"Failed to delete file from S3 (continuing DB cleanup): {s3_e}")
         
         # 4. Qdrant Cleanup (We indexed course_id? Wait, we indexed course_code and course_offering_id)
         # Wait, the Qdrant payload contains course_code, but not course_id?

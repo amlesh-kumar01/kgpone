@@ -6,12 +6,14 @@ from datetime import datetime
 class QueryPlan(BaseModel):
     intent: str
     course_code: Optional[str] = None
+    course_offering_id: Optional[str] = None
     entities_mentioned: List[str] = []
     backends_needed: List[str] = []
 
 class QueryRequest(BaseModel):
     query: str
     course_code: Optional[str] = None
+    course_offering_id: Optional[str] = None
 
 class CitationRead(BaseModel):
     citation_id: str

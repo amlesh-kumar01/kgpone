@@ -68,3 +68,14 @@ class IRetrievalService(ABC):
         Returns a dictionary containing retrieved_chunks, graph_visualization, and metadata.
         """
         pass
+
+class ILLMFactory(ABC):
+    @abstractmethod
+    def get_llm(self, model_name: str | None = None, **kwargs):
+        """Returns a LangChain BaseChatModel instance based on configured AI_PROVIDER."""
+        pass
+
+    @abstractmethod
+    def get_embeddings(self, model_name: str | None = None, **kwargs):
+        """Returns a LangChain Embeddings instance based on configured EMBEDDING_PROVIDER."""
+        pass

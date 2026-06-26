@@ -13,10 +13,12 @@ class RetrievalService(BaseRetriever):
         self,
         embedder: BaseEmbedder,
         vector_store: IVectorRepo,
+        db = None,
         collection_name: str = "documents",
     ):
         self.embedder = embedder
         self.vector_store = vector_store
+        self.db = db
         self.collection_name = collection_name
         self.graph_repo = Neo4jRepo()
 
@@ -38,6 +40,8 @@ class RetrievalService(BaseRetriever):
                 filters = {}
                 if plan.course_code:
                     filters["course_code"] = plan.course_code
+                if getattr(plan, "course_offering_id", None):
+                    filters["course_offering_id"] = plan.course_offering_id
                     
                 # Search Qdrant
                 search_results = self.vector_store.search(
@@ -110,6 +114,30 @@ class RetrievalService(BaseRetriever):
                                 "document_id": "GRAPH"
                             }
                         })
+
+        # 3. Gather Postgres Context if needed
+        if "postgresql" in plan.backends_needed and self.db:
+            if plan.intent in ["list_documents", "download"]:
+                from src.repositories.postgres.document_repository import DocumentRepository
+                doc_repo = DocumentRepository(self.db)
+                
+                # We can fetch by offering if available
+                if getattr(plan, "course_offering_id", None):
+                    docs = doc_repo.get_documents_by_offering(plan.course_offering_id)
+                    for doc in docs:
+                        if doc.status == "COMPLETED":
+                            all_retrieved_chunks.append({
+                                "id": f"pg_doc_{doc.id}",
+                                "score": 1.0, # Exact DB match
+                                "payload": {
+                                    "text": f"Document available: {doc.title} (Type: {doc.doc_type}, Description: {doc.description or 'N/A'})",
+                                    "document_id": str(doc.id),
+                                    "title": doc.title,
+                                    "course_code": plan.course_code or "Unknown",
+                                    "document_type": doc.doc_type,
+                                    "s3_key": doc.s3_key
+                                }
+                            })
 
         # Remove exact duplicates by ID
         seen_ids = set()

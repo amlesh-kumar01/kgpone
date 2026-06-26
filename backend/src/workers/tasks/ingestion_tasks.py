@@ -13,7 +13,7 @@ from src.models.user_model import User
 
 from src.services.ingestion.parser.llama_parser import LlamaParserImpl
 from src.services.ingestion.chunking.recursive_chunker import RecursiveChunker
-from src.services.ingestion.embedding.gemini_embedding import GeminiEmbedder
+from src.services.ingestion.embedding.llm_embedding import LLMEmbedder
 from src.repositories.qdrant.vector_repository import QdrantRepository
 from src.services.ingestion.pipeline import IngestionPipeline
 from src.services.ingestion.metadata_builder import MetadataBuilder
@@ -55,13 +55,13 @@ def run_document_ingestion(document_id: str, old_version: int = None):
         # 3. Setup the pipeline
         parser = LlamaParserImpl()
         chunker = RecursiveChunker()
-        embedder = GeminiEmbedder()
+        embedder = LLMEmbedder()
         vector_store = QdrantRepository()
         
-        from src.services.ingestion.extraction.gemini_extractor import GeminiEntityExtractor
+        from src.services.ingestion.extraction.llm_extractor import LLMEntityExtractor
         from src.services.graph.graph_builder_service import GraphBuilderService
         
-        entity_extractor = GeminiEntityExtractor()
+        entity_extractor = LLMEntityExtractor()
         graph_builder = GraphBuilderService()
         
         pipeline = IngestionPipeline(

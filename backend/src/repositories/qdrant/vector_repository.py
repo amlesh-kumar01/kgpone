@@ -68,12 +68,12 @@ class QdrantRepository(IVectorRepo):
             ]
             query_filter = Filter(must=conditions)
             
-        return self.client.search(
+        return self.client.query_points(
             collection_name=collection_name,
-            query_vector=query_vector,
+            query=query_vector,
             query_filter=query_filter,
             limit=limit
-        )
+        ).points
 
     def delete_by_filter(self, collection_name: str, filters: dict):
         if self.use_fallback:

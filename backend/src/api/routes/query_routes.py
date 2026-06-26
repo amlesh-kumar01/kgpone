@@ -7,16 +7,18 @@ from src.services.rag.retrieval_service import RetrievalService
 from src.services.rag.rerank_service import RerankService
 from src.services.rag.citation_service import CitationService
 from src.services.rag.answer_service import AnswerService
-from src.services.ingestion.embedding.gemini_embedding import GeminiEmbedder
+from src.services.ingestion.embedding.llm_embedding import LLMEmbedder
 from src.repositories.qdrant.vector_repository import QdrantRepository
+from src.infrastructure.database import get_db
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/query", tags=["Query & RAG"])
 
-def get_rag_services():
+def get_rag_services(db: Session = Depends(get_db)):
     planner = PlannerService()
-    embedder = GeminiEmbedder()
+    embedder = LLMEmbedder()
     vector_repo = QdrantRepository()
-    retriever = RetrievalService(embedder=embedder, vector_store=vector_repo)
+    retriever = RetrievalService(embedder=embedder, vector_store=vector_repo, db=db)
     reranker = RerankService()
     citation_formatter = CitationService()
     answer_generator = AnswerService()
@@ -34,9 +36,10 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
     """Full hybrid RAG pipeline: Plan -> Retrieve -> Rerank -> Answer"""
     query = req.query
     course_code = req.course_code
+    course_offering_id = req.course_offering_id
     
     # 1. Plan
-    plan = await services["planner"].detect_intent(query, course_code)
+    plan = await services["planner"].detect_intent(query, course_code, course_offering_id)
     
     # 2. Retrieve
     context = await services["retriever"].retrieve_context(query, plan)
@@ -60,7 +63,7 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
             seen_docs.add(doc_id)
             sources.append({
                 "document_id": doc_id,
-                "title": payload.get("title", "Unknown"),
+                "title": payload.get("document_title", payload.get("title", "Unknown")),
                 "course_code": payload.get("course_code", ""),
                 "doc_type": payload.get("document_type", "Notes"),
                 "s3_key": payload.get("s3_key", "")
@@ -86,8 +89,9 @@ async def semantic_search(req: QueryRequest, services: dict = Depends(get_rag_se
     """Vector-only search returning ranked document chunks"""
     query = req.query
     course_code = req.course_code
+    course_offering_id = req.course_offering_id
     
-    plan = await services["planner"].detect_intent(query, course_code)
+    plan = await services["planner"].detect_intent(query, course_code, course_offering_id)
     # Force semantic search
     plan.backends_needed = ["qdrant"]
     
@@ -100,10 +104,10 @@ async def semantic_search(req: QueryRequest, services: dict = Depends(get_rag_se
         if payload.get("document_id") and payload.get("document_id") != "GRAPH":
             results.append(SearchResult(
                 document_id=payload.get("document_id"),
-                title=payload.get("title", "Unknown"),
+                title=payload.get("document_title", payload.get("title", "Unknown")),
                 course_code=payload.get("course_code", ""),
                 doc_type=payload.get("document_type", "Notes"),
-                snippet=payload.get("text", "")[:300],
+                snippet=payload.get("content", payload.get("text", ""))[:300],
                 score=chunk.get("final_score", chunk.get("score", 0.0)),
                 s3_key=payload.get("s3_key", "")
             ))

@@ -30,9 +30,20 @@ class DocumentService:
             content_type=content_type
         )
         return PresignedUrlResponse(
-            upload_url=presigned_data["upload_url"],
+            upload_url=presigned_data["url"],
             file_key=presigned_data["file_key"]
         )
+
+    def generate_download_url(self, document_id: UUID) -> str:
+        doc = self.get_document(document_id)
+        if not doc.s3_key:
+            raise HTTPException(status_code=400, detail="Document has no associated file")
+            
+        presigned_data = self.s3_storage.generate_presigned_url(
+            file_key=doc.s3_key,
+            action="get_object"
+        )
+        return presigned_data["url"]
 
     def upload_document(self, doc_in: DocumentCreate) -> Document:
         # Save the record with PENDING status.

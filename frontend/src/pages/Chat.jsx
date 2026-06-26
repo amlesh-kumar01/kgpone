@@ -1,14 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, User, Send, Network, Database, Loader2, Sparkles, BookOpen } from "lucide-react";
+import { Bot, User, Send, Network, Database, Loader2, Sparkles, BookOpen, Filter } from "lucide-react";
 import api from '../lib/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useAcademic } from '../context/AcademicContext';
 
 const Chat = () => {
+  const { departments, courses: allCourses } = useAcademic();
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -17,8 +20,50 @@ const Chat = () => {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Cascading Selection State (Persistent)
+  const [selectedDeptId, setSelectedDeptId] = useState(() => localStorage.getItem('kgpone_chat_dept_id') || '');
+  const [selectedCourseId, setSelectedCourseId] = useState(() => localStorage.getItem('kgpone_chat_course_id') || '');
+  const [selectedOfferingId, setSelectedOfferingId] = useState(() => localStorage.getItem('kgpone_chat_offering_id') || '');
+  
+  // Persist selections to localStorage
+  useEffect(() => {
+    localStorage.setItem('kgpone_chat_dept_id', selectedDeptId);
+  }, [selectedDeptId]);
+
+  useEffect(() => {
+    localStorage.setItem('kgpone_chat_course_id', selectedCourseId);
+  }, [selectedCourseId]);
+
+  useEffect(() => {
+    localStorage.setItem('kgpone_chat_offering_id', selectedOfferingId);
+  }, [selectedOfferingId]);
+  
+  const [filteredCourses, setFilteredCourses] = useState([]);
+  const [offerings, setOfferings] = useState([]);
+
   const { toast } = useToast();
   const scrollRef = useRef(null);
+
+  // Filter courses when department changes
+  useEffect(() => {
+    if (selectedDeptId) {
+      setFilteredCourses(allCourses.filter(c => String(c.department_id) === String(selectedDeptId)));
+    } else {
+      setFilteredCourses([]);
+    }
+  }, [selectedDeptId, allCourses]);
+
+  // Fetch offerings when course changes
+  useEffect(() => {
+    if (selectedCourseId) {
+      api.get(`/api/v1/academic/${selectedCourseId}/offerings`)
+        .then(res => setOfferings(res.data.data || []))
+        .catch(err => console.error("Failed to fetch offerings", err));
+    } else {
+      setOfferings([]);
+    }
+  }, [selectedCourseId]);
 
   // Auto-scroll to bottom of chat
   useEffect(() => {
@@ -39,11 +84,17 @@ const Chat = () => {
     setIsLoading(true);
 
     try {
-      // We pass course_code as null so it searches globally across all indexed documents 
-      // If we wanted course-specific chat, we'd add a dropdown or prop for course_code
+      // Find course code for the selected course
+      let courseCode = null;
+      if (selectedCourseId) {
+        const selectedCourse = allCourses.find(c => c.id === selectedCourseId);
+        courseCode = selectedCourse ? selectedCourse.code : null;
+      }
+
       const response = await api.post('/api/v1/query/ask', {
         query: userMessage,
-        course_code: null
+        course_code: courseCode || null,
+        course_offering_id: selectedOfferingId || null
       });
 
       if (response.data.status === 'success') {
@@ -105,15 +156,64 @@ const Chat = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] max-h-[800px] w-full max-w-5xl mx-auto">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="p-2 bg-primary/10 rounded-lg text-primary">
-          <Sparkles className="w-6 h-6" />
+    <div className="flex flex-col h-[calc(100vh-8rem)] max-h-[800px] w-full max-w-5xl mx-auto px-4 lg:px-0">
+      <div className="flex flex-col gap-4 mb-4">
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-primary/10 rounded-lg text-primary">
+            <Sparkles className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">KnowledgeOS Assistant</h1>
+            <p className="text-sm text-muted-foreground">Hybrid GraphRAG-powered academic tutor</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">KnowledgeOS Assistant</h1>
-          <p className="text-sm text-muted-foreground">Hybrid GraphRAG-powered academic tutor</p>
-        </div>
+
+        {/* Global Filter Bar */}
+        <Card className="rounded-lg shadow-sm border border-border bg-card">
+          <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center">
+            <div className="flex items-center gap-2 text-muted-foreground font-medium mr-2 whitespace-nowrap">
+              <Filter size={18} /> Context Filter
+            </div>
+            <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Select value={selectedDeptId} onValueChange={(val) => {
+                setSelectedDeptId(val === 'all' ? '' : val);
+                setSelectedCourseId('');
+                setSelectedOfferingId('');
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="1. Any Department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any Department</SelectItem>
+                  {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedCourseId} onValueChange={(val) => {
+                setSelectedCourseId(val === 'all' ? '' : val);
+                setSelectedOfferingId('');
+              }} disabled={!selectedDeptId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="2. Any Course" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any Course</SelectItem>
+                  {filteredCourses.map(c => <SelectItem key={c.id} value={c.id}>{c.code}</SelectItem>)}
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedOfferingId} onValueChange={(val) => setSelectedOfferingId(val === 'all' ? '' : val)} disabled={!selectedCourseId || offerings.length === 0}>
+                <SelectTrigger>
+                  <SelectValue placeholder={offerings.length === 0 && selectedCourseId ? "No offerings available" : "3. Any Offering"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any Offering</SelectItem>
+                  {offerings.map(o => <SelectItem key={o.id} value={o.id}>{o.semester} {o.year}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="flex-1 flex flex-col overflow-hidden border shadow-sm">
@@ -209,7 +309,7 @@ const Chat = () => {
               <Input 
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about a topic, course prerequisites, or search documents..."
+                placeholder={selectedCourseId ? "Ask about the selected course..." : "Ask about a topic, course prerequisites, or search documents..."}
                 className="pr-12 py-6 text-sm bg-slate-50 dark:bg-slate-900/50 focus-visible:ring-primary/50"
                 disabled={isLoading}
               />

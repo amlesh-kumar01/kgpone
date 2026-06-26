@@ -49,9 +49,9 @@ const AppRoutes = () => {
           <Route path="/departments" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><Departments /></ProtectedRoute>} />
           <Route path="/courses" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><Courses /></ProtectedRoute>} />
           <Route path="/documents" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><Documents /></ProtectedRoute>} />
+          <Route path="/chat" element={<ProtectedRoute allowedRoles={['STUDENT', 'ADMIN', 'PUBLISHER']}><Chat /></ProtectedRoute>} />
         </Route>
         <Route path="/marketplace" element={<ProtectedRoute allowedRoles={['STUDENT']}><Marketplace /></ProtectedRoute>} />
-        <Route path="/chat" element={<ProtectedRoute allowedRoles={['STUDENT', 'ADMIN', 'PUBLISHER']}><Chat /></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute allowedRoles={['ADMIN']}><ComingSoon title="Users" /></ProtectedRoute>} />
       </Route>
     </Routes>

@@ -24,6 +24,7 @@ class MetadataBuilder:
             "document_format": document.format.value,
             "status": document.status.value,
             "created_at": document.created_at.isoformat() if document.created_at else None,
+            "s3_key": document.s3_key,
         }
         
         if uploader:

@@ -59,6 +59,10 @@ To enable the background AI ingestion pipeline (which parses PDFs and embeds chu
 ```bash
 uv run celery -A src.workers.app.celery_app worker --loglevel=info
 ```
-
+> [!NOTE]
+> **Windows Users**: Celery does not fully support Windows natively. If you encounter a `PermissionError: [WinError 5] Access is denied` or `billiard` process crashes, append `--pool=solo` to the command:
+> ```bash
+> uv run celery -A src.workers.app.celery_app worker --loglevel=info --pool=solo
+> ```
 ---
 Happy Coding!
