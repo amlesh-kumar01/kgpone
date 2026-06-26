@@ -41,7 +41,7 @@ const AppRoutes = () => {
       <Route element={<DashboardLayout />}>
         <Route path="/" element={
           <ProtectedRoute>
-            {user?.role === 'STUDENT' ? <Marketplace /> : <Dashboard />}
+            {user?.role === 'STUDENT' ? <Dashboard /> : <Dashboard />}
           </ProtectedRoute>
         } />
         <Route element={<AcademicLayout />}>

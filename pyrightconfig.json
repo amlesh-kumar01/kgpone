@@ -1,0 +1,11 @@
+{
+    "include": [
+        "backend/src",
+        "backend/alembic"
+    ],
+    "executionEnvironments": [
+        {
+            "root": "backend"
+        }
+    ]
+}
