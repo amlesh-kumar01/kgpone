@@ -9,11 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, BookOpen } from "lucide-react";
 import api from '../lib/api';
+import { useAcademic } from '../context/AcademicContext';
+import ManageOfferings from '../components/ManageOfferings';
 
 const Courses = () => {
-  const [courses, setCourses] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { departments, courses, loading, refreshAcademicData } = useAcademic();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   const [formData, setFormData] = useState({ 
@@ -26,30 +26,6 @@ const Courses = () => {
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [coursesRes, deptsRes] = await Promise.all([
-        api.get('/api/v1/academic/'),
-        api.get('/api/v1/academic/departments')
-      ]);
-      setCourses(coursesRes.data.data || []);
-      setDepartments(deptsRes.data.data || []);
-    } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "Failed to load data",
-        description: err.response?.data?.message || err.message,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -59,7 +35,7 @@ const Courses = () => {
         toast({ title: "Course created successfully!" });
         setIsDialogOpen(false);
         setFormData({ department_id: '', code: '', title: '', description: '', credits: 4 });
-        fetchData();
+        refreshAcademicData();
       }
     } catch (err) {
       toast({
@@ -163,6 +139,7 @@ const Courses = () => {
                 <TableHead>Title</TableHead>
                 <TableHead>Credits</TableHead>
                 <TableHead>Department</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -189,6 +166,9 @@ const Courses = () => {
                     <TableCell>{course.credits}</TableCell>
                     <TableCell>
                       {departments.find(d => d.id === course.department_id)?.code || 'Unknown'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <ManageOfferings course={course} />
                     </TableCell>
                   </TableRow>
                 ))

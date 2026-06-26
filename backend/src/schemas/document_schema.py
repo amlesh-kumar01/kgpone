@@ -54,9 +54,9 @@ class DocumentUpdate(BaseModel):
 
 # ----------------- S3 Upload Schemas -----------------
 class PresignedUrlRequest(BaseModel):
-    course_offering_id: UUID
     filename: str
     content_type: str
+    course_offering_id: UUID
 
 class PresignedUrlResponse(BaseModel):
     upload_url: str
