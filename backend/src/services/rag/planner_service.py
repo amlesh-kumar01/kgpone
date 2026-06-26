@@ -55,7 +55,7 @@ Do not include any other text, just the structured output."""),
             intent = plan.intent
             if intent in ["download", "faculty_lookup", "list_documents", "list_courses"]:
                 plan.backends_needed = ["postgresql"]
-            elif intent in ["prerequisites", "concept_search"]:
+            elif intent in ["prerequisites"]:
                 plan.backends_needed = ["neo4j"]
             elif intent in ["semantic_search"]:
                 plan.backends_needed = ["qdrant"]

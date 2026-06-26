@@ -94,7 +94,7 @@ class RetrievalService(BaseRetriever):
                         }
                     })
             
-            elif plan.intent in ["topic_explain", "compare", "relationship"]:
+            elif plan.intent in ["topic_explain", "compare", "relationship", "concept_search"]:
                 # Try to find related entities in the graph to boost context
                 for entity in plan.entities_mentioned:
                     cypher = """

@@ -37,7 +37,7 @@ class LlamaParserImpl(BaseParser):
             parser = LlamaParse(
                 api_key=self.api_key,
                 result_type="markdown",
-                parsing_instruction=math_instructions,
+                system_prompt=math_instructions,
                 verbose=False
             )
             # load_data is blocking, so run it in a threadpool to avoid blocking the async event loop if needed

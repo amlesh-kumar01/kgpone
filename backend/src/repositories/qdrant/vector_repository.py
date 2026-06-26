@@ -11,7 +11,7 @@ class QdrantRepository(IVectorRepo):
     # In-memory storage fallback for offline mode
     _fallback_storage: list[dict] = []
 
-    def __init__(self, vector_size: int = 768):
+    def __init__(self, vector_size: int = 3072):
         self.client = get_qdrant_client()
         self.vector_size = vector_size
         self.use_fallback = False

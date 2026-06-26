@@ -148,5 +148,9 @@ def process_document_task(self, document_id: str, old_version: int = None):
         if old_version is not None:
             delete_old_vectors_task.delay(document_id, old_version)
     except Exception as e:
+        error_msg = str(e).lower()
+        if "429" in error_msg or "quota" in error_msg:
+            logger.error(f"Permanent API Error (Rate Limit/Quota). Stopping retries for Document {document_id}")
+            return # Fail gracefully, DB is already marked as FAILED in run_document_ingestion
         # Re-raise to trigger celery retry logic
         raise self.retry(exc=e, countdown=60)

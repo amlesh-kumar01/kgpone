@@ -8,37 +8,41 @@ from langchain_core.prompts import ChatPromptTemplate
 
 logger = logging.getLogger("llm_extractor")
 
+from typing import Dict, Any, List, Optional
+from pydantic import BaseModel, Field
+
+# Using Optional fields and default_factory prevents LLM strict schema validation crashes
 class TopicEntity(BaseModel):
-    name: str
-    description: str
+    name: str = Field(description="Name of the topic")
+    description: Optional[str] = Field(default=None, description="Detailed description")
 
 class ConceptEntity(BaseModel):
     name: str
-    description: str
-    depends_on: List[str]
+    description: Optional[str] = None
+    depends_on: List[str] = Field(default_factory=list)
 
 class AlgorithmEntity(BaseModel):
     name: str
-    complexity: str
-    uses_formulas: List[str]
+    complexity: Optional[str] = None
+    uses_formulas: List[str] = Field(default_factory=list)
 
 class FormulaEntity(BaseModel):
     name: str
     expression: str
-    description: str
+    description: Optional[str] = None
 
 class TechnologyEntity(BaseModel):
     name: str
-    description: str
+    description: Optional[str] = None
 
 class BookEntity(BaseModel):
     title: str
-    author: str
+    author: List[str] = Field(default_factory=list, description="List of authors")
 
 class PaperEntity(BaseModel):
     title: str
-    authors: str
-    year: int
+    authors: List[str] = Field(default_factory=list, description="List of authors")
+    year: Optional[int] = None
 
 class RelationshipEntity(BaseModel):
     from_entity: str
@@ -46,14 +50,14 @@ class RelationshipEntity(BaseModel):
     relation: str
 
 class ExtractedEntities(BaseModel):
-    topics: List[TopicEntity]
-    concepts: List[ConceptEntity]
-    algorithms: List[AlgorithmEntity]
-    formulas: List[FormulaEntity]
-    technologies: List[TechnologyEntity]
-    books: List[BookEntity]
-    papers: List[PaperEntity]
-    relationships: List[RelationshipEntity]
+    topics: List[TopicEntity] = Field(default_factory=list, description="MUST be a list of objects")
+    concepts: List[ConceptEntity] = Field(default_factory=list, description="MUST be a list of objects")
+    algorithms: List[AlgorithmEntity] = Field(default_factory=list, description="MUST be a list of objects")
+    formulas: List[FormulaEntity] = Field(default_factory=list, description="MUST be a list of objects")
+    technologies: List[TechnologyEntity] = Field(default_factory=list, description="MUST be a list of objects")
+    books: List[BookEntity] = Field(default_factory=list, description="MUST be a list of objects")
+    papers: List[PaperEntity] = Field(default_factory=list, description="MUST be a list of objects")
+    relationships: List[RelationshipEntity] = Field(default_factory=list, description="MUST be a list of objects")
 
 class LLMEntityExtractor(BaseEntityExtractor):
     def __init__(self, model_name: str | None = None):

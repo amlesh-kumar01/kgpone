@@ -58,7 +58,7 @@ class LLMFactory(ILLMFactory):
             
         elif provider == "gemini":
             from langchain_google_genai import GoogleGenerativeAIEmbeddings
-            return GoogleGenerativeAIEmbeddings(model=model or "models/embedding-001", google_api_key=api_key, **kwargs)
+            return GoogleGenerativeAIEmbeddings(model=model or "models/gemini-embedding-2", google_api_key=api_key, **kwargs)
             
         else:
             logger.error(f"Unsupported EMBEDDING_PROVIDER: {provider}")

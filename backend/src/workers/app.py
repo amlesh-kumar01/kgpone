@@ -1,4 +1,10 @@
 from celery import Celery
+import logging
+
+# Suppress spammy third-party loggers
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("neo4j").setLevel(logging.WARNING)
 
 # Instantiate the Celery app
 celery_app = Celery("kgpone_worker")
