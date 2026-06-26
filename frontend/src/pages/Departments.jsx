@@ -3,28 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { BookOpen, Users, Library, ArrowRight } from "lucide-react";
 import { motion } from 'framer-motion';
-import api from '../lib/api';
+import { useAcademic } from '../context/AcademicContext';
 
 const Departments = () => {
   const navigate = useNavigate();
-  const [departments, setDepartments] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchDepartments = async () => {
-      try {
-        const response = await api.get('/api/v1/academic/departments');
-        if (response.data.status === 'success') {
-          setDepartments(response.data.data);
-        }
-      } catch (err) {
-        console.error("Error fetching departments", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDepartments();
-  }, []);
+  const { departments, loading } = useAcademic();
 
   const containerVariants = {
     hidden: { opacity: 0 },

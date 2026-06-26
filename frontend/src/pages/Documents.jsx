@@ -6,11 +6,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, UploadCloud, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 import api from '../lib/api';
+import { useAcademic } from '../context/AcademicContext';
 
 const Documents = () => {
+  const { departments, courses: allCourses } = useAcademic();
   const [documents, setDocuments] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [allCourses, setAllCourses] = useState([]);
   const [filteredCourses, setFilteredCourses] = useState([]);
   const [offerings, setOfferings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,26 +31,6 @@ const Documents = () => {
   
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
-
-  const fetchInitialData = async () => {
-    setLoading(true);
-    try {
-      const [deptRes, courseRes] = await Promise.all([
-        api.get('/api/v1/academic/departments'),
-        api.get('/api/v1/academic/courses')
-      ]);
-      setDepartments(deptRes.data.data || []);
-      setAllCourses(courseRes.data.data || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
 
   // Filter courses when department changes
   useEffect(() => {
@@ -192,7 +172,7 @@ const Documents = () => {
               <UploadCloud size={20} /> Upload Knowledge
             </button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] bg-card border border-border p-8 rounded-xl shadow-xl">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto bg-card border border-border p-8 rounded-xl shadow-xl">
             <DialogHeader className="mb-6">
               <DialogTitle className="text-2xl font-serif font-bold text-foreground">Upload Document</DialogTitle>
               <p className="text-muted-foreground mt-2">Select the strict academic path before uploading.</p>
@@ -242,7 +222,7 @@ const Documents = () => {
               <div className="my-6 border-t border-border"></div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-foreground">Document Title</label>
+                <label className="block text-sm font-medium text-foreground">Document Title *</label>
                 <input 
                   type="text"
                   placeholder="e.g. Midterm Study Guide"
@@ -250,6 +230,45 @@ const Documents = () => {
                   value={formData.title} 
                   onChange={(e) => setFormData({...formData, title: e.target.value})} 
                   required 
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-foreground">Document Type *</label>
+                  <select 
+                    className="w-full px-4 py-3 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-accent"
+                    value={formData.doc_type} 
+                    onChange={(e) => setFormData({...formData, doc_type: e.target.value})}
+                    required
+                  >
+                    <option value="NOTES">Notes</option>
+                    <option value="PYQ">PYQ (Past Year Question)</option>
+                    <option value="SYLLABUS">Syllabus</option>
+                    <option value="TEXTBOOK">Textbook</option>
+                    <option value="ASSIGNMENT">Assignment</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-foreground">Description</label>
+                  <input 
+                    type="text"
+                    placeholder="Brief description..."
+                    className="w-full px-4 py-3 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-accent"
+                    value={formData.description} 
+                    onChange={(e) => setFormData({...formData, description: e.target.value})} 
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-foreground">AI Parsing Instructions</label>
+                <textarea 
+                  placeholder="e.g., Pay special attention to extracting chemical formulas."
+                  className="w-full px-4 py-3 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-accent h-20 resize-none"
+                  value={formData.parsing_instructions} 
+                  onChange={(e) => setFormData({...formData, parsing_instructions: e.target.value})} 
                 />
               </div>
 
