@@ -35,7 +35,7 @@ class CitationService(BaseCitationFormatter):
                 "score": float(f"{score:.3f}"),
                 "is_prerequisite": payload.get("is_prerequisite", False),
                 "prerequisite_concept": payload.get("prerequisite_concept", None),
-                "text_snippet": payload.get("text", "")[:250] + "..."
+                "text_snippet": payload.get("content", payload.get("text", ""))[:250] + "..."
             })
             
         return citations

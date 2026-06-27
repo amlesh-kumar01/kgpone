@@ -43,7 +43,7 @@ Follow these critical guidelines:
             
             context_blocks.append(
                 f"Source: [{cit_id}] (Course: {course_code}{prereq_str})\n"
-                f"Content: {payload.get('text', '')}\n"
+                f"Content: {payload.get('content', payload.get('text', ''))}\n"
                 f"---"
             )
         
