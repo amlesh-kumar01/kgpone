@@ -98,8 +98,16 @@ Guidelines:
                 yield chunk.content
         except Exception as e:
             logger.error(f"LLM streaming failed: {e}")
-            yield "\n\n(Error generating full response. Fell back to offline generation.)"
-
+            yield "\n\n*(Network/API Error. Falling back to offline generation)*\n\n"
+            # Get citations if available
+            citations = []
+            if use_citations:
+                try:
+                    from src.services.rag.citation_service import CitationService
+                    citations = CitationService().format_citations(ranked_chunks)
+                except:
+                    pass
+            yield self._generate_offline_grounded_answer(query, ranked_chunks, citations)
     def _generate_offline_grounded_answer(self, query: str, ranked_chunks: list[dict[str, Any]], citations: list[dict[str, Any]]) -> str:
         """
         Offline fallback matching algorithm. Synthesizes a grounded answer from the chunk payloads locally.

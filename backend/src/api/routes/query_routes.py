@@ -2,6 +2,11 @@ from fastapi import APIRouter, Depends, status
 from fastapi.responses import StreamingResponse
 from typing import List
 import json
+import time
+import logging
+from src.utils.logger import setup_logger
+
+logger = setup_logger("query_routes")
 from src.schemas.query_schema import QueryRequest, QueryResponse, SearchResult
 from src.schemas.response_schema import StandardResponse
 from src.services.rag.nlp_planner_service import NLPPlannerService
@@ -134,14 +139,24 @@ async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_ra
     query = req.query
     course_code = req.course_code
     course_offering_id = req.course_offering_id
-    
+    t0 = time.time()
     plan = await services["planner"].detect_intent(query, course_code, course_offering_id)
+    t1 = time.time()
+    logger.info(f"[PERF] Planner took: {t1 - t0:.4f}s")
+    
     context = await services["retriever"].retrieve_context(query, plan)
+    t2 = time.time()
+    logger.info(f"[PERF] Retriever took: {t2 - t1:.4f}s")
+    
     reranked_chunks = await services["reranker"].rerank_chunks(query, context["retrieved_chunks"], top_n=3)
+    t3 = time.time()
+    logger.info(f"[PERF] Reranker took: {t3 - t2:.4f}s")
     
     citations = []
     if req.use_citations:
         citations = services["citation_formatter"].format_citations(reranked_chunks)
+    t4 = time.time()
+    logger.info(f"[PERF] Citations took: {t4 - t3:.4f}s")
         
     sources = []
     seen_docs = set()

@@ -236,12 +236,14 @@ const Chat = () => {
       
       setIsLoading(false); // Stop loader when stream starts
 
+      let buffer = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // keep the last (potentially incomplete) line in the buffer
         
         for (const line of lines) {
           if (line.startsWith('data: ')) {
@@ -413,14 +415,19 @@ const Chat = () => {
           ref={scrollRef}
           className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-50/50 dark:bg-slate-900/50 scroll-smooth"
         >
-          {messages.map((msg, idx) => (
-            <ChatMessage 
-              key={idx} 
-              msg={msg} 
-              handleCitationClick={handleCitationClick}
-              renderBackendBadge={renderBackendBadge} 
-            />
-          ))}
+          {messages.map((msg, idx) => {
+            if (msg.role === 'assistant' && msg.content === '' && !msg.metadata && !msg.isError) {
+              return null;
+            }
+            return (
+              <ChatMessage 
+                key={idx} 
+                msg={msg} 
+                handleCitationClick={handleCitationClick}
+                renderBackendBadge={renderBackendBadge} 
+              />
+            );
+          })}
 
           {isLoading && (
             <div className="flex gap-4">

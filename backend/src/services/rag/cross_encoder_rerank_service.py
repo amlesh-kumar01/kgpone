@@ -10,6 +10,7 @@ The cross-encoder evaluates true semantic relevance by processing
 
 import logging
 import math
+import asyncio
 from typing import Any, List
 
 from src.config.settings import Settings
@@ -45,13 +46,20 @@ class CrossEncoderRerankService(BaseReranker):
         if not chunks:
             return []
 
-        # Cap at 50 candidates to stay within API limits
-        chunks = chunks[:50]
+        # Cap at 15 candidates to speed up HuggingFace API processing
+        chunks = chunks[:15]
 
         client = await self._get_client()
         if client is not None:
             try:
-                scored_chunks = await self._rerank_via_api(query, chunks, client)
+                # Enforce a strict 2-second timeout so we don't hang the chat response
+                scored_chunks = await asyncio.wait_for(
+                    self._rerank_via_api(query, chunks, client),
+                    timeout=2.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning("HF API reranking timed out (>2.0s). Using fallback.")
+                scored_chunks = self._fallback_rerank(query, chunks)
             except Exception as e:
                 logger.warning(f"HF API reranking failed: {repr(e)}. Using fallback.")
                 scored_chunks = self._fallback_rerank(query, chunks)
@@ -83,8 +91,8 @@ class CrossEncoderRerankService(BaseReranker):
         pairs = []
         for chunk in chunks:
             text = chunk["payload"].get("text", chunk["payload"].get("content", ""))
-            # Truncate to first 512 chars to stay within model context limits
-            pairs.append({"text": query, "text_pair": text[:512]})
+            # Truncate to first 300 chars to speed up inference while retaining context
+            pairs.append({"text": query, "text_pair": text[:300]})
 
         # Call HF API — the cross-encoder endpoint expects pairs
         response = await client.post(
