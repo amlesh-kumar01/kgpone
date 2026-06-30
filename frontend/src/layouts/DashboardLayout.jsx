@@ -61,7 +61,7 @@ const DashboardLayout = () => {
   );
 
   return (
-    <div className="flex min-h-screen w-full bg-slate-50/50 dark:bg-slate-950">
+    <div className="flex h-screen overflow-hidden w-full bg-slate-50/50 dark:bg-slate-950">
       {/* Desktop Sidebar */}
       <aside className="hidden w-64 border-r bg-white dark:bg-slate-900 md:flex md:flex-col">
         <div className="flex h-14 items-center border-b px-6 lg:h-[60px]">
@@ -136,7 +136,7 @@ const DashboardLayout = () => {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full overflow-y-auto no-scrollbar">
           <Outlet />
         </main>
       </div>

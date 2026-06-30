@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, User, Send, Network, Database, Loader2, Sparkles, BookOpen, Filter } from "lucide-react";
+import { Bot, User, Send, Network, Database, Loader2, Sparkles, BookOpen, Filter, ChevronLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import api from '../lib/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -15,27 +16,27 @@ import { useAcademic } from '../context/AcademicContext';
 
 const ChatMessage = React.memo(({ msg, handleCitationClick, renderBackendBadge }) => {
   return (
-    <div className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+    <div className={`flex gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
       {/* Avatar */}
-      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+      <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center shadow-sm ${
         msg.role === 'user' 
           ? 'bg-primary text-primary-foreground' 
           : msg.isError 
             ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' 
-            : 'bg-accent text-accent-foreground border shadow-sm'
+            : 'bg-white dark:bg-slate-800 border text-slate-600 dark:text-slate-300'
       }`}>
-        {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+        {msg.role === 'user' ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
       </div>
       
       {/* Message Content */}
-      <div className={`flex flex-col max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+      <div className={`flex flex-col max-w-[85%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
         
         {/* Intent & Backends Badges (Only for Assistant) */}
         {msg.metadata && (
           <div className="flex flex-wrap gap-2 mb-2 items-center">
             {msg.metadata.intent && (
-              <span className="inline-flex items-center px-2 py-1 rounded text-[10px] font-medium bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 uppercase tracking-wider">
-                INTENT: {msg.metadata.intent}
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 uppercase tracking-wider border">
+                {msg.metadata.intent.replace('_', ' ')}
               </span>
             )}
             {msg.metadata.backends_used?.map(b => renderBackendBadge(b))}
@@ -43,17 +44,17 @@ const ChatMessage = React.memo(({ msg, handleCitationClick, renderBackendBadge }
         )}
 
         {/* Bubble */}
-        <div className={`px-4 py-3 rounded-2xl shadow-sm text-sm ${
+        <div className={`px-5 py-4 rounded-3xl shadow-sm text-[15px] ${
           msg.role === 'user'
             ? 'bg-primary text-primary-foreground rounded-tr-sm'
             : msg.isError
               ? 'bg-red-50 text-red-900 border border-red-200 dark:bg-red-950/50 dark:text-red-200 dark:border-red-900 rounded-tl-sm'
-              : 'bg-white border text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 rounded-tl-sm'
+              : 'bg-white border border-slate-200/60 text-slate-800 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 rounded-tl-sm'
         }`}>
           {msg.role === 'user' ? (
             <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
           ) : (
-            <div className="prose prose-sm dark:prose-invert max-w-none break-words leading-relaxed">
+            <div className="prose prose-slate dark:prose-invert max-w-none break-words leading-relaxed">
               <ReactMarkdown 
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
@@ -61,7 +62,7 @@ const ChatMessage = React.memo(({ msg, handleCitationClick, renderBackendBadge }
                   a: ({node, href, children, ...props}) => {
                     if (href && href.startsWith('#CIT-')) {
                       return (
-                        <a href={href} className="text-primary font-medium hover:underline cursor-pointer" onClick={(e) => {
+                        <a href={href} className="text-primary font-semibold hover:underline cursor-pointer bg-primary/10 px-1 rounded-sm mx-0.5" onClick={(e) => {
                           e.preventDefault();
                           document.getElementById(href.substring(1))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         }}>
@@ -69,7 +70,7 @@ const ChatMessage = React.memo(({ msg, handleCitationClick, renderBackendBadge }
                         </a>
                       );
                     }
-                    return <a href={href} className="text-primary hover:underline" target="_blank" rel="noreferrer" {...props}>{children}</a>;
+                    return <a href={href} className="text-primary font-medium hover:underline" target="_blank" rel="noreferrer" {...props}>{children}</a>;
                   }
                 }}
               >
@@ -81,8 +82,8 @@ const ChatMessage = React.memo(({ msg, handleCitationClick, renderBackendBadge }
 
         {/* Citations/Sources block */}
         {msg.metadata?.citations && msg.metadata.citations.length > 0 && (
-          <div className="mt-2 w-full flex flex-col gap-1.5">
-            <p className="text-xs font-semibold text-muted-foreground ml-1">Sources Reference:</p>
+          <div className="mt-3 w-full flex flex-col gap-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1">Sources Reference</p>
             <div className="flex flex-wrap gap-2">
               {msg.metadata.citations.map((cit, cidx) => {
                 const isClickable = (cit.document_id && cit.document_id !== 'GRAPH') || cit.source_url;
@@ -93,23 +94,23 @@ const ChatMessage = React.memo(({ msg, handleCitationClick, renderBackendBadge }
                       id={cit.citation_id} 
                       href={isClickable ? '#' : undefined} 
                       onClick={isClickable ? (e) => handleCitationClick(e, cit) : undefined}
-                      className={`flex items-center gap-1.5 bg-white dark:bg-slate-900 border rounded-md px-2 py-1 shadow-sm text-xs transition-all hover:shadow-md ${isClickable ? 'cursor-pointer hover:border-primary' : 'cursor-default'}`}
+                      className={`flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 shadow-sm text-xs transition-all hover:shadow-md ${isClickable ? 'cursor-pointer hover:border-primary/50 hover:bg-primary/5' : 'cursor-default'}`}
                     >
-                      <BookOpen className={`w-3 h-3 ${isClickable ? 'text-muted-foreground group-hover:text-primary transition-colors' : 'text-slate-400'}`} />
-                      <span className={`font-mono text-[10px] ${isClickable ? 'text-muted-foreground group-hover:text-primary' : 'text-slate-400'}`}>{cit.citation_id}</span>
-                      <span className={`font-medium max-w-[150px] truncate ${isClickable ? 'text-slate-700 dark:text-slate-300 group-hover:text-primary' : 'text-slate-500'}`} title={cit.source_title}>
+                      <BookOpen className={`w-3.5 h-3.5 ${isClickable ? 'text-primary' : 'text-slate-400'}`} />
+                      <span className={`font-mono text-[10px] font-semibold ${isClickable ? 'text-primary' : 'text-slate-400'}`}>{cit.citation_id}</span>
+                      <span className={`font-medium max-w-[180px] truncate ${isClickable ? 'text-slate-700 dark:text-slate-300' : 'text-slate-500'}`} title={cit.source_title}>
                         {cit.source_title}
                       </span>
                     </BadgeWrapper>
                     
                     {/* Snippet Tooltip */}
-                    <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 w-72 p-3 bg-slate-900 dark:bg-slate-800 text-white text-xs rounded-lg shadow-xl border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                    <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 w-80 p-3 bg-slate-900 dark:bg-slate-800 text-white text-xs rounded-xl shadow-xl border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                       <div className="font-semibold mb-1 text-primary-400">
                         {cit.section ? `Topic: ${cit.section}` : `Source: ${cit.source_title}`}
                         {cit.page_number && cit.page_number > 0 && <span className="text-slate-400 font-normal"> (Pg. {cit.page_number})</span>}
                       </div>
                       <div className="italic text-slate-300 break-words line-clamp-6 leading-relaxed">"{cit.text_snippet}"</div>
-                      <div className="absolute top-full left-4 -mt-[1px] border-4 border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
+                      <div className="absolute top-full left-6 -mt-[1px] border-4 border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
                     </div>
                   </div>
                 );
@@ -123,6 +124,7 @@ const ChatMessage = React.memo(({ msg, handleCitationClick, renderBackendBadge }
 });
 
 const Chat = () => {
+  const navigate = useNavigate();
   const { departments, courses: allCourses } = useAcademic();
   const [messages, setMessages] = useState([
     {
@@ -324,7 +326,7 @@ const Chat = () => {
     }
     if (backend === 'qdrant') {
       return (
-        <span key="qdrant" className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+        <span key="qdrant" className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 uppercase tracking-wider border">
           <Database className="w-3 h-3" /> Vector
         </span>
       );
@@ -340,29 +342,37 @@ const Chat = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-2rem)] w-full max-w-5xl mx-auto px-4 lg:px-0 py-4">
+    <div className="flex flex-col h-screen w-full bg-slate-50/50 dark:bg-slate-950 px-4 py-4">
       {/* Compact Header & Filter */}
-      <div className="flex flex-col md:flex-row items-center justify-between mb-3 gap-3 bg-card p-2.5 rounded-xl border shadow-sm">
-        <div className="flex items-center gap-2 pr-3 md:border-r border-border shrink-0">
-          <div className="p-1.5 bg-primary/10 rounded-md text-primary">
+      <div className="max-w-5xl mx-auto w-full flex flex-col md:flex-row items-center justify-between mb-4 gap-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-3 rounded-2xl border shadow-sm shrink-0">
+        <div className="flex items-center gap-3 pr-3 md:border-r border-slate-200 dark:border-slate-700 shrink-0">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate(-1)}
+            className="h-8 w-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0"
+          >
+            <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+          </Button>
+          <div className="p-2 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg text-primary shadow-sm border border-primary/10 hidden sm:block">
             <Sparkles className="w-4 h-4" />
           </div>
           <div>
-            <h1 className="text-sm font-bold leading-tight">KnowledgeOS</h1>
-            <p className="text-[10px] text-muted-foreground">Academic Tutor</p>
+            <h1 className="text-sm font-bold leading-none mb-1 text-slate-800 dark:text-slate-100">KnowledgeOS</h1>
+            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Academic Tutor</p>
           </div>
         </div>
 
         {/* Global Filter Bar (Compact) */}
         <div className="flex-1 flex flex-row items-center gap-2 overflow-x-auto no-scrollbar">
-          <Filter size={14} className="text-muted-foreground shrink-0 hidden sm:block" />
+          <Filter size={14} className="text-slate-400 shrink-0 hidden sm:block" />
           <div className="flex items-center gap-2 flex-1 min-w-max">
             <Select value={selectedDeptId} onValueChange={(val) => {
               setSelectedDeptId(val === 'all' ? '' : val);
               setSelectedCourseId('');
               setSelectedOfferingId('');
             }}>
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-9 text-xs rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
                 <SelectValue placeholder="1. Department" />
               </SelectTrigger>
               <SelectContent>
@@ -375,7 +385,7 @@ const Chat = () => {
               setSelectedCourseId(val === 'all' ? '' : val);
               setSelectedOfferingId('');
             }} disabled={!selectedDeptId}>
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-9 text-xs rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
                 <SelectValue placeholder="2. Course" />
               </SelectTrigger>
               <SelectContent>
@@ -385,7 +395,7 @@ const Chat = () => {
             </Select>
 
             <Select value={selectedOfferingId} onValueChange={(val) => setSelectedOfferingId(val === 'all' ? '' : val)} disabled={!selectedCourseId || offerings.length === 0}>
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-9 text-xs rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
                 <SelectValue placeholder={offerings.length === 0 && selectedCourseId ? "No offerings" : "3. Offering"} />
               </SelectTrigger>
               <SelectContent>
@@ -396,24 +406,24 @@ const Chat = () => {
           </div>
         </div>
         
-        <div className="flex items-center gap-2 pl-3 border-l border-border shrink-0">
-          <label className="text-xs font-medium text-muted-foreground flex items-center cursor-pointer select-none">
+        <div className="flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-slate-700 shrink-0">
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center cursor-pointer select-none transition-colors hover:text-slate-700 dark:hover:text-slate-300">
             <input 
               type="checkbox" 
               checked={useCitations} 
               onChange={(e) => setUseCitations(e.target.checked)}
-              className="mr-1.5 h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary"
+              className="mr-2 h-4 w-4 rounded-md border-slate-300 text-primary focus:ring-primary transition-all shadow-sm"
             />
             Citations
           </label>
         </div>
       </div>
 
-      <Card className="flex-1 flex flex-col overflow-hidden border shadow-sm">
+      <div className="flex-1 flex flex-col min-h-0 bg-transparent rounded-2xl max-w-5xl mx-auto w-full">
         {/* Chat Messages Area */}
         <div 
           ref={scrollRef}
-          className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-50/50 dark:bg-slate-900/50 scroll-smooth"
+          className="flex-1 overflow-y-auto px-2 py-4 space-y-8 no-scrollbar scroll-smooth"
         >
           {messages.map((msg, idx) => {
             if (msg.role === 'assistant' && msg.content === '' && !msg.metadata && !msg.isError) {
@@ -430,27 +440,27 @@ const Chat = () => {
           })}
 
           {isLoading && (
-            <div className="flex gap-4">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-accent text-accent-foreground border flex items-center justify-center shadow-sm">
-                <Bot className="w-4 h-4" />
+            <div className="flex gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-white dark:bg-slate-800 border text-slate-600 dark:text-slate-300 flex items-center justify-center shadow-sm">
+                <Bot className="w-5 h-5" />
               </div>
-              <div className="px-4 py-3 rounded-2xl bg-white border text-slate-800 dark:bg-slate-950 dark:border-slate-800 rounded-tl-sm shadow-sm flex items-center gap-2">
+              <div className="px-5 py-4 rounded-3xl bg-white border border-slate-200/60 dark:bg-slate-900 dark:border-slate-800 rounded-tl-sm shadow-sm flex items-center gap-3">
                 <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                <span className="text-sm text-muted-foreground animate-pulse">Analyzing knowledge graph...</span>
+                <span className="text-[15px] text-slate-500 font-medium animate-pulse">Analyzing knowledge graph & vector space...</span>
               </div>
             </div>
           )}
         </div>
 
         {/* Input Area */}
-        <div className="p-3 bg-white dark:bg-slate-950 border-t">
-          <form onSubmit={handleSubmit} className="flex items-end gap-2">
-            <div className="relative flex-1">
+        <div className="pt-4 pb-2 shrink-0">
+          <form onSubmit={handleSubmit} className="flex items-end gap-3 max-w-4xl mx-auto relative">
+            <div className="relative flex-1 bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200/80 dark:border-slate-800 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary/30 transition-all duration-300">
               <Input 
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={selectedCourseId ? "Ask about the selected course..." : "Ask about a topic, course prerequisites, or search documents..."}
-                className="pr-12 py-3 h-10 text-sm bg-slate-50 dark:bg-slate-900/50 focus-visible:ring-primary/50"
+                className="py-4 px-6 h-auto min-h-[60px] text-[15px] bg-transparent border-none shadow-none focus-visible:ring-0 resize-none rounded-3xl"
                 disabled={isLoading}
               />
             </div>
@@ -458,17 +468,17 @@ const Chat = () => {
               type="submit" 
               size="icon" 
               disabled={!input.trim() || isLoading}
-              className="h-10 w-10 rounded-lg shadow-sm shrink-0"
+              className="h-[60px] w-[60px] rounded-3xl shadow-md shrink-0 bg-primary hover:bg-primary/90 transition-all duration-300 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
             >
-              <Send className="w-4 h-4" />
+              <Send className="w-5 h-5 ml-1" />
             </Button>
           </form>
-          <div className="flex items-center justify-center mt-2 gap-1 text-[10px] text-muted-foreground">
-            <Bot className="w-3 h-3" />
+          <div className="flex items-center justify-center mt-4 gap-1.5 text-[11px] text-slate-400 font-medium uppercase tracking-wide">
+            <Bot className="w-3.5 h-3.5" />
             <span>AI responses can be inaccurate. Verify important information against official course syllabus.</span>
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 };
