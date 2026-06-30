@@ -67,7 +67,7 @@ def register_tools(mcp: FastMCP):
             plan = await services["planner"].detect_intent(req.query, req.course_code)
             plan.backends_needed = ["qdrant"] # force semantic search
             context = await services["retriever"].retrieve_context(req.query, plan)
-            reranked_chunks = await services["reranker"].rerank_chunks(req.query, context["retrieved_chunks"], top_n=5)
+            reranked_chunks = await services["reranker"].rerank_chunks(req.query, context["retrieved_chunks"], top_n=3)
             
             results = []
             for chunk in reranked_chunks:
@@ -92,7 +92,7 @@ def register_tools(mcp: FastMCP):
         async def run_qa():
             plan = await services["planner"].detect_intent(question, course_code)
             context = await services["retriever"].retrieve_context(question, plan)
-            reranked = await services["reranker"].rerank_chunks(question, context["retrieved_chunks"], top_n=5)
+            reranked = await services["reranker"].rerank_chunks(question, context["retrieved_chunks"], top_n=3)
             citations = services["citation_formatter"].format_citations(reranked)
             answer = services["answer_generator"].generate_answer(question, reranked, citations)
             return {

@@ -70,7 +70,7 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
     context = await services["retriever"].retrieve_context(query, plan)
     
     # 3. Rerank
-    reranked_chunks = await services["reranker"].rerank_chunks(query, context["retrieved_chunks"], top_n=5)
+    reranked_chunks = await services["reranker"].rerank_chunks(query, context["retrieved_chunks"], top_n=3)
     
     # 4. Format Citations
     citations = services["citation_formatter"].format_citations(reranked_chunks)

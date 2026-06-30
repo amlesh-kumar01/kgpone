@@ -16,14 +16,13 @@ class AnswerService(BaseAnswerGenerator):
             self.llm = None
 
         self.prompt_template = ChatPromptTemplate.from_messages([
-            ("system", """You are an elite academic tutor. Answer the student's question grounded strictly on the study materials provided below.
-Follow these critical guidelines:
-1. Answer detailedly and accurately based ONLY on the context blocks.
-2. If you use information from a block, append the citation tag as a markdown link (e.g. [[CIT-1]](#CIT-1) or [[CIT-2]](#CIT-2)) at the end of the sentence.
-3. IMPORTANT: If the context contains prerequisite material from previous years/courses, clearly explain this connection. Point out that the student is missing this foundational knowledge and reference the specific prerequisite course/concept (e.g. 'I found this concept in your Discrete Math lecture notes').
-4. Format formulas in LaTeX style (e.g. $$ for block math, $ for inline math).
-5. Synthesize the text naturally and fluently like a standard AI assistant. Do not blindly copy raw placeholder syntax from the source (e.g., replace ugly variables like $NAME or $URL with readable descriptions like <branch_name> or <repository_url>), and format all shell commands clearly in markdown code blocks."""),
-            ("user", "Context Study Materials:\n{context}\n\nStudent Query: {query}\n\nAcademic Answer:")
+            ("system", """You're an academic tutor. Answer based ONLY on the provided context.
+Guidelines:
+1. Append citation links (e.g. [[CIT-1]](#CIT-1)) to sentences when using info from a block.
+2. If using prerequisite material, explicitly explain the connection to the student's missing knowledge.
+3. Use LaTeX for math ($ and $$) and markdown code blocks for code.
+4. Synthesize fluently; do not just copy raw placeholders."""),
+            ("user", "Context:\n{context}\n\nQuery: {query}\nAnswer:")
         ])
 
     def generate_answer(self, query: str, ranked_chunks: list[dict[str, Any]], citations: list[dict[str, Any]]) -> str:
