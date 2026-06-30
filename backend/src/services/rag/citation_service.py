@@ -35,6 +35,7 @@ class CitationService(BaseCitationFormatter):
                 "score": float(f"{score:.3f}"),
                 "is_prerequisite": payload.get("is_prerequisite", False),
                 "prerequisite_concept": payload.get("prerequisite_concept", None),
+                "source_url": payload.get("url", payload.get("s3_key", None)),
                 "text_snippet": payload.get("content", payload.get("text", ""))[:250] + "..."
             })
             

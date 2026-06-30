@@ -19,7 +19,7 @@ class AnswerService(BaseAnswerGenerator):
             ("system", """You are an elite academic tutor. Answer the student's question grounded strictly on the study materials provided below.
 Follow these critical guidelines:
 1. Answer detailedly and accurately based ONLY on the context blocks.
-2. If you use information from a block, append the citation tag (e.g. [CIT-1] or [CIT-2]) at the end of the sentence.
+2. If you use information from a block, append the citation tag as a markdown link (e.g. [[CIT-1]](#CIT-1) or [[CIT-2]](#CIT-2)) at the end of the sentence.
 3. IMPORTANT: If the context contains prerequisite material from previous years/courses, clearly explain this connection. Point out that the student is missing this foundational knowledge and reference the specific prerequisite course/concept (e.g. 'I found this concept in your Discrete Math lecture notes').
 4. Format formulas in LaTeX style (e.g. $$ for block math, $ for inline math).
 5. Synthesize the text naturally and fluently like a standard AI assistant. Do not blindly copy raw placeholder syntax from the source (e.g., replace ugly variables like $NAME or $URL with readable descriptions like <branch_name> or <repository_url>), and format all shell commands clearly in markdown code blocks."""),
@@ -87,7 +87,7 @@ Follow these critical guidelines:
             )
             # Add snippet from prereq
             snippet = p_cit.get("text_snippet", "").replace("...", "")
-            answer_parts.append(f"> *{snippet}* [{p_cit['citation_id']}]\n\n")
+            answer_parts.append(f"> *{snippet}* [[{p_cit['citation_id']}](#{p_cit['citation_id']})]\n\n")
 
         # Active course context
         if active_citations:
@@ -95,7 +95,7 @@ Follow these critical guidelines:
             answer_parts.append(f"Regarding the main course query in **{a_cit['course_code']}**:\n\n")
             for c in active_citations[:2]:
                 snippet = c.get("text_snippet", "").replace("...", "")
-                answer_parts.append(f"- **From {c['source_title']} (Section: {c['section']}):** {snippet} [{c['citation_id']}]\n")
+                answer_parts.append(f"- **From {c['source_title']} (Section: {c['section']}):** {snippet} [[{c['citation_id']}](#{c['citation_id']})]\n")
         else:
             answer_parts.append("No active course notes match the details, but you can learn more using the prerequisite references.")
 

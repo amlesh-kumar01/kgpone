@@ -53,7 +53,7 @@ class CrossEncoderRerankService(BaseReranker):
             try:
                 scored_chunks = await self._rerank_via_api(query, chunks, client)
             except Exception as e:
-                logger.warning(f"HF API reranking failed: {e}. Using fallback.")
+                logger.warning(f"HF API reranking failed: {repr(e)}. Using fallback.")
                 scored_chunks = self._fallback_rerank(query, chunks)
         else:
             scored_chunks = self._fallback_rerank(query, chunks)

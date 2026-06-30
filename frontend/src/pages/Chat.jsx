@@ -8,6 +8,9 @@ import { Bot, User, Send, Network, Database, Loader2, Sparkles, BookOpen, Filter
 import api from '../lib/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { useAcademic } from '../context/AcademicContext';
 
 const Chat = () => {
@@ -262,7 +265,25 @@ const Chat = () => {
                       : 'bg-white border text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 rounded-tl-sm'
                 }`}>
                   <div className="prose prose-sm dark:prose-invert max-w-none break-words leading-relaxed">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                      components={{
+                        a: ({node, href, children, ...props}) => {
+                          if (href && href.startsWith('#CIT-')) {
+                            return (
+                              <a href={href} className="text-primary font-medium hover:underline cursor-pointer" onClick={(e) => {
+                                e.preventDefault();
+                                document.getElementById(href.substring(1))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              }}>
+                                {children}
+                              </a>
+                            );
+                          }
+                          return <a href={href} className="text-primary hover:underline" target="_blank" rel="noreferrer" {...props}>{children}</a>;
+                        }
+                      }}
+                    >
                       {msg.content}
                     </ReactMarkdown>
                   </div>
@@ -274,13 +295,20 @@ const Chat = () => {
                     <p className="text-xs font-semibold text-muted-foreground ml-1">Sources Reference:</p>
                     <div className="flex flex-wrap gap-2">
                       {msg.metadata.citations.map((cit, cidx) => (
-                        <div key={cidx} className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border rounded-md px-2 py-1 shadow-sm text-xs group cursor-default hover:border-primary/50 transition-colors">
+                        <a 
+                          id={cit.citation_id} 
+                          key={cidx} 
+                          href={cit.source_url || '#'} 
+                          target={cit.source_url ? "_blank" : undefined}
+                          rel="noreferrer"
+                          className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border rounded-md px-2 py-1 shadow-sm text-xs group cursor-pointer hover:border-primary transition-all hover:shadow-md"
+                        >
                           <BookOpen className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
-                          <span className="font-mono text-[10px] text-muted-foreground">{cit.citation_id}</span>
-                          <span className="font-medium text-slate-700 dark:text-slate-300 max-w-[150px] truncate" title={cit.source_title}>
+                          <span className="font-mono text-[10px] text-muted-foreground group-hover:text-primary">{cit.citation_id}</span>
+                          <span className="font-medium text-slate-700 dark:text-slate-300 max-w-[150px] truncate group-hover:text-primary" title={cit.source_title}>
                             {cit.source_title}
                           </span>
-                        </div>
+                        </a>
                       ))}
                     </div>
                   </div>

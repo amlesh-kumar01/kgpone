@@ -27,9 +27,9 @@ def get_huggingface_client() -> Optional[httpx.AsyncClient]:
             return None
 
         _client = httpx.AsyncClient(
-            base_url="https://api-inference.huggingface.co",
+            base_url="https://router.huggingface.co/hf-inference",
             headers={"Authorization": f"Bearer {api_key}"},
-            timeout=httpx.Timeout(30.0, connect=10.0),
+            timeout=httpx.Timeout(120.0, connect=10.0),
         )
         logger.info("HuggingFace Inference API client initialized.")
 
