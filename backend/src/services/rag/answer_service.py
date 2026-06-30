@@ -21,7 +21,8 @@ Follow these critical guidelines:
 1. Answer detailedly and accurately based ONLY on the context blocks.
 2. If you use information from a block, append the citation tag (e.g. [CIT-1] or [CIT-2]) at the end of the sentence.
 3. IMPORTANT: If the context contains prerequisite material from previous years/courses, clearly explain this connection. Point out that the student is missing this foundational knowledge and reference the specific prerequisite course/concept (e.g. 'I found this concept in your Discrete Math lecture notes').
-4. Format formulas in LaTeX style (e.g. $$ for block math, $ for inline math)."""),
+4. Format formulas in LaTeX style (e.g. $$ for block math, $ for inline math).
+5. Synthesize the text naturally and fluently like a standard AI assistant. Do not blindly copy raw placeholder syntax from the source (e.g., replace ugly variables like $NAME or $URL with readable descriptions like <branch_name> or <repository_url>), and format all shell commands clearly in markdown code blocks."""),
             ("user", "Context Study Materials:\n{context}\n\nStudent Query: {query}\n\nAcademic Answer:")
         ])
 
