@@ -9,6 +9,7 @@ class QueryPlan(BaseModel):
     course_offering_id: Optional[str] = None
     entities_mentioned: List[str] = []
     backends_needed: List[str] = []
+    confidence_score: float = 1.0
 
 class QueryRequest(BaseModel):
     query: str
@@ -42,6 +43,8 @@ class QueryResponse(BaseModel):
     graph_context: Optional[Dict[str, Any]] = None
     intent: str
     backends_used: List[str]
+    cache_hit: bool = False
+    confidence_score: float = 1.0
 
 class SearchResult(BaseModel):
     document_id: str

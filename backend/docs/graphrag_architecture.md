@@ -35,21 +35,26 @@ The Neo4j database serves two primary purposes:
 
 ## 3. Intelligent Query Routing & Retrieval
 
-When a user asks a question via the `/api/v1/query/ask` endpoint, the system follows a 4-step process:
+## 3. Intelligent Query Routing & Retrieval
 
-### Step 1: Query Planning
-The `PlannerService` uses an LLM to analyze the user's intent. It classifies the query (e.g., `semantic_search`, `prerequisites`, `compare`, `concept_search`) and determines which backend databases (PostgreSQL, Qdrant, Neo4j) are needed to answer it.
+When a user asks a question via the `/api/v1/query/ask` endpoint, the system follows a 5-step process optimized for low latency (sub-second Time-To-First-Token):
 
-### Step 2: Hybrid Retrieval
+### Step 0: Semantic Caching (Redis)
+The `SemanticCacheService` checks Redis for previously answered identical queries. It hashes the first 64 dimensions of the query embedding to find a match. If a cache hit occurs, the pipeline bypasses retrieval and returns the cached answer and citations instantly (<5ms).
+
+### Step 1: NLP Query Planning
+The `NLPPlannerService` uses a lightweight, deterministic TF-IDF + SVM model to analyze the user's intent locally (no LLM required, <10ms). It classifies the query (e.g., `semantic_search`, `prerequisites`, `compare`, `concept_search`), extracts entities via regex and noun-chunking, and determines the required backend databases.
+
+### Step 2: Parallel Hybrid Retrieval
 The `RetrievalService` dynamically coordinates data retrieval based on the `QueryPlan`:
-*   **Vector Retrieval**: If semantic search is needed, it fetches top relevant chunks from Qdrant based on the user's query embedding.
-*   **Graph Retrieval**: If structured knowledge is needed (e.g., prerequisite checking), it executes Cypher queries against Neo4j to find paths or related entities. These graph facts are converted into "synthetic chunks" to provide context to the LLM.
+*   **Parallel Execution**: It fires off requests to Qdrant (vector search), Neo4j (graph traversal), and PostgreSQL concurrently using `asyncio.gather()`.
+*   **Reciprocal Rank Fusion (RRF)**: Once all backends return their chunks, the disparate scores (cosine similarity vs. graph confidence) are unified and merged into a single ranked list using the RRF algorithm.
 
-### Step 3: Reranking
-The `RerankService` takes all retrieved chunks (both vector and graph) and evaluates them using an LLM to assign a relevance score between 0.0 and 1.0. A diversity penalty is applied to chunks from the same document to ensure a broad context. The chunks are sorted by their final score, and the top N are kept.
+### Step 3: Cross-Encoder Reranking
+The `CrossEncoderRerankService` evaluates the top merged chunks. It uses the HuggingFace Serverless Inference API (e.g., `BAAI/bge-reranker-v2-m3`) to process query-chunk pairs in a single batched HTTP request (~200ms). It also applies an 80% text overlap deduplication (context compression) and diversity penalties for chunks from the same document.
 
 ### Step 4: Answer Generation & Citations
-The `CitationService` formats the provenance metadata for the top chunks (e.g., `[CIT-1]`). The `AnswerService` then passes the query, the reranked chunks, and the citation metadata to the LLM to generate the final, grounded response.
+The `CitationService` formats the provenance metadata for the top chunks (e.g., `[CIT-1]`). The `AnswerService` then passes the query, the reranked chunks, and the citation metadata to the LLM. This is the **only** LLM call in the entire query pipeline, used strictly to synthesize the final grounded response.
 
 ## 4. MCP Server Integration
 

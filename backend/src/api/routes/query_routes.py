@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends
 from typing import List
 from src.schemas.query_schema import QueryRequest, QueryResponse, SearchResult
 from src.schemas.response_schema import StandardResponse
-from src.services.rag.planner_service import PlannerService
+from src.services.rag.nlp_planner_service import NLPPlannerService
 from src.services.rag.retrieval_service import RetrievalService
-from src.services.rag.rerank_service import RerankService
+from src.services.rag.cross_encoder_rerank_service import CrossEncoderRerankService
 from src.services.rag.citation_service import CitationService
 from src.services.rag.answer_service import AnswerService
+from src.services.rag.semantic_cache_service import SemanticCacheService
 from src.services.ingestion.embedding.llm_embedding import LLMEmbedder
 from src.repositories.qdrant.vector_repository import QdrantRepository
 from src.infrastructure.database import get_db
@@ -15,28 +16,52 @@ from sqlalchemy.orm import Session
 router = APIRouter(prefix="/query", tags=["Query & RAG"])
 
 def get_rag_services(db: Session = Depends(get_db)):
-    planner = PlannerService()
+    planner = NLPPlannerService()
     embedder = LLMEmbedder()
     vector_repo = QdrantRepository()
     retriever = RetrievalService(embedder=embedder, vector_store=vector_repo, db=db)
-    reranker = RerankService()
+    reranker = CrossEncoderRerankService()
     citation_formatter = CitationService()
     answer_generator = AnswerService()
+    semantic_cache = SemanticCacheService()
     
     return {
         "planner": planner,
         "retriever": retriever,
         "reranker": reranker,
         "citation_formatter": citation_formatter,
-        "answer_generator": answer_generator
+        "answer_generator": answer_generator,
+        "embedder": embedder,
+        "semantic_cache": semantic_cache,
     }
 
 @router.post("/ask", response_model=StandardResponse[QueryResponse])
 async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_services)):
-    """Full hybrid RAG pipeline: Plan -> Retrieve -> Rerank -> Answer"""
+    """Full hybrid RAG pipeline: Cache Check -> Plan -> Retrieve -> Rerank -> Answer"""
     query = req.query
     course_code = req.course_code
     course_offering_id = req.course_offering_id
+    
+    # 0. Semantic Cache Check
+    cache_hit = False
+    semantic_cache = services["semantic_cache"]
+    embedder = services["embedder"]
+    
+    # Generate embedding for cache lookup (reused later for retrieval)
+    query_vectors = await embedder.embed([query])
+    query_embedding = query_vectors[0] if query_vectors else []
+    
+    if query_embedding:
+        scope_key = course_offering_id if course_offering_id else None
+        cached = await semantic_cache.get(query, query_embedding, scope_key=scope_key)
+        if cached:
+            # Return cached response directly
+            cached["cache_hit"] = True
+            return StandardResponse(
+                status="success",
+                message="Query answered from cache",
+                data=QueryResponse(**cached),
+            )
     
     # 1. Plan
     plan = await services["planner"].detect_intent(query, course_code, course_offering_id)
@@ -75,8 +100,23 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
         sources=sources,
         graph_context=context.get("graph_visualization"),
         intent=plan.intent,
-        backends_used=plan.backends_needed
+        backends_used=plan.backends_needed,
+        cache_hit=False,
+        confidence_score=plan.confidence_score,
     )
+    
+    # 6. Cache the response for future identical queries
+    if query_embedding:
+        scope_key = course_offering_id if course_offering_id else None
+        try:
+            await semantic_cache.set(
+                query,
+                query_embedding,
+                response_data.model_dump(),
+                scope_key=scope_key,
+            )
+        except Exception:
+            pass  # Cache write failure is non-critical
     
     return StandardResponse(
         status="success",

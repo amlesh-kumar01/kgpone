@@ -61,8 +61,11 @@ ALL HTTP endpoint responses must return the `StandardResponse` model located in 
 ```
 
 ## 7. RAG & Graph Pipeline Rules
-- **Extraction**: Entities and relationships are extracted via Gemini during the ingestion Celery task.
+- **Extraction**: Entities and relationships are extracted via LLM during the ingestion Celery task.
 - **Neo4j Cypher**: Do NOT run raw Cypher strings inside services. All Cypher queries must be encapsulated inside `GraphRepository`.
-- **Query Planner**: All hybrid RAG queries must pass through `PlannerService` to detect intents and required backend databases.
+- **Query Planner**: All hybrid RAG queries must pass through `NLPPlannerService` (TF-IDF + SVM intent classifier).
+- **Reranking**: Use `CrossEncoderRerankService` (HuggingFace Inference API) for chunk reranking.
+- **Retrieval**: Use `asyncio.gather()` for parallel backend retrieval and Reciprocal Rank Fusion (RRF) for merging results.
+- **Semantic Cache**: All `/query/ask` requests check `SemanticCacheService` (Redis) before running the pipeline. Cache scope is per-`course_offering_id` if present, otherwise global.
 
 Do not deviate from these established patterns when modifying the backend.

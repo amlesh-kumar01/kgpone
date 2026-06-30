@@ -21,7 +21,7 @@ To understand how the system is architected, please read the documentation insid
 - Docker & Docker Compose
 
 ### 1. Environment Setup
-Copy the example environment file and configure your API keys (especially `LLAMA_CLOUD_API_KEY` and `GEMINI_API_KEY`).
+Copy the example environment file and configure your API keys (especially `LLAMA_CLOUD_API_KEY`, `GEMINI_API_KEY`, and `HUGGINGFACE_API_KEY` for the cross-encoder).
 ```bash
 cp .env.example .env
 ```
@@ -47,14 +47,20 @@ cd backend/
 uv run alembic upgrade head
 ```
 
-### 5. Start the FastAPI Server
+### 5. Train NLP Intent Classifier
+Before starting the server, train the lightweight intent classifier model (this generates the `.pkl` files locally):
+```bash
+uv run python -m src.scripts.train_intent_classifier
+```
+
+### 6. Start the FastAPI Server
 Spin up the main application. It will run on `http://localhost:8000`.
 ```bash
 uv run uvicorn src.main:app --reload
 ```
 You can now access the interactive Swagger documentation at [http://localhost:8000/docs](http://localhost:8000/docs).
 
-### 6. Start the Celery Worker
+### 7. Start the Celery Worker
 To enable the background AI ingestion pipeline (which parses PDFs and embeds chunks into Qdrant), you must run the Celery worker in a separate terminal:
 ```bash
 uv run celery -A src.workers.app.celery_app worker --loglevel=info

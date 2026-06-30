@@ -19,6 +19,10 @@ services:
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - REDIS_CACHE_URL=redis://redis:6379/1
+      - SEMANTIC_CACHE_TTL=3600
+      - RERANKER_MODEL=BAAI/bge-reranker-v2-m3
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
     depends_on:
       - redis
     command: sh -c "uv run alembic upgrade head && uv run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload"
@@ -36,6 +40,10 @@ services:
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - REDIS_CACHE_URL=redis://redis:6379/1
+      - SEMANTIC_CACHE_TTL=3600
+      - RERANKER_MODEL=BAAI/bge-reranker-v2-m3
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
     depends_on:
       - redis
     volumes:

@@ -1,11 +1,19 @@
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
+
 class BaseQueryPlanner(ABC):
     @abstractmethod
-    async def detect_intent(self, query: str, context_course: Optional[str] = None):
+    async def detect_intent(
+        self,
+        query: str,
+        context_course: Optional[str] = None,
+        context_offering: Optional[str] = None,
+    ):
         """Classifies query into routing categories."""
         pass
+
+
 class BaseRetriever(ABC):
     """
     Abstract contract for context retrieval services.
@@ -95,5 +103,53 @@ class BaseAnswerGenerator(ABC):
         Returns:
             A string containing the synthesized academic answer with
             inline citation references (e.g. [CIT-1]).
+        """
+        pass
+
+
+class BaseSemanticCache(ABC):
+    """
+    Abstract contract for semantic query caching.
+    Implementations store and retrieve cached RAG responses
+    keyed by query embedding similarity.
+    """
+
+    @abstractmethod
+    async def get(self, query: str, query_embedding: list[float], scope_key: Optional[str] = None) -> Optional[dict[str, Any]]:
+        """
+        Looks up a cached response for the given query.
+
+        Args:
+            query: The raw query string.
+            query_embedding: The embedding vector for the query.
+            scope_key: Optional scoping key (e.g. course_offering_id).
+
+        Returns:
+            Cached response dict if found, None otherwise.
+        """
+        pass
+
+    @abstractmethod
+    async def set(
+        self,
+        query: str,
+        query_embedding: list[float],
+        response: dict[str, Any],
+        scope_key: Optional[str] = None,
+    ) -> None:
+        """Stores a response in the cache."""
+        pass
+
+    @abstractmethod
+    async def invalidate(self, scope_key: Optional[str] = None) -> int:
+        """
+        Invalidates cached entries.
+
+        Args:
+            scope_key: If provided, invalidate only entries for this scope.
+                       If None, flush the entire cache.
+
+        Returns:
+            Number of entries invalidated.
         """
         pass
