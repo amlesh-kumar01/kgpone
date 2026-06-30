@@ -15,6 +15,7 @@ from typing import Any, List
 
 from src.config.settings import Settings
 from src.infrastructure.huggingface import get_huggingface_client
+from src.infrastructure.infinity import get_infinity_client
 from src.services.rag.base import BaseReranker
 
 logger = logging.getLogger("cross_encoder_rerank_service")
@@ -29,12 +30,19 @@ class CrossEncoderRerankService(BaseReranker):
     def __init__(self, model_name: str | None = None):
         self.model_name = model_name or Settings.RERANKER_MODEL
         self._hf_client = None  # Lazy init
+        self._infinity_client = None # Lazy init
 
     async def _get_client(self):
         """Lazily initializes the HF client."""
         if self._hf_client is None:
             self._hf_client = get_huggingface_client()
         return self._hf_client
+
+    async def _get_infinity_client(self):
+        """Lazily initializes the Infinity client."""
+        if self._infinity_client is None:
+            self._infinity_client = get_infinity_client()
+        return self._infinity_client
 
     async def rerank_chunks(
         self, query: str, chunks: list[dict[str, Any]], top_n: int = 5
@@ -49,21 +57,42 @@ class CrossEncoderRerankService(BaseReranker):
         # Cap at 15 candidates to speed up HuggingFace API processing
         chunks = chunks[:15]
 
-        client = await self._get_client()
-        if client is not None:
-            try:
-                # Enforce a strict 2-second timeout so we don't hang the chat response
-                scored_chunks = await asyncio.wait_for(
-                    self._rerank_via_api(query, chunks, client),
-                    timeout=2.0
-                )
-            except asyncio.TimeoutError:
-                logger.warning("HF API reranking timed out (>2.0s). Using fallback.")
-                scored_chunks = self._fallback_rerank(query, chunks)
-            except Exception as e:
-                logger.warning(f"HF API reranking failed: {repr(e)}. Using fallback.")
-                scored_chunks = self._fallback_rerank(query, chunks)
-        else:
+        client_infinity = await self._get_infinity_client()
+        client_hf = await self._get_client()
+
+        scored_chunks = None
+
+        # 1. Try Local Infinity first
+        try:
+            scored_chunks = await asyncio.wait_for(
+                self._rerank_via_infinity(query, chunks, client_infinity),
+                timeout=10.0
+            )
+            logger.info("Successfully used local Infinity for reranking.")
+        except asyncio.TimeoutError:
+            logger.warning("Local Infinity reranking timed out (>10.0s). Falling back to HF API.")
+        except Exception as e:
+            logger.warning(f"Local Infinity reranking failed: {repr(e)}. Falling back to HF API.")
+
+        # 2. Try HF API if Infinity fails
+        if scored_chunks is None:
+            if client_hf is not None:
+                try:
+                    scored_chunks = await asyncio.wait_for(
+                        self._rerank_via_api(query, chunks, client_hf),
+                        timeout=3.0
+                    )
+                    logger.info("Successfully used HF API for reranking.")
+                except asyncio.TimeoutError:
+                    logger.warning("HF API reranking timed out (>3.0s). Using lexical fallback.")
+                except Exception as e:
+                    logger.warning(f"HF API reranking failed: {repr(e)}. Using lexical fallback.")
+            else:
+                logger.warning("HF client not configured. Using lexical fallback.")
+
+        # 3. Fallback to Lexical
+        if scored_chunks is None:
+            logger.info("Using lexical fallback for reranking.")
             scored_chunks = self._fallback_rerank(query, chunks)
 
         # Apply document diversity penalty
@@ -76,6 +105,55 @@ class CrossEncoderRerankService(BaseReranker):
         scored_chunks.sort(key=lambda x: x["final_score"], reverse=True)
 
         return scored_chunks[:top_n]
+
+    async def _rerank_via_infinity(
+        self,
+        query: str,
+        chunks: list[dict[str, Any]],
+        client,
+    ) -> list[dict[str, Any]]:
+        """
+        Calls local Infinity API with query and chunk texts.
+        """
+        texts = [
+            chunk["payload"].get("text", chunk["payload"].get("content", ""))[:500] 
+            for chunk in chunks
+        ]
+
+        response = await client.post(
+            "/rerank",
+            json={
+                "model": self.model_name,
+                "query": query, 
+                "documents": texts
+            },
+        )
+
+        if response.status_code != 200:
+            raise RuntimeError(f"Infinity API returned {response.status_code}: {response.text[:200]}")
+
+        scores_data = response.json()
+        
+        # Infinity returns a dict with "results" list: [{"index": 0, "relevance_score": 0.9}]
+        # Sometimes standard Cohere response returns just a list depending on strictness, but usually "results".
+        results = scores_data.get("results", []) if isinstance(scores_data, dict) else scores_data
+        
+        # Map original chunks by their index
+        for chunk in chunks:
+            chunk["final_score"] = 0.0
+            
+        for item in results:
+            idx = item.get("index")
+            # Infinity uses 'relevance_score', fallback to 'score' just in case.
+            raw_score = item.get("relevance_score", item.get("score", 0.0))
+            
+            if idx is not None and 0 <= idx < len(chunks):
+                # Sigmoid normalization if necessary, though rerankers typically output raw logits or probabilities.
+                normalized_score = self._sigmoid(raw_score) if raw_score > 1 or raw_score < 0 else raw_score
+                chunks[idx]["final_score"] = normalized_score
+                
+        # We return the original list, but with `final_score` populated.
+        return chunks
 
     async def _rerank_via_api(
         self,

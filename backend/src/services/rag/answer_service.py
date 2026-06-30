@@ -20,8 +20,9 @@ class AnswerService(BaseAnswerGenerator):
 Guidelines:
 1. Append citation links (e.g. [[CIT-1]](#CIT-1)) to sentences when using info from a block.
 2. If using prerequisite material, explicitly explain the connection to the student's missing knowledge.
-3. Use LaTeX for math ($ and $$) and markdown code blocks for code.
-4. Synthesize fluently; do not just copy raw placeholders."""),
+3. Only use markdown code blocks if the context contains code or the user explicitly asks for it. Do NOT generate arbitrary code from scratch.
+4. Synthesize fluently; do not just copy raw placeholders.
+5. If the context does not contain the answer, say "I cannot answer this based on the provided notes." """),
             ("user", "Context:\n{context}\n\nQuery: {query}\nAnswer:")
         ])
 
@@ -29,9 +30,19 @@ Guidelines:
             ("system", """You're an academic tutor. Answer based ONLY on the provided context.
 Guidelines:
 1. If using prerequisite material, explicitly explain the connection to the student's missing knowledge.
-2. Use LaTeX for math ($ and $$) and markdown code blocks for code.
-3. Synthesize fluently; do not just copy raw placeholders."""),
+2. Only use markdown code blocks if the context contains code or the user explicitly asks for it. Do NOT generate arbitrary code from scratch.
+3. Synthesize fluently; do not just copy raw placeholders.
+4. If the context does not contain the answer, say "I cannot answer this based on the provided notes." """),
             ("user", "Context:\n{context}\n\nQuery: {query}\nAnswer:")
+        ])
+
+        self.web_search_template = ChatPromptTemplate.from_messages([
+            ("system", """You are a helpful AI assistant. Answer the user's query using the provided web search results.
+Guidelines:
+1. Synthesize the information from the web search results fluently.
+2. Do not generate code unless explicitly requested.
+3. If the web search results do not contain the answer, say "I couldn't find a good answer in the web search results." """),
+            ("user", "{context}\n\nQuery: {query}\nAnswer:")
         ])
 
     def _build_context_string(self, ranked_chunks: list[dict[str, Any]], use_citations: bool) -> str:
@@ -54,16 +65,34 @@ Guidelines:
         """
         Generates a grounded academic response. Highlight prerequisite sources.
         """
-        if not ranked_chunks:
-            return "I couldn't find any relevant study materials in your workspace matching your query. Please upload notes or lecture materials first."
+        top_score = ranked_chunks[0].get("final_score", ranked_chunks[0].get("score", 0.0)) if ranked_chunks else 0.0
+        is_irrelevant = not ranked_chunks or top_score < 0.05
 
-        context_str = self._build_context_string(ranked_chunks, use_citations)
+        if is_irrelevant:
+            try:
+                from ddgs import DDGS
+                with DDGS() as ddgs:
+                    results = [r for r in ddgs.text(query, max_results=3)]
+                if not results:
+                    return "I couldn't find any relevant study materials or web results for your query."
+                context_str = "Web Search Results:\n\n"
+                for i, r in enumerate(results):
+                    context_str += f"[{i+1}] {r.get('title', '')}\n{r.get('body', '')}\n---"
+            except Exception as e:
+                logger.error(f"Web search fallback failed: {e}")
+                return "I couldn't find any relevant study materials in your workspace matching your query. Please upload notes or lecture materials first."
+        else:
+            context_str = self._build_context_string(ranked_chunks, use_citations)
 
         if not self.llm:
             return self._generate_offline_grounded_answer(query, ranked_chunks, citations)
 
         try:
-            template = self.prompt_template if use_citations else self.prompt_template_simple
+            if is_irrelevant:
+                template = self.web_search_template
+            else:
+                template = self.prompt_template if use_citations else self.prompt_template_simple
+                
             chain = template | self.llm
             response = chain.invoke({
                 "context": context_str,
@@ -78,18 +107,38 @@ Guidelines:
         """
         Generates a streaming academic response.
         """
-        if not ranked_chunks:
-            yield "I couldn't find any relevant study materials in your workspace matching your query. Please upload notes or lecture materials first."
-            return
+        top_score = ranked_chunks[0].get("final_score", ranked_chunks[0].get("score", 0.0)) if ranked_chunks else 0.0
+        is_irrelevant = not ranked_chunks or top_score < 0.05
 
-        context_str = self._build_context_string(ranked_chunks, use_citations)
+        if is_irrelevant:
+            yield "*No local course materials found. Searching the web...*\n\n"
+            try:
+                from ddgs import DDGS
+                with DDGS() as ddgs:
+                    results = [r for r in ddgs.text(query, max_results=4)]
+                if not results:
+                    yield "I couldn't find any relevant study materials or web results for your query."
+                    return
+                context_str = "Web Search Results:\n\n"
+                for i, r in enumerate(results):
+                    context_str += f"[{i+1}] {r.get('title', '')}\n{r.get('body', '')}\n---"
+            except Exception as e:
+                logger.error(f"Web search fallback failed: {e}")
+                yield "I couldn't find any relevant study materials in your workspace matching your query. Please upload notes or lecture materials first."
+                return
+        else:
+            context_str = self._build_context_string(ranked_chunks, use_citations)
 
         if not self.llm:
             yield self._generate_offline_grounded_answer(query, ranked_chunks, [])
             return
 
         try:
-            template = self.prompt_template if use_citations else self.prompt_template_simple
+            if is_irrelevant:
+                template = self.web_search_template
+            else:
+                template = self.prompt_template if use_citations else self.prompt_template_simple
+                
             chain = template | self.llm
             async for chunk in chain.astream({
                 "context": context_str,

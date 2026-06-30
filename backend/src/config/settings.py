@@ -46,7 +46,10 @@ class Settings:
 
     # HuggingFace Inference API (for cross-encoder reranking)
     HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY", "")
-    RERANKER_MODEL = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
+    RERANKER_MODEL = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-base")
+
+    # Local Infinity URL
+    INFINITY_URL = os.getenv("INFINITY_URL", "http://host.docker.internal:7997")
 
     # Semantic Cache Settings
     REDIS_CACHE_URL = os.getenv("REDIS_CACHE_URL", "redis://localhost:6379/1")

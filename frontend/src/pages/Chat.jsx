@@ -14,6 +14,25 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useAcademic } from '../context/AcademicContext';
 
+const remarkPlugins = [remarkGfm, remarkMath];
+const rehypePlugins = [rehypeKatex];
+
+const MarkdownComponents = {
+  a: ({node, href, children, ...props}) => {
+    if (href && href.startsWith('#CIT-')) {
+      return (
+        <a href={href} className="text-primary font-semibold hover:underline cursor-pointer bg-primary/10 px-1 rounded-sm mx-0.5" onClick={(e) => {
+          e.preventDefault();
+          document.getElementById(href.substring(1))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }}>
+          {children}
+        </a>
+      );
+    }
+    return <a href={href} className="text-primary font-medium hover:underline" target="_blank" rel="noreferrer" {...props}>{children}</a>;
+  }
+};
+
 const ChatMessage = React.memo(({ msg, handleCitationClick, renderBackendBadge }) => {
   return (
     <div className={`flex gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -56,23 +75,9 @@ const ChatMessage = React.memo(({ msg, handleCitationClick, renderBackendBadge }
           ) : (
             <div className="prose prose-slate dark:prose-invert max-w-none break-words leading-relaxed">
               <ReactMarkdown 
-                remarkPlugins={[remarkGfm, remarkMath]}
-                rehypePlugins={[rehypeKatex]}
-                components={{
-                  a: ({node, href, children, ...props}) => {
-                    if (href && href.startsWith('#CIT-')) {
-                      return (
-                        <a href={href} className="text-primary font-semibold hover:underline cursor-pointer bg-primary/10 px-1 rounded-sm mx-0.5" onClick={(e) => {
-                          e.preventDefault();
-                          document.getElementById(href.substring(1))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }}>
-                          {children}
-                        </a>
-                      );
-                    }
-                    return <a href={href} className="text-primary font-medium hover:underline" target="_blank" rel="noreferrer" {...props}>{children}</a>;
-                  }
-                }}
+                remarkPlugins={remarkPlugins}
+                rehypePlugins={rehypePlugins}
+                components={MarkdownComponents}
               >
                 {msg.content}
               </ReactMarkdown>
@@ -342,10 +347,11 @@ const Chat = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-slate-50/50 dark:bg-slate-950 px-4 py-4">
-      {/* Compact Header & Filter */}
-      <div className="max-w-5xl mx-auto w-full flex flex-col md:flex-row items-center justify-between mb-4 gap-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-3 rounded-2xl border shadow-sm shrink-0">
-        <div className="flex items-center gap-3 pr-3 md:border-r border-slate-200 dark:border-slate-700 shrink-0">
+    <div className="flex flex-col md:flex-row h-screen w-full bg-slate-50/50 dark:bg-slate-950 p-4 gap-6">
+      {/* Sidebar (Left) */}
+      <div className="w-full md:w-72 shrink-0 flex flex-col bg-white/80 dark:bg-slate-900/80 backdrop-blur-md rounded-2xl border shadow-sm p-4 overflow-y-auto no-scrollbar">
+        {/* Header / Logo */}
+        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <Button 
             variant="ghost" 
             size="icon" 
@@ -354,7 +360,7 @@ const Chat = () => {
           >
             <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
           </Button>
-          <div className="p-2 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg text-primary shadow-sm border border-primary/10 hidden sm:block">
+          <div className="p-2 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg text-primary shadow-sm border border-primary/10">
             <Sparkles className="w-4 h-4" />
           </div>
           <div>
@@ -363,59 +369,70 @@ const Chat = () => {
           </div>
         </div>
 
-        {/* Global Filter Bar (Compact) */}
-        <div className="flex-1 flex flex-row items-center gap-2 overflow-x-auto no-scrollbar">
-          <Filter size={14} className="text-slate-400 shrink-0 hidden sm:block" />
-          <div className="flex items-center gap-2 flex-1 min-w-max">
-            <Select value={selectedDeptId} onValueChange={(val) => {
-              setSelectedDeptId(val === 'all' ? '' : val);
-              setSelectedCourseId('');
-              setSelectedOfferingId('');
-            }}>
-              <SelectTrigger className="h-9 text-xs rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
-                <SelectValue placeholder="1. Department" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Any Department</SelectItem>
-                {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+        {/* Filters */}
+        <div className="flex flex-col gap-4 mb-6 shrink-0">
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <Filter size={14} className="text-slate-400" /> Filters
+          </h2>
+          
+          <Select value={selectedDeptId} onValueChange={(val) => {
+            setSelectedDeptId(val === 'all' ? '' : val);
+            setSelectedCourseId('');
+            setSelectedOfferingId('');
+          }}>
+            <SelectTrigger className="h-10 text-[13px] rounded-xl bg-slate-50/50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
+              <SelectValue placeholder="1. Department" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any Department</SelectItem>
+              {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
-            <Select value={selectedCourseId} onValueChange={(val) => {
-              setSelectedCourseId(val === 'all' ? '' : val);
-              setSelectedOfferingId('');
-            }} disabled={!selectedDeptId}>
-              <SelectTrigger className="h-9 text-xs rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
-                <SelectValue placeholder="2. Course" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Any Course</SelectItem>
-                {filteredCourses.map(c => <SelectItem key={c.id} value={c.id}>{c.code}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <Select value={selectedCourseId} onValueChange={(val) => {
+            setSelectedCourseId(val === 'all' ? '' : val);
+            setSelectedOfferingId('');
+          }} disabled={!selectedDeptId}>
+            <SelectTrigger className="h-10 text-[13px] rounded-xl bg-slate-50/50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
+              <SelectValue placeholder="2. Course" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any Course</SelectItem>
+              {filteredCourses.map(c => <SelectItem key={c.id} value={c.id}>{c.code}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
-            <Select value={selectedOfferingId} onValueChange={(val) => setSelectedOfferingId(val === 'all' ? '' : val)} disabled={!selectedCourseId || offerings.length === 0}>
-              <SelectTrigger className="h-9 text-xs rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
-                <SelectValue placeholder={offerings.length === 0 && selectedCourseId ? "No offerings" : "3. Offering"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Any Offering</SelectItem>
-                {offerings.map(o => <SelectItem key={o.id} value={o.id}>{o.semester} {o.year}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <Select value={selectedOfferingId} onValueChange={(val) => setSelectedOfferingId(val === 'all' ? '' : val)} disabled={!selectedCourseId || offerings.length === 0}>
+            <SelectTrigger className="h-10 text-[13px] rounded-xl bg-slate-50/50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
+              <SelectValue placeholder={offerings.length === 0 && selectedCourseId ? "No offerings" : "3. Offering"} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any Offering</SelectItem>
+              {offerings.map(o => <SelectItem key={o.id} value={o.id}>{o.semester} {o.year}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          
+          <div className="pt-2">
+            <label className="text-[13px] font-medium text-slate-700 dark:text-slate-300 flex items-center cursor-pointer select-none transition-colors hover:text-slate-900">
+              <input 
+                type="checkbox" 
+                checked={useCitations} 
+                onChange={(e) => setUseCitations(e.target.checked)}
+                className="mr-3 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary transition-all shadow-sm"
+              />
+              Enable Inline Citations
+            </label>
           </div>
         </div>
-        
-        <div className="flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-slate-700 shrink-0">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center cursor-pointer select-none transition-colors hover:text-slate-700 dark:hover:text-slate-300">
-            <input 
-              type="checkbox" 
-              checked={useCitations} 
-              onChange={(e) => setUseCitations(e.target.checked)}
-              className="mr-2 h-4 w-4 rounded-md border-slate-300 text-primary focus:ring-primary transition-all shadow-sm"
-            />
-            Citations
-          </label>
+
+        {/* History Placeholder */}
+        <div className="flex-1 flex flex-col min-h-0 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Chat History</h2>
+          <div className="flex-1 flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 p-4">
+            <p className="text-[11px] text-slate-400 font-medium text-center italic">
+              History will appear here in a future update
+            </p>
+          </div>
         </div>
       </div>
 

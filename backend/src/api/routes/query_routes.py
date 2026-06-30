@@ -175,9 +175,17 @@ async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_ra
             
     async def event_generator():
         # Stream the text chunks
+        t_gen_start = time.time()
+        first_chunk = True
         async for text_chunk in services["answer_generator"].generate_answer_stream(query, reranked_chunks, req.use_citations):
+            if first_chunk:
+                t_first = time.time()
+                logger.info(f"[PERF] Generator TTFT (Time to First Token) took: {t_first - t_gen_start:.4f}s")
+                first_chunk = False
             yield f"data: {json.dumps({'type': 'chunk', 'content': text_chunk})}\n\n"
             
+        t_gen_end = time.time()
+        logger.info(f"[PERF] Generator Total LLM Stream took: {t_gen_end - t_gen_start:.4f}s")
         # Stream the final metadata block
         metadata = {
             "type": "metadata",
