@@ -15,9 +15,11 @@ class QueryRequest(BaseModel):
     query: str
     course_code: Optional[str] = None
     course_offering_id: Optional[str] = None
+    use_citations: bool = True
 
 class CitationRead(BaseModel):
     citation_id: str
+    document_id: Optional[str] = None
     source_title: str
     course_code: str
     academic_year: str

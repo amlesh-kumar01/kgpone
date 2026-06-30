@@ -13,6 +13,115 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useAcademic } from '../context/AcademicContext';
 
+const ChatMessage = React.memo(({ msg, handleCitationClick, renderBackendBadge }) => {
+  return (
+    <div className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+      {/* Avatar */}
+      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+        msg.role === 'user' 
+          ? 'bg-primary text-primary-foreground' 
+          : msg.isError 
+            ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' 
+            : 'bg-accent text-accent-foreground border shadow-sm'
+      }`}>
+        {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+      </div>
+      
+      {/* Message Content */}
+      <div className={`flex flex-col max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+        
+        {/* Intent & Backends Badges (Only for Assistant) */}
+        {msg.metadata && (
+          <div className="flex flex-wrap gap-2 mb-2 items-center">
+            {msg.metadata.intent && (
+              <span className="inline-flex items-center px-2 py-1 rounded text-[10px] font-medium bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 uppercase tracking-wider">
+                INTENT: {msg.metadata.intent}
+              </span>
+            )}
+            {msg.metadata.backends_used?.map(b => renderBackendBadge(b))}
+          </div>
+        )}
+
+        {/* Bubble */}
+        <div className={`px-4 py-3 rounded-2xl shadow-sm text-sm ${
+          msg.role === 'user'
+            ? 'bg-primary text-primary-foreground rounded-tr-sm'
+            : msg.isError
+              ? 'bg-red-50 text-red-900 border border-red-200 dark:bg-red-950/50 dark:text-red-200 dark:border-red-900 rounded-tl-sm'
+              : 'bg-white border text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 rounded-tl-sm'
+        }`}>
+          {msg.role === 'user' ? (
+            <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+          ) : (
+            <div className="prose prose-sm dark:prose-invert max-w-none break-words leading-relaxed">
+              <ReactMarkdown 
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+                components={{
+                  a: ({node, href, children, ...props}) => {
+                    if (href && href.startsWith('#CIT-')) {
+                      return (
+                        <a href={href} className="text-primary font-medium hover:underline cursor-pointer" onClick={(e) => {
+                          e.preventDefault();
+                          document.getElementById(href.substring(1))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }}>
+                          {children}
+                        </a>
+                      );
+                    }
+                    return <a href={href} className="text-primary hover:underline" target="_blank" rel="noreferrer" {...props}>{children}</a>;
+                  }
+                }}
+              >
+                {msg.content}
+              </ReactMarkdown>
+            </div>
+          )}
+        </div>
+
+        {/* Citations/Sources block */}
+        {msg.metadata?.citations && msg.metadata.citations.length > 0 && (
+          <div className="mt-2 w-full flex flex-col gap-1.5">
+            <p className="text-xs font-semibold text-muted-foreground ml-1">Sources Reference:</p>
+            <div className="flex flex-wrap gap-2">
+              {msg.metadata.citations.map((cit, cidx) => {
+                const isClickable = (cit.document_id && cit.document_id !== 'GRAPH') || cit.source_url;
+                const BadgeWrapper = isClickable ? 'a' : 'div';
+                return (
+                  <div key={cidx} className="relative group">
+                    <BadgeWrapper 
+                      id={cit.citation_id} 
+                      href={isClickable ? '#' : undefined} 
+                      onClick={isClickable ? (e) => handleCitationClick(e, cit) : undefined}
+                      className={`flex items-center gap-1.5 bg-white dark:bg-slate-900 border rounded-md px-2 py-1 shadow-sm text-xs transition-all hover:shadow-md ${isClickable ? 'cursor-pointer hover:border-primary' : 'cursor-default'}`}
+                    >
+                      <BookOpen className={`w-3 h-3 ${isClickable ? 'text-muted-foreground group-hover:text-primary transition-colors' : 'text-slate-400'}`} />
+                      <span className={`font-mono text-[10px] ${isClickable ? 'text-muted-foreground group-hover:text-primary' : 'text-slate-400'}`}>{cit.citation_id}</span>
+                      <span className={`font-medium max-w-[150px] truncate ${isClickable ? 'text-slate-700 dark:text-slate-300 group-hover:text-primary' : 'text-slate-500'}`} title={cit.source_title}>
+                        {cit.source_title}
+                      </span>
+                    </BadgeWrapper>
+                    
+                    {/* Snippet Tooltip */}
+                    <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 w-72 p-3 bg-slate-900 dark:bg-slate-800 text-white text-xs rounded-lg shadow-xl border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                      <div className="font-semibold mb-1 text-primary-400">
+                        {cit.section ? `Topic: ${cit.section}` : `Source: ${cit.source_title}`}
+                        {cit.page_number && cit.page_number > 0 && <span className="text-slate-400 font-normal"> (Pg. {cit.page_number})</span>}
+                      </div>
+                      <div className="italic text-slate-300 break-words line-clamp-6 leading-relaxed">"{cit.text_snippet}"</div>
+                      <div className="absolute top-full left-4 -mt-[1px] border-4 border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
 const Chat = () => {
   const { departments, courses: allCourses } = useAcademic();
   const [messages, setMessages] = useState([
@@ -23,6 +132,7 @@ const Chat = () => {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [useCitations, setUseCitations] = useState(true);
   
   // Cascading Selection State (Persistent)
   const [selectedDeptId, setSelectedDeptId] = useState(() => localStorage.getItem('kgpone_chat_dept_id') || '');
@@ -82,54 +192,123 @@ const Chat = () => {
     const userMessage = input.trim();
     setInput('');
     
-    // Add user message to UI
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    // Add user message and empty assistant placeholder
+    setMessages(prev => [
+      ...prev, 
+      { role: 'user', content: userMessage },
+      { role: 'assistant', content: '', metadata: null }
+    ]);
     setIsLoading(true);
 
     try {
-      // Find course code for the selected course
       let courseCode = null;
       if (selectedCourseId) {
         const selectedCourse = allCourses.find(c => c.id === selectedCourseId);
         courseCode = selectedCourse ? selectedCourse.code : null;
       }
 
-      const response = await api.post('/api/v1/query/ask', {
+      const requestBody = {
         query: userMessage,
         course_code: courseCode || null,
-        course_offering_id: selectedOfferingId || null
+        course_offering_id: selectedOfferingId || null,
+        use_citations: useCitations
+      };
+
+      const baseURL = api.defaults.baseURL || 'http://127.0.0.1:8000';
+      const token = localStorage.getItem('access_token');
+      
+      const response = await fetch(`${baseURL}/api/v1/query/ask_stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(requestBody)
       });
 
-      if (response.data.status === 'success') {
-        const { answer, sources, backends_used, intent, citations } = response.data.data;
+      if (!response.ok) {
+        throw new Error('Failed to fetch stream');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let assistantMessage = "";
+      
+      setIsLoading(false); // Stop loader when stream starts
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
         
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: answer,
-          metadata: {
-            sources,
-            backends_used,
-            intent,
-            citations
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.substring(6));
+              if (data.type === 'chunk') {
+                assistantMessage += data.content;
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  newMessages[newMessages.length - 1] = {
+                    ...newMessages[newMessages.length - 1],
+                    content: assistantMessage
+                  };
+                  return newMessages;
+                });
+              } else if (data.type === 'metadata') {
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  newMessages[newMessages.length - 1] = {
+                    ...newMessages[newMessages.length - 1],
+                    metadata: data
+                  };
+                  return newMessages;
+                });
+              }
+            } catch (e) {
+              console.error("SSE Parse Error", e);
+            }
           }
-        }]);
-      } else {
-        throw new Error(response.data.message || 'Failed to get answer');
+        }
       }
     } catch (error) {
       console.error('Chat error:', error);
       toast({
         title: "Error",
-        description: error.response?.data?.message || "Failed to communicate with KnowledgeOS. Please try again.",
+        description: error.message || "Failed to communicate with KnowledgeOS. Please try again.",
         variant: "destructive"
       });
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: "I'm sorry, I encountered an error while processing your request. Please try again.",
-        isError: true
-      }]);
-    } finally {
+      setMessages(prev => {
+         const newMessages = [...prev];
+         newMessages[newMessages.length - 1] = {
+           role: 'assistant',
+           content: "I'm sorry, I encountered an error while processing your request. Please try again.",
+           isError: true
+         };
+         return newMessages;
+      });
       setIsLoading(false);
+    }
+  };
+
+  const handleCitationClick = async (e, cit) => {
+    e.preventDefault();
+    if (cit.document_id && cit.document_id !== 'GRAPH') {
+      try {
+        const response = await api.get(`/api/v1/documents/${cit.document_id}/download`);
+        if (response.data?.data) {
+          window.open(response.data.data, '_blank');
+        } else {
+          toast({ title: "Error", description: "Could not generate download link", variant: "destructive" });
+        }
+      } catch (err) {
+        console.error(err);
+        toast({ title: "Error", description: "Failed to download document", variant: "destructive" });
+      }
+    } else if (cit.source_url) {
+      window.open(cit.source_url, '_blank');
     }
   };
 
@@ -159,64 +338,73 @@ const Chat = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] max-h-[800px] w-full max-w-5xl mx-auto px-4 lg:px-0">
-      <div className="flex flex-col gap-4 mb-4">
-        <div className="flex items-center gap-2">
-          <div className="p-2 bg-primary/10 rounded-lg text-primary">
-            <Sparkles className="w-6 h-6" />
+    <div className="flex flex-col h-[calc(100vh-2rem)] w-full max-w-5xl mx-auto px-4 lg:px-0 py-4">
+      {/* Compact Header & Filter */}
+      <div className="flex flex-col md:flex-row items-center justify-between mb-3 gap-3 bg-card p-2.5 rounded-xl border shadow-sm">
+        <div className="flex items-center gap-2 pr-3 md:border-r border-border shrink-0">
+          <div className="p-1.5 bg-primary/10 rounded-md text-primary">
+            <Sparkles className="w-4 h-4" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">KnowledgeOS Assistant</h1>
-            <p className="text-sm text-muted-foreground">Hybrid GraphRAG-powered academic tutor</p>
+            <h1 className="text-sm font-bold leading-tight">KnowledgeOS</h1>
+            <p className="text-[10px] text-muted-foreground">Academic Tutor</p>
           </div>
         </div>
 
-        {/* Global Filter Bar */}
-        <Card className="rounded-lg shadow-sm border border-border bg-card">
-          <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center">
-            <div className="flex items-center gap-2 text-muted-foreground font-medium mr-2 whitespace-nowrap">
-              <Filter size={18} /> Context Filter
-            </div>
-            <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Select value={selectedDeptId} onValueChange={(val) => {
-                setSelectedDeptId(val === 'all' ? '' : val);
-                setSelectedCourseId('');
-                setSelectedOfferingId('');
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="1. Any Department" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any Department</SelectItem>
-                  {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+        {/* Global Filter Bar (Compact) */}
+        <div className="flex-1 flex flex-row items-center gap-2 overflow-x-auto no-scrollbar">
+          <Filter size={14} className="text-muted-foreground shrink-0 hidden sm:block" />
+          <div className="flex items-center gap-2 flex-1 min-w-max">
+            <Select value={selectedDeptId} onValueChange={(val) => {
+              setSelectedDeptId(val === 'all' ? '' : val);
+              setSelectedCourseId('');
+              setSelectedOfferingId('');
+            }}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="1. Department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any Department</SelectItem>
+                {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
 
-              <Select value={selectedCourseId} onValueChange={(val) => {
-                setSelectedCourseId(val === 'all' ? '' : val);
-                setSelectedOfferingId('');
-              }} disabled={!selectedDeptId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="2. Any Course" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any Course</SelectItem>
-                  {filteredCourses.map(c => <SelectItem key={c.id} value={c.id}>{c.code}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            <Select value={selectedCourseId} onValueChange={(val) => {
+              setSelectedCourseId(val === 'all' ? '' : val);
+              setSelectedOfferingId('');
+            }} disabled={!selectedDeptId}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="2. Course" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any Course</SelectItem>
+                {filteredCourses.map(c => <SelectItem key={c.id} value={c.id}>{c.code}</SelectItem>)}
+              </SelectContent>
+            </Select>
 
-              <Select value={selectedOfferingId} onValueChange={(val) => setSelectedOfferingId(val === 'all' ? '' : val)} disabled={!selectedCourseId || offerings.length === 0}>
-                <SelectTrigger>
-                  <SelectValue placeholder={offerings.length === 0 && selectedCourseId ? "No offerings available" : "3. Any Offering"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any Offering</SelectItem>
-                  {offerings.map(o => <SelectItem key={o.id} value={o.id}>{o.semester} {o.year}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+            <Select value={selectedOfferingId} onValueChange={(val) => setSelectedOfferingId(val === 'all' ? '' : val)} disabled={!selectedCourseId || offerings.length === 0}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder={offerings.length === 0 && selectedCourseId ? "No offerings" : "3. Offering"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any Offering</SelectItem>
+                {offerings.map(o => <SelectItem key={o.id} value={o.id}>{o.semester} {o.year}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2 pl-3 border-l border-border shrink-0">
+          <label className="text-xs font-medium text-muted-foreground flex items-center cursor-pointer select-none">
+            <input 
+              type="checkbox" 
+              checked={useCitations} 
+              onChange={(e) => setUseCitations(e.target.checked)}
+              className="mr-1.5 h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary"
+            />
+            Citations
+          </label>
+        </div>
       </div>
 
       <Card className="flex-1 flex flex-col overflow-hidden border shadow-sm">
@@ -226,104 +414,12 @@ const Chat = () => {
           className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-50/50 dark:bg-slate-900/50 scroll-smooth"
         >
           {messages.map((msg, idx) => (
-            <div 
+            <ChatMessage 
               key={idx} 
-              className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
-            >
-              {/* Avatar */}
-              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                msg.role === 'user' 
-                  ? 'bg-primary text-primary-foreground' 
-                  : msg.isError 
-                    ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' 
-                    : 'bg-accent text-accent-foreground border shadow-sm'
-              }`}>
-                {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-              </div>
-              
-              {/* Message Content */}
-              <div className={`flex flex-col max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                
-                {/* Intent & Backends Badges (Only for Assistant) */}
-                {msg.metadata && (
-                  <div className="flex flex-wrap gap-2 mb-2 items-center">
-                    {msg.metadata.intent && (
-                      <span className="inline-flex items-center px-2 py-1 rounded text-[10px] font-medium bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 uppercase tracking-wider">
-                        INTENT: {msg.metadata.intent}
-                      </span>
-                    )}
-                    {msg.metadata.backends_used?.map(b => renderBackendBadge(b))}
-                  </div>
-                )}
-
-                {/* Bubble */}
-                <div className={`px-4 py-3 rounded-2xl shadow-sm text-sm ${
-                  msg.role === 'user'
-                    ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                    : msg.isError
-                      ? 'bg-red-50 text-red-900 border border-red-200 dark:bg-red-950/50 dark:text-red-200 dark:border-red-900 rounded-tl-sm'
-                      : 'bg-white border text-slate-800 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 rounded-tl-sm'
-                }`}>
-                  <div className="prose prose-sm dark:prose-invert max-w-none break-words leading-relaxed">
-                    <ReactMarkdown 
-                      remarkPlugins={[remarkGfm, remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      components={{
-                        a: ({node, href, children, ...props}) => {
-                          if (href && href.startsWith('#CIT-')) {
-                            return (
-                              <a href={href} className="text-primary font-medium hover:underline cursor-pointer" onClick={(e) => {
-                                e.preventDefault();
-                                document.getElementById(href.substring(1))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                              }}>
-                                {children}
-                              </a>
-                            );
-                          }
-                          return <a href={href} className="text-primary hover:underline" target="_blank" rel="noreferrer" {...props}>{children}</a>;
-                        }
-                      }}
-                    >
-                      {msg.content}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-
-                {/* Citations/Sources block */}
-                {msg.metadata?.citations && msg.metadata.citations.length > 0 && (
-                  <div className="mt-2 w-full flex flex-col gap-1.5">
-                    <p className="text-xs font-semibold text-muted-foreground ml-1">Sources Reference:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {msg.metadata.citations.map((cit, cidx) => (
-                        <div key={cidx} className="relative group">
-                          <a 
-                            id={cit.citation_id} 
-                            href={cit.source_url || '#'} 
-                            target={cit.source_url ? "_blank" : undefined}
-                            rel="noreferrer"
-                            className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border rounded-md px-2 py-1 shadow-sm text-xs cursor-pointer hover:border-primary transition-all hover:shadow-md"
-                          >
-                            <BookOpen className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
-                            <span className="font-mono text-[10px] text-muted-foreground group-hover:text-primary">{cit.citation_id}</span>
-                            <span className="font-medium text-slate-700 dark:text-slate-300 max-w-[150px] truncate group-hover:text-primary" title={cit.source_title}>
-                              {cit.source_title}
-                            </span>
-                          </a>
-                          
-                          {/* Snippet Tooltip */}
-                          <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 w-72 p-3 bg-slate-900 dark:bg-slate-800 text-white text-xs rounded-lg shadow-xl border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                            <div className="font-semibold mb-1 text-primary-400">Excerpt from {cit.source_title}:</div>
-                            <div className="italic text-slate-300 break-words line-clamp-6 leading-relaxed">"{cit.text_snippet}"</div>
-                            {/* Tooltip arrow */}
-                            <div className="absolute top-full left-4 -mt-[1px] border-4 border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+              msg={msg} 
+              handleCitationClick={handleCitationClick}
+              renderBackendBadge={renderBackendBadge} 
+            />
           ))}
 
           {isLoading && (
@@ -340,14 +436,14 @@ const Chat = () => {
         </div>
 
         {/* Input Area */}
-        <div className="p-4 bg-white dark:bg-slate-950 border-t">
+        <div className="p-3 bg-white dark:bg-slate-950 border-t">
           <form onSubmit={handleSubmit} className="flex items-end gap-2">
             <div className="relative flex-1">
               <Input 
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={selectedCourseId ? "Ask about the selected course..." : "Ask about a topic, course prerequisites, or search documents..."}
-                className="pr-12 py-6 text-sm bg-slate-50 dark:bg-slate-900/50 focus-visible:ring-primary/50"
+                className="pr-12 py-3 h-10 text-sm bg-slate-50 dark:bg-slate-900/50 focus-visible:ring-primary/50"
                 disabled={isLoading}
               />
             </div>
@@ -355,12 +451,12 @@ const Chat = () => {
               type="submit" 
               size="icon" 
               disabled={!input.trim() || isLoading}
-              className="h-[50px] w-[50px] rounded-xl shadow-sm"
+              className="h-10 w-10 rounded-lg shadow-sm shrink-0"
             >
               <Send className="w-4 h-4" />
             </Button>
           </form>
-          <div className="flex items-center justify-center mt-3 gap-1 text-[10px] text-muted-foreground">
+          <div className="flex items-center justify-center mt-2 gap-1 text-[10px] text-muted-foreground">
             <Bot className="w-3 h-3" />
             <span>AI responses can be inaccurate. Verify important information against official course syllabus.</span>
           </div>

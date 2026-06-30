@@ -26,6 +26,7 @@ class CitationService(BaseCitationFormatter):
 
             citations.append({
                 "citation_id": f"CIT-{idx + 1}",
+                "document_id": payload.get("document_id", None),
                 "source_title": payload.get("title", "Lecture Notes"),
                 "course_code": payload.get("course_code", "GEN101"),
                 "academic_year": payload.get("academic_year", "1st Year"),
@@ -36,7 +37,7 @@ class CitationService(BaseCitationFormatter):
                 "is_prerequisite": payload.get("is_prerequisite", False),
                 "prerequisite_concept": payload.get("prerequisite_concept", None),
                 "source_url": payload.get("url", payload.get("s3_key", None)),
-                "text_snippet": payload.get("content", payload.get("text", ""))[:250] + "..."
+                "text_snippet": payload.get("content", payload.get("text", ""))[:150] + "..."
             })
             
         return citations

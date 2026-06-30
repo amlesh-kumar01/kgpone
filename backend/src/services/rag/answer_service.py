@@ -25,14 +25,16 @@ Guidelines:
             ("user", "Context:\n{context}\n\nQuery: {query}\nAnswer:")
         ])
 
-    def generate_answer(self, query: str, ranked_chunks: list[dict[str, Any]], citations: list[dict[str, Any]]) -> str:
-        """
-        Generates a grounded academic response. Highlight prerequisite sources.
-        """
-        if not ranked_chunks:
-            return "I couldn't find any relevant study materials in your workspace matching your query. Please upload notes or lecture materials first."
+        self.prompt_template_simple = ChatPromptTemplate.from_messages([
+            ("system", """You're an academic tutor. Answer based ONLY on the provided context.
+Guidelines:
+1. If using prerequisite material, explicitly explain the connection to the student's missing knowledge.
+2. Use LaTeX for math ($ and $$) and markdown code blocks for code.
+3. Synthesize fluently; do not just copy raw placeholders."""),
+            ("user", "Context:\n{context}\n\nQuery: {query}\nAnswer:")
+        ])
 
-        # Compile context text
+    def _build_context_string(self, ranked_chunks: list[dict[str, Any]], use_citations: bool) -> str:
         context_blocks = []
         for idx, chunk in enumerate(ranked_chunks):
             payload = chunk["payload"]
@@ -41,29 +43,62 @@ Guidelines:
             is_prereq = payload.get("is_prerequisite", False)
             prereq_str = " (Prerequisite Course Content)" if is_prereq else " (Active Course Content)"
             
-            context_blocks.append(
-                f"Source: [{cit_id}] (Course: {course_code}{prereq_str})\n"
-                f"Content: {payload.get('content', payload.get('text', ''))}\n"
-                f"---"
-            )
+            if use_citations:
+                context_blocks.append(f"Source: [{cit_id}] (Course: {course_code}{prereq_str})\nContent: {payload.get('content', payload.get('text', ''))}\n---")
+            else:
+                context_blocks.append(f"Course: {course_code}{prereq_str}\nContent: {payload.get('content', payload.get('text', ''))}\n---")
         
-        context_str = "\n\n".join(context_blocks)
+        return "\n\n".join(context_blocks)
+
+    def generate_answer(self, query: str, ranked_chunks: list[dict[str, Any]], citations: list[dict[str, Any]], use_citations: bool = True) -> str:
+        """
+        Generates a grounded academic response. Highlight prerequisite sources.
+        """
+        if not ranked_chunks:
+            return "I couldn't find any relevant study materials in your workspace matching your query. Please upload notes or lecture materials first."
+
+        context_str = self._build_context_string(ranked_chunks, use_citations)
 
         if not self.llm:
             return self._generate_offline_grounded_answer(query, ranked_chunks, citations)
 
         try:
-            chain = self.prompt_template | self.llm
-            # ainvoke isn't used here since route is synchronous internally,
-            # but we can use invoke. Wait, the route calls it synchronously: answer = services["answer_generator"].generate_answer(...)
+            template = self.prompt_template if use_citations else self.prompt_template_simple
+            chain = template | self.llm
             response = chain.invoke({
                 "context": context_str,
                 "query": query
             })
             return response.content
         except Exception as e:
-            logger.error(f"LLM API generation failed: {e}. Falling back to offline synthesis.")
+            logger.error(f"LLM generation failed: {e}")
             return self._generate_offline_grounded_answer(query, ranked_chunks, citations)
+
+    async def generate_answer_stream(self, query: str, ranked_chunks: list[dict[str, Any]], use_citations: bool = True):
+        """
+        Generates a streaming academic response.
+        """
+        if not ranked_chunks:
+            yield "I couldn't find any relevant study materials in your workspace matching your query. Please upload notes or lecture materials first."
+            return
+
+        context_str = self._build_context_string(ranked_chunks, use_citations)
+
+        if not self.llm:
+            yield self._generate_offline_grounded_answer(query, ranked_chunks, [])
+            return
+
+        try:
+            template = self.prompt_template if use_citations else self.prompt_template_simple
+            chain = template | self.llm
+            async for chunk in chain.astream({
+                "context": context_str,
+                "query": query
+            }):
+                yield chunk.content
+        except Exception as e:
+            logger.error(f"LLM streaming failed: {e}")
+            yield "\n\n(Error generating full response. Fell back to offline generation.)"
 
     def _generate_offline_grounded_answer(self, query: str, ranked_chunks: list[dict[str, Any]], citations: list[dict[str, Any]]) -> str:
         """

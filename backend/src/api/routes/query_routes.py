@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
+from fastapi.responses import StreamingResponse
 from typing import List
+import json
 from src.schemas.query_schema import QueryRequest, QueryResponse, SearchResult
 from src.schemas.response_schema import StandardResponse
 from src.services.rag.nlp_planner_service import NLPPlannerService
@@ -72,11 +74,13 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
     # 3. Rerank
     reranked_chunks = await services["reranker"].rerank_chunks(query, context["retrieved_chunks"], top_n=3)
     
-    # 4. Format Citations
-    citations = services["citation_formatter"].format_citations(reranked_chunks)
+    # 4. Format Citations if requested
+    citations = []
+    if req.use_citations:
+        citations = services["citation_formatter"].format_citations(reranked_chunks)
     
     # 5. Generate Answer
-    answer = services["answer_generator"].generate_answer(query, reranked_chunks, citations)
+    answer = services["answer_generator"].generate_answer(query, reranked_chunks, citations, use_citations=req.use_citations)
     
     # Build Sources (unique documents)
     sources = []
@@ -123,6 +127,55 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
         message="Query answered successfully",
         data=response_data
     )
+
+@router.post("/ask_stream")
+async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_rag_services)):
+    """SSE endpoint for streaming the RAG answer."""
+    query = req.query
+    course_code = req.course_code
+    course_offering_id = req.course_offering_id
+    
+    plan = await services["planner"].detect_intent(query, course_code, course_offering_id)
+    context = await services["retriever"].retrieve_context(query, plan)
+    reranked_chunks = await services["reranker"].rerank_chunks(query, context["retrieved_chunks"], top_n=3)
+    
+    citations = []
+    if req.use_citations:
+        citations = services["citation_formatter"].format_citations(reranked_chunks)
+        
+    sources = []
+    seen_docs = set()
+    for chunk in reranked_chunks:
+        payload = chunk.get("payload", {})
+        doc_id = payload.get("document_id")
+        if doc_id and doc_id != "GRAPH" and doc_id not in seen_docs:
+            seen_docs.add(doc_id)
+            sources.append({
+                "document_id": doc_id,
+                "title": payload.get("document_title", payload.get("title", "Unknown")),
+                "course_code": payload.get("course_code", ""),
+                "doc_type": payload.get("document_type", "Notes"),
+                "s3_key": payload.get("s3_key", "")
+            })
+            
+    async def event_generator():
+        # Stream the text chunks
+        async for text_chunk in services["answer_generator"].generate_answer_stream(query, reranked_chunks, req.use_citations):
+            yield f"data: {json.dumps({'type': 'chunk', 'content': text_chunk})}\n\n"
+            
+        # Stream the final metadata block
+        metadata = {
+            "type": "metadata",
+            "citations": [c.model_dump() for c in citations] if citations and hasattr(citations[0], "model_dump") else citations,
+            "sources": sources,
+            "intent": plan.intent,
+            "backends_used": plan.backends_needed,
+            "graph_context": context.get("graph_visualization")
+        }
+        # handle pydantic dumping for citations if it returns dicts, format_citations actually returns a list of CitationRead models usually... Wait, format_citations returns dicts in python.
+        yield f"data: {json.dumps(metadata)}\n\n"
+        
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.post("/search", response_model=StandardResponse[List[SearchResult]])
 async def semantic_search(req: QueryRequest, services: dict = Depends(get_rag_services)):
