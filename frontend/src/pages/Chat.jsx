@@ -295,20 +295,29 @@ const Chat = () => {
                     <p className="text-xs font-semibold text-muted-foreground ml-1">Sources Reference:</p>
                     <div className="flex flex-wrap gap-2">
                       {msg.metadata.citations.map((cit, cidx) => (
-                        <a 
-                          id={cit.citation_id} 
-                          key={cidx} 
-                          href={cit.source_url || '#'} 
-                          target={cit.source_url ? "_blank" : undefined}
-                          rel="noreferrer"
-                          className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border rounded-md px-2 py-1 shadow-sm text-xs group cursor-pointer hover:border-primary transition-all hover:shadow-md"
-                        >
-                          <BookOpen className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
-                          <span className="font-mono text-[10px] text-muted-foreground group-hover:text-primary">{cit.citation_id}</span>
-                          <span className="font-medium text-slate-700 dark:text-slate-300 max-w-[150px] truncate group-hover:text-primary" title={cit.source_title}>
-                            {cit.source_title}
-                          </span>
-                        </a>
+                        <div key={cidx} className="relative group">
+                          <a 
+                            id={cit.citation_id} 
+                            href={cit.source_url || '#'} 
+                            target={cit.source_url ? "_blank" : undefined}
+                            rel="noreferrer"
+                            className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border rounded-md px-2 py-1 shadow-sm text-xs cursor-pointer hover:border-primary transition-all hover:shadow-md"
+                          >
+                            <BookOpen className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
+                            <span className="font-mono text-[10px] text-muted-foreground group-hover:text-primary">{cit.citation_id}</span>
+                            <span className="font-medium text-slate-700 dark:text-slate-300 max-w-[150px] truncate group-hover:text-primary" title={cit.source_title}>
+                              {cit.source_title}
+                            </span>
+                          </a>
+                          
+                          {/* Snippet Tooltip */}
+                          <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 w-72 p-3 bg-slate-900 dark:bg-slate-800 text-white text-xs rounded-lg shadow-xl border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                            <div className="font-semibold mb-1 text-primary-400">Excerpt from {cit.source_title}:</div>
+                            <div className="italic text-slate-300 break-words line-clamp-6 leading-relaxed">"{cit.text_snippet}"</div>
+                            {/* Tooltip arrow */}
+                            <div className="absolute top-full left-4 -mt-[1px] border-4 border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>

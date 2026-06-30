@@ -27,6 +27,7 @@ class CitationRead(BaseModel):
     score: float
     is_prerequisite: bool
     prerequisite_concept: Optional[str] = None
+    source_url: Optional[str] = None
     text_snippet: str
 
 class SourceRead(BaseModel):
