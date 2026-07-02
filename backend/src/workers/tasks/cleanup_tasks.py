@@ -35,11 +35,19 @@ def cleanup_document_task(self, document_id: str, job_id: str):
             db.commit()
             return
             
-        # 2. S3 Cleanup
+        # 2. S3 Cleanup — delete the PDF file
         try:
             s3_storage.delete_file(doc.s3_key)
         except Exception as s3_e:
-            logger.warning(f"Failed to delete file from S3 (continuing DB cleanup): {s3_e}")
+            logger.warning(f"Failed to delete PDF from S3 (continuing): {s3_e}")
+
+        # 2b. S3 Cleanup — delete extracted images for this document
+        try:
+            images_prefix = f"images/{document_id}/"
+            deleted_imgs = s3_storage.list_and_delete_prefix(images_prefix)
+            logger.info(f"Cleaned up {deleted_imgs} image(s) for document {document_id}")
+        except Exception as img_e:
+            logger.warning(f"Failed to delete images from S3 (continuing): {img_e}")
         
         # 3. Qdrant Cleanup
         qdrant_repo.delete_by_filter("documents", {"document_id": document_id})

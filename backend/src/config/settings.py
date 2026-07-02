@@ -36,6 +36,7 @@ class Settings:
     
     EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "gemini").lower()
     EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "")
+    EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", "384"))
     EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY", "")
 
     # Auth Settings

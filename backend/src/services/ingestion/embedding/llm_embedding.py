@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from src.services.ingestion.embedding.base import BaseEmbedder
 from src.infrastructure.llm_factory import LLMFactory
 
@@ -31,6 +32,63 @@ class LLMEmbedder(BaseEmbedder):
                 vectors.append(vec)
             return vectors
 
-        # Langchain Embeddings has an aembed_documents method
-        # which batches appropriately behind the scenes.
-        return await self.embedder.aembed_documents(chunks)
+        # Batching and Retry Logic for strict Rate Limits (e.g. Gemini 100 RPM free tier)
+        # We process chunks in batches of 50 to avoid hitting limits instantly.
+        batch_size = 50
+        all_embeddings = []
+        
+        for i in range(0, len(chunks), batch_size):
+            batch = chunks[i:i + batch_size]
+            max_retries = 5
+            retry_delay = 65  # Google's limit is per minute, so waiting 65s guarantees a reset
+            
+            for attempt in range(max_retries):
+                try:
+                    logger.info(f"Embedding batch {i//batch_size + 1}/{(len(chunks) - 1)//batch_size + 1} ({len(batch)} chunks)...")
+                    batch_embeddings = await self.embedder.aembed_documents(batch)
+                    all_embeddings.extend(batch_embeddings)
+                    break  # Success, move to next batch
+                except Exception as e:
+                    error_msg = str(e)
+                    if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "Quota exceeded" in error_msg:
+                        if attempt < max_retries - 1:
+                            logger.warning(f"Rate limit hit during embedding. Sleeping for {retry_delay}s to let quota reset... (Attempt {attempt + 1}/{max_retries})")
+                            await asyncio.sleep(retry_delay)
+                            retry_delay += 10  # Add a little more padding each retry
+                        else:
+                            logger.error(f"Failed to embed batch after {max_retries} attempts due to rate limit.")
+                            raise
+                    else:
+                        logger.error(f"Unexpected embedding error: {error_msg}")
+                        raise
+                        
+            # Add a small delay between successful batches to prevent bursting
+            if i + batch_size < len(chunks):
+                await asyncio.sleep(2)
+                
+        return all_embeddings
+
+    async def embed_query(self, query: str) -> list[float]:
+        if self.use_fallback or not self.embedder:
+            vectors = await self.embed([query])
+            return vectors[0]
+
+        max_retries = 5
+        retry_delay = 5
+        
+        for attempt in range(max_retries):
+            try:
+                query_embedding = await self.embedder.aembed_query(query)
+                return query_embedding
+            except Exception as e:
+                error_msg = str(e)
+                if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "Quota exceeded" in error_msg:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Rate limit hit during query embedding. Sleeping for {retry_delay}s... (Attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay += 5
+                    else:
+                        logger.error(f"Failed to embed query after {max_retries} attempts due to rate limit.")
+                        raise
+                else:
+                    raise

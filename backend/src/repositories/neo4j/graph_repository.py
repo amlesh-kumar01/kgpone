@@ -150,10 +150,10 @@ class Neo4jRepo:
     # --- Deletion ---
         
     def delete_document_entities(self, document_id: str) -> bool:
-        """Deletes the document node and any dangling entities that only this document links to"""
+        """Deletes the document node and any dangling entities (including Topics and Tables) that only this document links to"""
         query = """
         MATCH (d:Document {doc_id: $doc_id})
-        OPTIONAL MATCH (d)-[:COVERS|MENTIONS|HAS_FORMULA|REFERENCES]->(e)
+        OPTIONAL MATCH (d)-[:COVERS|MENTIONS|HAS_FORMULA|REFERENCES|COVERS_TOPIC|CONTAINS_TABLE]->(e)
         DETACH DELETE d
         WITH e
         WHERE e IS NOT NULL AND NOT ()-->(e)
@@ -170,6 +170,32 @@ class Neo4jRepo:
         DETACH DELETE c, o, d
         """
         return self.execute_write_query(query, {"course_code": course_code})
+
+    def build_document_skeleton(self, doc_id: str, document_dom: Any) -> bool:
+        """Stores the structural skeleton (ToC, Tables) of a document in Neo4j without raw text."""
+        # 1. Ensure Document node exists
+        self.merge_document(doc_id, {"title": document_dom.title})
+        
+        # 2. Iterate through ToC to create structural Heading/Topic nodes
+        for item in document_dom.toc:
+            title = item.get("title")
+            if title:
+                # Store as a Topic node
+                self.merge_topic(title, {"level": item.get("level")})
+                self.merge_relationship("Document", "doc_id", doc_id, "Topic", "name", title, "COVERS_TOPIC")
+                
+        # 3. Tables can be added as structural nodes too
+        for node in document_dom.nodes:
+            if node.node_type == "table":
+                # Only store table metadata, not the full text
+                table_title = node.metadata.parent_table_title or f"Table_in_{doc_id}"
+                props = {"page": node.page_number}
+                if node.metadata.headers:
+                    props["headers"] = ",".join(node.metadata.headers)
+                self.merge_node("Table", "name", table_title, props)
+                self.merge_relationship("Document", "doc_id", doc_id, "Table", "name", table_title, "CONTAINS_TABLE")
+                
+        return True
 
     def close(self):
         pass

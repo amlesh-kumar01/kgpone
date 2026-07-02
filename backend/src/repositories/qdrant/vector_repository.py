@@ -5,15 +5,17 @@ from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, Fi
 from src.infrastructure.qdrant import get_qdrant_client
 from src.utils.interfaces import IVectorRepo
 
+from src.config.settings import Settings
+
 logger = logging.getLogger("qdrant_repository")
 
 class QdrantRepository(IVectorRepo):
     # In-memory storage fallback for offline mode
     _fallback_storage: list[dict] = []
 
-    def __init__(self, vector_size: int = 3072):
+    def __init__(self, vector_size: int = None):
         self.client = get_qdrant_client()
-        self.vector_size = vector_size
+        self.vector_size = vector_size or Settings.EMBEDDING_DIMENSION
         self.use_fallback = False
         if self.client is None:
             logger.warning("[Qdrant Fallback] Qdrant service not connected. Enabling offline in-memory mock search.")

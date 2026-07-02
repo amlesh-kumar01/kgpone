@@ -5,12 +5,13 @@ import json
 import time
 import logging
 from src.utils.logger import setup_logger
+from src.repositories.s3.storage_repository import S3Storage
 
 logger = setup_logger("query_routes")
 from src.schemas.query_schema import QueryRequest, QueryResponse, SearchResult
 from src.schemas.response_schema import StandardResponse
 from src.services.rag.nlp_planner_service import NLPPlannerService
-from src.services.rag.retrieval_service import RetrievalService
+from src.services.rag.retrieval_service import RetrievalService, _inject_presigned_image_urls
 from src.services.rag.cross_encoder_rerank_service import CrossEncoderRerankService
 from src.services.rag.citation_service import CitationService
 from src.services.rag.answer_service import AnswerService
@@ -55,8 +56,11 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
     embedder = services["embedder"]
     
     # Generate embedding for cache lookup (reused later for retrieval)
-    query_vectors = await embedder.embed([query])
-    query_embedding = query_vectors[0] if query_vectors else []
+    try:
+        query_embedding = await embedder.embed_query(query)
+    except Exception as e:
+        logger.error(f"Error embedding query: {e}")
+        query_embedding = []
     
     if query_embedding:
         scope_key = course_offering_id if course_offering_id else None
@@ -75,15 +79,21 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
     
     # 2. Retrieve
     context = await services["retriever"].retrieve_context(query, plan)
-    
+
+    # 2b. Inject presigned image URLs into ALL figure chunks now so the answer
+    #     service context builder can pass live URLs to the LLM.
+    _inject_presigned_image_urls(context["retrieved_chunks"])
+
     # 3. Rerank
-    reranked_chunks = await services["reranker"].rerank_chunks(query, context["retrieved_chunks"], top_n=3)
+    reranked_chunks = await services["reranker"].rerank_chunks(query, context["retrieved_chunks"], top_n=10)
     
     # 4. Format Citations if requested
     citations = []
     if req.use_citations:
         citations = services["citation_formatter"].format_citations(reranked_chunks)
-    
+        # Enrich figure citations with presigned GET URLs
+        _enrich_citations_with_image_urls(citations)
+
     # 5. Generate Answer
     answer = services["answer_generator"].generate_answer(query, reranked_chunks, citations, use_citations=req.use_citations)
     
@@ -147,14 +157,19 @@ async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_ra
     context = await services["retriever"].retrieve_context(query, plan)
     t2 = time.time()
     logger.info(f"[PERF] Retriever took: {t2 - t1:.4f}s")
-    
-    reranked_chunks = await services["reranker"].rerank_chunks(query, context["retrieved_chunks"], top_n=3)
+
+    # Inject presigned image URLs into all figure chunks so the LLM context includes them
+    _inject_presigned_image_urls(context["retrieved_chunks"])
+
+    reranked_chunks = await services["reranker"].rerank_chunks(query, context["retrieved_chunks"], top_n=10)
     t3 = time.time()
     logger.info(f"[PERF] Reranker took: {t3 - t2:.4f}s")
     
     citations = []
     if req.use_citations:
         citations = services["citation_formatter"].format_citations(reranked_chunks)
+        # Enrich figure citations with presigned GET URLs
+        _enrich_citations_with_image_urls(citations)
     t4 = time.time()
     logger.info(f"[PERF] Citations took: {t4 - t3:.4f}s")
         
@@ -199,6 +214,24 @@ async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_ra
         yield f"data: {json.dumps(metadata)}\n\n"
         
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+def _enrich_citations_with_image_urls(citations: list) -> None:
+    """
+    For figure citations that have an image_s3_key, generate a presigned GET URL
+    (1-hour expiry) and attach it as image_url. Mutates citations in place.
+    """
+    figure_cits = [c for c in citations if c.get("chunk_type") == "figure" and c.get("image_s3_key")]
+    if not figure_cits:
+        return
+    try:
+        s3 = S3Storage()
+        for cit in figure_cits:
+            cit["image_url"] = s3.generate_presigned_get_url(
+                cit["image_s3_key"], expiration=3600
+            )
+    except Exception as e:
+        logger.warning(f"Failed to generate presigned image URLs: {e}")
 
 @router.post("/search", response_model=StandardResponse[List[SearchResult]])
 async def semantic_search(req: QueryRequest, services: dict = Depends(get_rag_services)):

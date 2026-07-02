@@ -59,6 +59,10 @@ class GraphBuilderService:
                                             
         logger.info("Academic data sync complete.")
 
+    def build_document_skeleton(self, doc_id: str, document_dom: Any):
+        """Delegates building the document structural skeleton (ToC, Tables) to Neo4j Repo."""
+        return self.neo4j.build_document_skeleton(doc_id, document_dom)
+
     def add_document_to_graph(self, document: Document):
         """Creates Document node and links to CourseOffering."""
         doc_id = str(document.id)

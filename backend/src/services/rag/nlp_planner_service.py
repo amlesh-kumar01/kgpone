@@ -80,8 +80,21 @@ class NLPPlannerService(BaseQueryPlanner):
         """
         clean_query = query.lower().strip()
 
-        # Step 1: Classify intent
-        predicted_intent, confidence = self._classify_intent(clean_query)
+        # ── Pre-check overrides (highest priority, beats ML classifier) ──
+        # Figure/image queries must always go to Qdrant regardless of what
+        # the ML classifier predicts (e.g. "list all figures" → list_documents).
+        _FIGURE_KEYWORDS = {
+            "figure", "figures", "diagram", "diagrams", "image", "images",
+            "chart", "charts", "plot", "plots", "illustration", "illustrations",
+            "picture", "pictures", "visual", "visuals", "graph", "graphs",
+        }
+        query_words = set(re.findall(r"\b\w+\b", clean_query))
+        if query_words & _FIGURE_KEYWORDS:
+            predicted_intent = "figure_search"
+            confidence = 0.97
+        else:
+            # Step 1: Classify intent via ML or heuristics
+            predicted_intent, confidence = self._classify_intent(clean_query)
 
         # Step 2: Extract entities
         course_code = self._extract_course_code(query) or context_course
@@ -139,7 +152,10 @@ class NLPPlannerService(BaseQueryPlanner):
             (["prerequisite", "need to know", "before taking", "required before", "foundation for"], "prerequisites"),
             (["difference", "compare", "vs ", "versus", "distinction"], "compare"),
             (["related", "connection", "relationship", "link between", "connected"], "relationship"),
-            (["topics", "syllabus", "covers", "course content", "what is in", "chapter"], "concept_search"),
+            (["image of", "show me the image", "give me the image", "give me figure", "show figure", "get figure", "figure 1", "figure 2", "figure 3", "figure 4", "figure 5", "figure 6", "figure 7", "figure 8", "figure 9", "diagram", "plot", "chart", "illustration", "picture", "visual"], "figure_search"),
+            (["table", "from the table", "data row", "column"], "table_search"),
+            (["chapter", "section", "heading", "under the topic"], "structural_search"),
+            (["topics", "syllabus", "covers", "course content", "what is in"], "concept_search"),
             (["explain", "what is", "how does", "describe"], "topic_explain"),
             (["notes on", "search for", "find", "where", "search"], "semantic_search"),
         ]
@@ -206,6 +222,9 @@ class NLPPlannerService(BaseQueryPlanner):
             "list_courses": ["postgresql"],
             "prerequisites": ["neo4j"],
             "semantic_search": ["qdrant"],
+            "figure_search": ["qdrant"],
+            "table_search": ["neo4j", "qdrant"],
+            "structural_search": ["neo4j", "qdrant"],
             "topic_explain": ["neo4j", "qdrant"],
             "compare": ["neo4j", "qdrant"],
             "concept_search": ["neo4j", "qdrant"],

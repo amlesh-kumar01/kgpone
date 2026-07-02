@@ -17,3 +17,7 @@ result_expires = 3600
 worker_prefetch_multiplier = 1
 task_track_started = True
 task_send_sent_event = True
+
+# Reliability & Persistence settings
+task_acks_late = True
+task_reject_on_worker_lost = True

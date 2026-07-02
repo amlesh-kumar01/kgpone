@@ -54,8 +54,8 @@ class CrossEncoderRerankService(BaseReranker):
         if not chunks:
             return []
 
-        # Cap at 15 candidates to speed up HuggingFace API processing
-        chunks = chunks[:15]
+        # Cap at 30 candidates
+        chunks = chunks[:30]
 
         client_infinity = await self._get_infinity_client()
         client_hf = await self._get_client()

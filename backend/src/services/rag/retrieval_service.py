@@ -15,6 +15,7 @@ from src.utils.interfaces import IVectorRepo
 from src.repositories.neo4j.graph_repository import Neo4jRepo
 from src.schemas.query_schema import QueryPlan
 from src.services.rag.fusion import reciprocal_rank_fusion
+from src.repositories.s3.storage_repository import S3Storage
 
 logger = logging.getLogger("retrieval_service")
 
@@ -88,39 +89,94 @@ class RetrievalService(BaseRetriever):
         }
 
     async def _retrieve_vector(self, query: str, plan: QueryPlan) -> List[Dict[str, Any]]:
-        """Qdrant vector search — fetches top 30 chunks with metadata pre-filtering."""
+        """Qdrant vector search — fetches top candidates and formats DOM metadata."""
         chunks = []
         try:
-            query_vectors = await self.embedder.embed([query])
-            if not query_vectors:
+            query_vector = await self.embedder.embed_query(query)
+            if not query_vector:
                 return chunks
 
-            query_vector = query_vectors[0]
             filters = {}
             if plan.course_code:
                 filters["course_code"] = plan.course_code
             if getattr(plan, "course_offering_id", None):
                 filters["course_offering_id"] = plan.course_offering_id
 
-            # Fetch top 30 candidates (up from 10) to feed the cross-encoder
+            # For figure searches fetch more candidates so we don't miss image chunks
+            is_figure_query = plan.intent == "figure_search"
+            limit = 50 if is_figure_query else 30
+
             search_results = await asyncio.to_thread(
                 self.vector_store.search,
                 collection_name=self.collection_name,
                 query_vector=query_vector,
-                limit=30,
+                limit=limit,
                 filters=filters if filters else None,
             )
 
             for r in search_results:
+                payload = r.payload or {}
+                chunk_type = payload.get("chunk_type", "text")
+                context_path = payload.get("context_path", [])
+
+                # Build context breadcrumb
+                breadcrumb = ""
+                if context_path:
+                    breadcrumb = f"[Context: {' › '.join(context_path)}]\n"
+
+                # Build formatted_text based on chunk type
+                if chunk_type == "equation":
+                    eq_label = payload.get("equation_label")
+                    label_str = f"Equation ({eq_label})" if eq_label else "Equation"
+                    raw_text = payload.get("content", payload.get("text", ""))
+                    # Strip the chunker's breadcrumb prefix to get just the equation
+                    if "]\n[Eq" in raw_text:
+                        eq_body = raw_text.split("]\n", 1)[-1]
+                    else:
+                        eq_body = raw_text
+                    formatted_text = f"{breadcrumb}[{label_str}]:\n{eq_body}"
+
+                elif chunk_type == "figure":
+                    image_s3_key = payload.get("image_s3_key", "")
+                    raw_text = payload.get("content", payload.get("text", ""))
+                    # Only include the image reference line if we actually have an S3 key.
+                    # The presigned URL will be injected later by _inject_presigned_image_urls.
+                    if image_s3_key:
+                        formatted_text = f"{breadcrumb}[Figure — image S3 key: {image_s3_key}]\n{raw_text}"
+                    else:
+                        formatted_text = f"{breadcrumb}[Figure]\n{raw_text}"
+
+                elif chunk_type == "table_row":
+                    headers = payload.get("headers", [])
+                    table_title = payload.get("parent_table_title", "Table")
+                    formatted_text = f"{breadcrumb}Table '{table_title}' Row:\n"
+                    if headers:
+                        formatted_text += f"Headers: | {' | '.join(headers)} |\n"
+                    formatted_text += f"Row Data: {payload.get('content', payload.get('text', ''))}"
+
+                else:
+                    # Standard text/heading/list chunk
+                    raw_text = payload.get("content", payload.get("text", ""))
+                    formatted_text = breadcrumb + raw_text
+
+                payload["formatted_text"] = formatted_text
+
                 chunks.append({
                     "id": r.id,
                     "score": r.score,
-                    "payload": r.payload or {},
+                    "payload": payload,
                 })
+
+            # For figure queries: inject presigned image URLs into the payloads so both
+            # the context builder and the LLM can embed the actual images.
+            if is_figure_query:
+                _inject_presigned_image_urls(chunks)
+
         except Exception as e:
             logger.error(f"Vector retrieval failed: {e}")
 
         return chunks
+
 
     async def _retrieve_graph(self, plan: QueryPlan) -> List[Dict[str, Any]]:
         """Neo4j graph traversal — wrapped in asyncio.to_thread for async compat."""
@@ -168,11 +224,14 @@ class RetrievalService(BaseRetriever):
         return chunks
 
     async def _graph_entity_search(self, entity: str) -> List[Dict[str, Any]]:
-        """Searches for related entities in the knowledge graph."""
+        """Searches for related Entities, Topics, and Tables in the knowledge graph."""
         cypher = """
         MATCH (n) WHERE toLower(n.name) CONTAINS toLower($entity)
-        MATCH (n)-[r]-(related)
-        RETURN n.name as source, type(r) as relation, labels(related)[0] as target_label, related.name as target, related.description as desc
+        OPTIONAL MATCH (n)-[r]-(related)
+        RETURN labels(n)[0] as source_label, n.name as source, 
+               type(r) as relation, 
+               labels(related)[0] as target_label, related.name as target, 
+               related.description as desc, n.headers as headers
         LIMIT 10
         """
         results = await asyncio.to_thread(
@@ -181,12 +240,24 @@ class RetrievalService(BaseRetriever):
 
         chunks = []
         for r in results:
-            text_fact = f"Graph Fact: {r['source']} {r['relation']} {r['target_label']} ({r['target']}). {r.get('desc', '')}"
+            source_label = r.get("source_label")
+            if source_label == "Table":
+                text_fact = f"Document contains Table: '{r['source']}'. Headers: {r.get('headers', 'N/A')}."
+                if r['relation']:
+                    text_fact += f" Relation: {r['relation']} {r['target_label']} ({r['target']})"
+            elif source_label == "Topic":
+                text_fact = f"Document covers Topic: '{r['source']}'."
+                if r['relation']:
+                    text_fact += f" Relation: {r['relation']} {r['target_label']} ({r['target']})"
+            else:
+                text_fact = f"Graph Fact: {r['source']} {r['relation']} {r['target_label']} ({r['target']}). {r.get('desc', '')}"
+                
             chunks.append({
-                "id": f"graph_fact_{r['source']}_{r['target']}",
+                "id": f"graph_fact_{r['source']}_{r.get('target', 'None')}",
                 "score": 0.7,
                 "payload": {
                     "text": text_fact,
+                    "formatted_text": text_fact, # For RRF / downstream compatibility
                     "document_id": "GRAPH",
                 },
             })
@@ -225,3 +296,33 @@ class RetrievalService(BaseRetriever):
             logger.error(f"PostgreSQL retrieval failed: {e}")
 
         return chunks
+
+
+def _inject_presigned_image_urls(chunks: List[Dict[str, Any]], expiration: int = 3600) -> None:
+    """
+    For every figure chunk that has an `image_s3_key`, generate a presigned S3 GET URL
+    (1-hour expiry by default) and inject it into payload['image_url'].
+    Mutates the chunk payloads in place.
+    """
+    figure_chunks = [
+        c for c in chunks
+        if c.get("payload", {}).get("chunk_type") == "figure"
+        and c.get("payload", {}).get("image_s3_key")
+    ]
+    if not figure_chunks:
+        return
+    try:
+        s3 = S3Storage()
+        for chunk in figure_chunks:
+            payload = chunk["payload"]
+            payload["image_url"] = s3.generate_presigned_get_url(
+                payload["image_s3_key"], expiration=expiration
+            )
+            # Also update formatted_text to embed the live URL so it's visible in context
+            existing_fmt = payload.get("formatted_text", "")
+            if payload["image_url"] and "[Figure — image available at:" not in existing_fmt:
+                payload["formatted_text"] = (
+                    f"{existing_fmt}\n[Figure — image available at: {payload['image_url']}]"
+                )
+    except Exception as e:
+        logger.warning(f"Failed to inject presigned image URLs into figure chunks: {e}")

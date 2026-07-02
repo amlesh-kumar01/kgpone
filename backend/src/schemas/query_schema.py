@@ -20,17 +20,24 @@ class QueryRequest(BaseModel):
 class CitationRead(BaseModel):
     citation_id: str
     document_id: Optional[str] = None
-    source_title: str
-    course_code: str
-    academic_year: str
-    page_number: int
-    section: str
-    confidence: str
-    score: float
-    is_prerequisite: bool
+    source_title: str = "Lecture Notes"
+    course_code: str = "GEN101"
+    academic_year: str = ""
+    page_number: Optional[int] = None
+    section: str = "General"
+    section_number: Optional[str] = None
+    confidence: str = "Supporting Evidence"
+    score: float = 0.0
+    is_prerequisite: bool = False
     prerequisite_concept: Optional[str] = None
     source_url: Optional[str] = None
-    text_snippet: str
+    text_snippet: str = ""
+    # Chunk-type enrichment for frontend rendering
+    chunk_type: str = "text"
+    equation_label: Optional[str] = None
+    raw_latex: Optional[str] = None
+    image_s3_key: Optional[str] = None
+    image_url: Optional[str] = None
 
 class SourceRead(BaseModel):
     document_id: str

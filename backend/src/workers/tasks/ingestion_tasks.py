@@ -53,15 +53,26 @@ def run_document_ingestion(document_id: str, old_version: int = None):
         s3_storage.download_file(file_key, temp_path)
         
         # 3. Setup the pipeline
-        parser = LlamaParserImpl()
-        chunker = RecursiveChunker()
+        from src.services.ingestion.parser.llama_parser import LlamaParserImpl
+        from src.services.ingestion.chunking.dom_chunker import DOMChunker
+        from src.services.ingestion.extraction.gliner_extractor import GLiNERExtractor
+        from src.services.ingestion.extraction.entity_resolver import EntityResolver
+        from src.services.ingestion.extraction.spacy_relation_extractor import SpacyRelationExtractor
+        from src.services.graph.graph_builder_service import GraphBuilderService
+        from src.infrastructure.model_factory import NLPModelFactory
+        
+        doc_id = str(doc.id)
+        parser = LlamaParserImpl(
+            document_id=doc_id,
+            s3_storage=s3_storage,
+        )
+        chunker = DOMChunker()
         embedder = LLMEmbedder()
         vector_store = QdrantRepository()
         
-        from src.services.ingestion.extraction.llm_extractor import LLMEntityExtractor
-        from src.services.graph.graph_builder_service import GraphBuilderService
-        
-        entity_extractor = LLMEntityExtractor()
+        entity_extractor = GLiNERExtractor()
+        entity_resolver = EntityResolver()
+        relation_extractor = SpacyRelationExtractor()
         graph_builder = GraphBuilderService()
         
         pipeline = IngestionPipeline(
@@ -69,8 +80,10 @@ def run_document_ingestion(document_id: str, old_version: int = None):
             chunker=chunker,
             embedder=embedder,
             vector_store=vector_store,
-            collection_name="documents", # Single collection for all documents
+            collection_name="documents",
             entity_extractor=entity_extractor,
+            entity_resolver=entity_resolver,
+            relation_extractor=relation_extractor,
             graph_builder=graph_builder
         )
         
@@ -135,6 +148,11 @@ def run_document_ingestion(document_id: str, old_version: int = None):
         repo.update_status(document_id, ProcessingStatus.FAILED, None)
         raise e
     finally:
+        try:
+            from src.infrastructure.model_factory import NLPModelFactory
+            NLPModelFactory.unload_gliner()
+        except Exception as e:
+            logger.error(f"Failed to unload GLiNER: {e}")
         db.close()
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=3)

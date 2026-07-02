@@ -16,32 +16,44 @@ class AnswerService(BaseAnswerGenerator):
             self.llm = None
 
         self.prompt_template = ChatPromptTemplate.from_messages([
-            ("system", """You're an academic tutor. Answer based ONLY on the provided context.
-Guidelines:
-1. Append citation links (e.g. [[CIT-1]](#CIT-1)) to sentences when using info from a block.
-2. If using prerequisite material, explicitly explain the connection to the student's missing knowledge.
-3. Only use markdown code blocks if the context contains code or the user explicitly asks for it. Do NOT generate arbitrary code from scratch.
-4. Synthesize fluently; do not just copy raw placeholders.
-5. If the context does not contain the answer, say "I cannot answer this based on the provided notes." """),
-            ("user", "Context:\n{context}\n\nQuery: {query}\nAnswer:")
+            ("system", """You are an expert academic tutor for university students. Your answers are grounded EXCLUSIVELY in the provided course context — never fabricate information.
+
+CORE RULES:
+1. **Citations**: Append inline citation links [[CIT-N]](#CIT-N) at the END of every sentence that draws from a source block. Never bunch all citations at the end.
+2. **Figures & Images**: When a context block mentions a figure and includes a line `[Figure — image available at: SOME_URL]` with an actual URL value, you MUST embed that image in your response using markdown: `![Figure](SOME_URL)`. Replace SOME_URL with the actual URL value from the context. If no URL is present, simply describe the figure.
+3. **Equations**: Render LaTeX inline using `$...$` for inline math and `$$...$$` for block equations. Preserve all equation labels.
+4. **Tables**: Present table data in clean Markdown table format when the context contains tabular rows.
+5. **Code**: Only use code blocks if the context explicitly contains code. Never write code from scratch.
+6. **Structure**: For multi-part questions, use headers (###) and bullet lists to organize the answer. Be concise and precise.
+7. **Prerequisite Content**: If using prerequisite material, explicitly explain WHY it connects to the current query.
+8. **Honesty**: If the context truly does not contain the answer, say exactly: "I cannot answer this based on the provided notes." Do NOT hallucinate.
+
+OUTPUT FORMAT:
+- Start directly with the answer. No preamble like "Based on the provided context...".
+- Use markdown formatting throughout.
+- End with a brief summary line if the answer is long."""),
+            ("user", "Context:\n{context}\n\nStudent Query: {query}\n\nAnswer:")
         ])
 
         self.prompt_template_simple = ChatPromptTemplate.from_messages([
-            ("system", """You're an academic tutor. Answer based ONLY on the provided context.
-Guidelines:
-1. If using prerequisite material, explicitly explain the connection to the student's missing knowledge.
-2. Only use markdown code blocks if the context contains code or the user explicitly asks for it. Do NOT generate arbitrary code from scratch.
-3. Synthesize fluently; do not just copy raw placeholders.
-4. If the context does not contain the answer, say "I cannot answer this based on the provided notes." """),
-            ("user", "Context:\n{context}\n\nQuery: {query}\nAnswer:")
+            ("system", """You are an expert academic tutor for university students. Your answers are grounded EXCLUSIVELY in the provided course context — never fabricate information.
+
+CORE RULES:
+1. **Figures & Images**: When a context block mentions a figure and includes a line `[Figure — image available at: SOME_URL]` with an actual URL value, you MUST embed that image in your response using markdown: `![Figure](SOME_URL)`. Replace SOME_URL with the actual URL value from the context. If no URL is present, simply describe the figure.
+2. **Equations**: Render LaTeX equations properly.
+3. **Structure**: Use headers and bullet lists for multi-part answers.
+4. **Prerequisite Content**: Explicitly explain connections to prerequisite knowledge.
+5. **Honesty**: If the context truly does not contain the answer, say exactly: "I cannot answer this based on the provided notes."
+
+Start directly with the answer. No preamble."""),
+            ("user", "Context:\n{context}\n\nStudent Query: {query}\n\nAnswer:")
         ])
 
         self.web_search_template = ChatPromptTemplate.from_messages([
             ("system", """You are a helpful AI assistant. Answer the user's query using the provided web search results.
-Guidelines:
-1. Synthesize the information from the web search results fluently.
-2. Do not generate code unless explicitly requested.
-3. If the web search results do not contain the answer, say "I couldn't find a good answer in the web search results." """),
+Synthesize the information fluently, use markdown formatting, and cite sources inline.
+If the results do not contain the answer, say: "I couldn't find a good answer in the web search results."
+Do not generate code unless explicitly requested."""),
             ("user", "{context}\n\nQuery: {query}\nAnswer:")
         ])
 
@@ -50,15 +62,37 @@ Guidelines:
         for idx, chunk in enumerate(ranked_chunks):
             payload = chunk["payload"]
             cit_id = f"CIT-{idx + 1}"
-            course_code = payload.get("course_code", "")
-            is_prereq = payload.get("is_prerequisite", False)
+            course_code = payload.get("course_code", "Unknown Course")
+            is_prereq = payload.get("is_prereq", False)
             prereq_str = " (Prerequisite Course Content)" if is_prereq else " (Active Course Content)"
-            
+            chunk_type = payload.get("chunk_type", "text")
+            page_info = f", Page {payload.get('page_number')}" if payload.get('page_number') else ""
+
+            # Use the richly-formatted text built by the retrieval service (includes equation labels,
+            # figure S3 keys, and table headers). Fall back to raw content if not present.
+            rich_content = payload.get("formatted_text") or payload.get("content") or payload.get("text", "")
+
+            # For figure chunks: if we have a presigned image_url (injected by the route handler)
+            # inject it directly into the context so the LLM can embed it.
+            if chunk_type == "figure":
+                image_url = payload.get("image_url")  # presigned URL injected by query_routes
+                image_s3_key = payload.get("image_s3_key", "")
+                if image_url:
+                    rich_content = f"{rich_content}\n[Figure — image available at: {image_url}]"
+                elif image_s3_key:
+                    rich_content = f"{rich_content}\n[Figure — image S3 key: {image_s3_key}]"
+
             if use_citations:
-                context_blocks.append(f"Source: [{cit_id}] (Course: {course_code}{prereq_str})\nContent: {payload.get('content', payload.get('text', ''))}\n---")
+                context_blocks.append(
+                    f"Source: [{cit_id}] (Course: {course_code}{prereq_str}{page_info}, Type: {chunk_type})\n"
+                    f"Content:\n{rich_content}\n---"
+                )
             else:
-                context_blocks.append(f"Course: {course_code}{prereq_str}\nContent: {payload.get('content', payload.get('text', ''))}\n---")
-        
+                context_blocks.append(
+                    f"Course: {course_code}{prereq_str}{page_info}\n"
+                    f"Content:\n{rich_content}\n---"
+                )
+
         return "\n\n".join(context_blocks)
 
     def generate_answer(self, query: str, ranked_chunks: list[dict[str, Any]], citations: list[dict[str, Any]], use_citations: bool = True) -> str:

@@ -43,6 +43,10 @@ class LLMFactory(ILLMFactory):
         api_key = Settings.EMBEDDING_API_KEY
         model = model_name or Settings.EMBEDDING_MODEL
         
+        if provider == "local":
+            from langchain_huggingface import HuggingFaceEmbeddings
+            return HuggingFaceEmbeddings(model_name=model or "BAAI/bge-small-en-v1.5", **kwargs)
+            
         if not api_key:
             logger.error(f"EMBEDDING_API_KEY is missing for provider: {provider}")
             raise ValueError(f"EMBEDDING_API_KEY is not set for EMBEDDING_PROVIDER={provider}")
