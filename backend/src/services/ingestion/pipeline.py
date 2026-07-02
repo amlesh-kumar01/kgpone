@@ -94,7 +94,10 @@ class IngestionPipeline:
         for chunk in chunks:
             # Merge base metadata with chunk-specific metadata
             meta = metadata_base.copy()
-            meta.update(chunk.get("metadata", {}))
+            chunk_meta = chunk.get("metadata", {})
+            for k, v in chunk_meta.items():
+                if v is not None:
+                    meta[k] = v
             # CRITICAL: persist chunk_type and content into the Qdrant payload so the
             # retrieval service can do type-aware formatting and figure URL injection.
             meta["chunk_type"] = chunk.get("chunk_type", "text")
