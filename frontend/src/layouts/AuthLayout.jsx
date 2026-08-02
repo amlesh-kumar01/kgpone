@@ -18,7 +18,7 @@ const AuthLayout = () => {
             <div className="h-12 w-12 rounded-lg bg-accent flex items-center justify-center text-accent-foreground shadow-sm">
               L
             </div>
-            Lumière
+            Knowldedge OS
           </div>
           
           <h1 className="text-5xl font-serif leading-tight mb-6 text-primary">
@@ -32,7 +32,7 @@ const AuthLayout = () => {
         </motion.div>
         
         <div className="relative z-10 text-sm font-sans text-muted-foreground/60 flex justify-between w-full">
-          <span>© {new Date().getFullYear()} Lumière Premium</span>
+          <span>© {new Date().getFullYear()} Knowldedge OS</span>
           <span>Access Restricted</span>
         </div>
       </div>

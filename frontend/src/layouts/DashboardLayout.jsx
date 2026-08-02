@@ -69,7 +69,7 @@ const DashboardLayout = () => {
             <div className="h-6 w-6 rounded bg-accent flex items-center justify-center text-accent-foreground font-serif font-bold text-xs">
               L
             </div>
-            <span className="font-serif">Lumière</span>
+            <span className="font-serif">Knowledge OS</span>
           </Link>
         </div>
         <div className="flex-1 overflow-auto py-4 px-3">
@@ -94,7 +94,7 @@ const DashboardLayout = () => {
                 <div className="h-6 w-6 rounded bg-accent flex items-center justify-center text-accent-foreground font-serif font-bold text-xs">
                   L
                 </div>
-                <span className="font-serif">Lumière</span>
+                <span className="font-serif">Knowledge OS</span>
               </div>
               <NavLinks />
             </SheetContent>

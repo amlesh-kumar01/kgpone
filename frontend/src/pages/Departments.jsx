@@ -24,7 +24,7 @@ const Departments = () => {
       <div>
         <h1 className="text-4xl font-serif font-bold text-foreground mb-3">Academic Departments</h1>
         <p className="text-muted-foreground text-lg max-w-2xl">
-          Browse and manage the hierarchical structure of Lumière's academic programs.
+          Browse and manage the hierarchical structure of Knowledge OS academic programs.
         </p>
       </div>
 
