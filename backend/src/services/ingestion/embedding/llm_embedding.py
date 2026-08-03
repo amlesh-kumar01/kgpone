@@ -21,12 +21,14 @@ class LLMEmbedder(BaseEmbedder):
     async def embed(self, chunks: list[str]) -> list[list[float]]:
         if self.use_fallback or not self.embedder:
             import hashlib
+            from src.config.settings import Settings
             vectors = []
             for chunk in chunks:
                 h = hashlib.sha256(chunk.encode("utf-8")).digest()
-                # Create a 768-dimensional float vector deterministically from the hash
+                dim = Settings.EMBEDDING_DIMENSION
+                # Create a float vector deterministically from the hash matching the required dimension
                 vec = []
-                for i in range(768):
+                for i in range(dim):
                     val = h[i % len(h)] / 255.0
                     vec.append(val)
                 vectors.append(vec)
