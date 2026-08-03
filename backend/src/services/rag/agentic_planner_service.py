@@ -41,6 +41,9 @@ student's query and call the appropriate tools to gather all relevant informatio
    - For "download" / "get the PDF" → first `search_document_catalog`, then `get_document_download_url`
    - For "who teaches" / "professor" / "office hours" → use `get_faculty_info`
    - For full document details → use `get_document_metadata`
+   - For "solve a problem" / mathematical or logic problems → use `vector_semantic_search` for theorems/formulas, AND `graph_entity_lookup` for conceptual relationships, iteratively combining them before answering.
+   - For "summarize" / broad overarching topics → use `list_course_documents` to find relevant materials, then iteratively call `vector_semantic_search` or `get_document_metadata` across multiple sources to comprehensively synthesize the information.
+   - For general world knowledge, coding help, greetings, or off-topic questions → do not call any tools. Return `{"intent": "general_qa"}` and let the direct answer pipeline handle it.
 4. SYNTHESISE the results. After the tools return, summarise the key findings
    in a concise JSON response so the answer generator can use them.
 

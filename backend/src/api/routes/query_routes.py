@@ -183,6 +183,21 @@ async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_ra
     t1 = time.time()
     logger.info(f"[PERF] Planner took: {t1 - t0:.4f}s")
 
+    if plan.intent == "general_qa":
+        logger.info("[Bypass] General QA detected. Bypassing RAG pipeline.")
+        async def general_event_generator():
+            async for text_chunk in services["answer_generator"].generate_general_answer_stream(query):
+                yield f"data: {json.dumps({'type': 'chunk', 'content': text_chunk})}\n\n"
+            metadata = {
+                "type": "metadata",
+                "citations": [],
+                "sources": [],
+                "intent": plan.intent,
+                "backends_used": []
+            }
+            yield f"data: {json.dumps(metadata)}\n\n"
+        return StreamingResponse(general_event_generator(), media_type="text/event-stream")
+
     # Agent pre-fetched chunks (only present in advanced mode)
     agent_chunks = getattr(plan, "_agent_chunks", [])
 
@@ -228,7 +243,9 @@ async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_ra
         # Stream the text chunks
         t_gen_start = time.time()
         first_chunk = True
+        full_response = ""
         async for text_chunk in services["answer_generator"].generate_answer_stream(query, reranked_chunks, req.use_citations):
+            full_response += text_chunk
             if first_chunk:
                 t_first = time.time()
                 logger.info(f"[PERF] Generator TTFT (Time to First Token) took: {t_first - t_gen_start:.4f}s")
@@ -237,16 +254,37 @@ async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_ra
             
         t_gen_end = time.time()
         logger.info(f"[PERF] Generator Total LLM Stream took: {t_gen_end - t_gen_start:.4f}s")
+        
+        # Filter citations: Only include citations that the LLM actually emitted in the response
+        active_citations = []
+        used_doc_ids = set()
+        
+        raw_citations = [c.model_dump() for c in citations] if citations and hasattr(citations[0], "model_dump") else citations
+        
+        if req.use_citations:
+            for cit in raw_citations:
+                cit_id = cit.get("citation_id")
+                # Check if e.g. "CIT-1" appears anywhere in the full text response
+                if cit_id and cit_id in full_response:
+                    active_citations.append(cit)
+                    doc_id = cit.get("document_id")
+                    if doc_id and doc_id != "GRAPH":
+                        used_doc_ids.add(doc_id)
+        else:
+            active_citations = raw_citations
+            
+        # Filter sources based on used citations
+        active_sources = [s for s in sources if s.get("document_id") in used_doc_ids]
+
         # Stream the final metadata block
         metadata = {
             "type": "metadata",
-            "citations": [c.model_dump() for c in citations] if citations and hasattr(citations[0], "model_dump") else citations,
-            "sources": sources,
+            "citations": active_citations,
+            "sources": active_sources,
             "intent": plan.intent,
             "backends_used": plan.backends_needed,
             "graph_context": context.get("graph_visualization")
         }
-        # handle pydantic dumping for citations if it returns dicts, format_citations actually returns a list of CitationRead models usually... Wait, format_citations returns dicts in python.
         yield f"data: {json.dumps(metadata)}\n\n"
         
     return StreamingResponse(event_generator(), media_type="text/event-stream")

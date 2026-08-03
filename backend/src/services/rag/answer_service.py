@@ -36,9 +36,10 @@ YOUR BEHAVIOR & SYNTHESIS:
 5. **Equations**: Wrap all LaTeX equations, variables, and math expressions in `$...$` for inline math and `$$...$$` for block equations. NEVER output raw LaTeX without dollar signs (e.g., write `$\text{{head}}_i$` instead of `\text{{head}}_i`).
 6. **Tables**: If chunks contain tabular data, present it nicely in a Markdown table if it helps answer the query.
 7. **Prerequisites**: If you use prerequisite graph context, explicitly explain WHY it connects to the current topic.
-8. **Honesty**: Ground your answers EXCLUSIVELY in the context. If the context does not contain the answer, say exactly: "I cannot answer this based on the provided notes."
-9. **Ambiguity**: If the query is too broad, provide a high-level summary and politely ask the student to narrow it down.
+8. **Honesty**: Ground your answers in the context. If the context does not explicitly contain the direct answer, use the context to explain related concepts. IF the context is entirely irrelevant or lacks the answer, you MUST still answer the student's question using your own general knowledge. However, if you do this, you MUST add a disclaimer at the very bottom of your response stating exactly: "*(Note: This concept was not found in the current course materials.)*". Do NOT use any citations `[[CIT-N]]` for facts drawn from your general knowledge.
+9. **Ambiguity**: If the query is conversational (e.g. "explain more deeply") or broad, do your best to explain the provided context chunks thoroughly.
 10. **Document Links**: The UI handles document downloads automatically. If the user asks for download links, notes, or course materials, you MUST reply EXACTLY with: *"I have provided the relevant document download links below."* DO NOT apologize, and DO NOT claim you cannot provide links.
+11. **Conversational Tone**: If the user is asking a follow-up or conversational question, address it naturally.
 
 OUTPUT FORMAT:
 - Start directly with your explanation. No robotic preamble (e.g., "Based on the provided context...").
@@ -57,8 +58,8 @@ YOUR BEHAVIOR & SYNTHESIS:
 3. **Equations**: Wrap all LaTeX equations, variables, and math expressions in `$...$` for inline math and `$$...$$` for block equations.
 4. **Structure**: Use headers and bullet lists for multi-part answers.
 5. **Prerequisites**: Explicitly explain connections to prerequisite knowledge.
-6. **Honesty**: Ground your answers EXCLUSIVELY in the context. If the context truly does not contain the answer, say exactly: "I cannot answer this based on the provided notes."
-7. **Ambiguity**: If the query is overly broad or vague, summarize what you found and ask them to clarify.
+6. **Honesty**: Ground your answers in the context. If the context does not explicitly contain the direct answer, use the context to explain related concepts. IF the context is entirely irrelevant or lacks the answer, you MUST still answer the student's question using your own general knowledge. However, if you do this, you MUST add a disclaimer at the very bottom of your response stating exactly: "*(Note: This concept was not found in the current course materials.)*".
+7. **Ambiguity**: If the query is conversational (e.g. "explain more deeply") or broad, do your best to explain the provided context chunks thoroughly.
 
 Start directly with the explanation. No robotic preamble (e.g., "Based on the context...")."""),
             ("user", "Context:\n{context}\n\nStudent Query: {query}\n\nAnswer:")
@@ -71,6 +72,15 @@ If the results do not contain the answer, say: "I couldn't find a good answer in
 Do not generate code unless explicitly requested."""),
             ("user", "{context}\n\nQuery: {query}\nAnswer:")
         ])
+
+        self.general_qa_template = ChatPromptTemplate.from_messages([
+            ("system", """You are a helpful, intelligent assistant inside an academic app (KgpOne). 
+The user is asking a general knowledge, conversational, or off-topic question that does NOT require course materials.
+Answer their question directly and naturally using your own knowledge. 
+If they ask for code, provide it. Use markdown formatting beautifully."""),
+            ("user", "{query}")
+        ])
+
 
     def _build_context_string(self, ranked_chunks: list[dict[str, Any]], use_citations: bool) -> str:
         context_blocks = []
@@ -167,6 +177,27 @@ Do not generate code unless explicitly requested."""),
         except Exception as e:
             logger.error(f"LLM generation failed: {e}")
             return self._generate_offline_grounded_answer(query, ranked_chunks, citations)
+    async def generate_general_answer_stream(self, query: str):
+        """
+        Bypasses the RAG pipeline entirely and streams a direct response to a general query.
+        """
+        if not self.llm:
+            yield "*(General QA unavailable. LLM not configured.)*\n\n"
+            return
+            
+        try:
+            messages = self.general_qa_template.format_messages(query=query)
+            async for chunk in self.llm.astream(messages):
+                if isinstance(chunk.content, str):
+                    yield chunk.content
+                elif isinstance(chunk.content, list):
+                    text_parts = [c.get("text", "") if isinstance(c, dict) else str(c) for c in chunk.content]
+                    yield "".join(text_parts)
+                else:
+                    yield str(chunk.content)
+        except Exception as e:
+            logger.error(f"LLM streaming failed for general QA: {e}")
+            yield "\n\n*(Error streaming direct answer)*\n\n"
 
     async def generate_answer_stream(self, query: str, ranked_chunks: list[dict[str, Any]], use_citations: bool = True):
         """

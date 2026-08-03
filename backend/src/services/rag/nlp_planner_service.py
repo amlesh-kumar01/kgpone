@@ -229,6 +229,6 @@ class NLPPlannerService(BaseQueryPlanner):
             "compare": ["neo4j", "qdrant"],
             "concept_search": ["neo4j", "qdrant"],
             "relationship": ["neo4j"],
-            "general_qa": ["neo4j", "qdrant"],
+            "general_qa": [],
         }
         return backend_map.get(intent, ["neo4j", "qdrant"])
