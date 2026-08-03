@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   Bot, User, Send, Network, Database, Sparkles, BookOpen, Download,
-  Filter, ChevronLeft, ImageIcon, Sigma, Table2, FileText
+  Filter, ChevronLeft, ImageIcon, Sigma, Table2, FileText,
+  Zap, Brain, Key, ChevronDown, Eye, EyeOff, Lock
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from '../lib/api';
@@ -43,6 +44,22 @@ const GLOBAL_STYLES = `
 .kgp-dot:nth-child(1) { animation: kgp-dot-bounce 1.2s ease-in-out infinite 0s; }
 .kgp-dot:nth-child(2) { animation: kgp-dot-bounce 1.2s ease-in-out infinite 0.2s; }
 .kgp-dot:nth-child(3) { animation: kgp-dot-bounce 1.2s ease-in-out infinite 0.4s; }
+@keyframes kgp-byok-open {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes kgp-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.kgp-byok-open { animation: kgp-byok-open 0.28s cubic-bezier(0.22,1,0.36,1) both; }
+.kgp-advanced-shimmer {
+  background: linear-gradient(90deg, #7c3aed, #a855f7, #ec4899, #7c3aed);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: kgp-shimmer 3s linear infinite;
+}
 `;
 
 if (typeof document !== 'undefined' && !document.getElementById('kgp-chat-styles')) {
@@ -331,8 +348,15 @@ const ChatMessage = React.memo(({ msg, index, isStreaming, handleCitationClick, 
         {/* Related Documents (Download Links) */}
         {(() => {
           const docsWithUrls = msg.metadata?.citations?.filter(c => c.document_download_url) || [];
-          // Deduplicate by document_id
-          const uniqueDocs = Array.from(new Map(docsWithUrls.map(c => [c.document_id, c])).values());
+          // Deduplicate by normalized source_title to prevent duplicates of the same PDF
+          const uniqueDocsMap = new Map();
+          docsWithUrls.forEach(c => {
+            const key = (c.source_title || '').toLowerCase().trim() || c.document_id;
+            if (key && !uniqueDocsMap.has(key)) {
+              uniqueDocsMap.set(key, c);
+            }
+          });
+          const uniqueDocs = Array.from(uniqueDocsMap.values());
           if (uniqueDocs.length === 0) return null;
           return (
             <div className="mt-4 w-full flex flex-col gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
@@ -395,6 +419,16 @@ const Chat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [streamingIdx, setStreamingIdx] = useState(null); // index of the message being streamed
   const [useCitations, setUseCitations] = useState(true);
+
+  // Analysis mode: 'basic' | 'advanced'
+  const [analysisMode, setAnalysisMode] = useState('basic');
+
+  // BYOK — keys are used per-request only, never stored server-side
+  const [byokOpen, setByokOpen] = useState(false);
+  const [byokProvider, setByokProvider] = useState('');
+  const [byokModel, setByokModel] = useState('');
+  const [byokKey, setByokKey] = useState('');
+  const [byokKeyVisible, setByokKeyVisible] = useState(false);
 
   // Cascading selection (persisted)
   const [selectedDeptId, setSelectedDeptId] = useState(() => localStorage.getItem('kgpone_chat_dept_id') || '');
@@ -473,6 +507,12 @@ const Chat = () => {
           course_code: courseCode || null,
           course_offering_id: selectedOfferingId || null,
           use_citations: useCitations,
+          analysis_mode: analysisMode,
+          ...(analysisMode === 'advanced' && byokProvider && byokKey ? {
+            byok_provider: byokProvider,
+            byok_api_key: byokKey,
+            byok_model: byokModel || undefined,
+          } : {}),
         }),
       });
 
@@ -659,6 +699,137 @@ const Chat = () => {
           </div>
         </div>
 
+        {/* ── Analysis Mode Toggle ───────────────────────────────────── */}
+        <div className="flex flex-col gap-3 mb-5 shrink-0">
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <Brain size={14} className="text-slate-400" /> Analysis Mode
+          </h2>
+          <div className="flex rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+            <button
+              onClick={() => setAnalysisMode('basic')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-semibold transition-all duration-200 ${
+                analysisMode === 'basic'
+                  ? 'bg-primary text-white shadow-inner'
+                  : 'bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              Basic
+            </button>
+            <button
+              onClick={() => setAnalysisMode('advanced')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-semibold transition-all duration-200 ${
+                analysisMode === 'advanced'
+                  ? 'bg-gradient-to-r from-violet-600 to-pink-600 text-white shadow-inner'
+                  : 'bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              <Brain className="w-3.5 h-3.5" />
+              Advanced
+            </button>
+          </div>
+          {analysisMode === 'basic' && (
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Fast NLP routing — deterministic, &lt;10ms intent detection.
+            </p>
+          )}
+          {analysisMode === 'advanced' && (
+            <p className="text-[11px] leading-relaxed">
+              <span className="kgp-advanced-shimmer font-semibold">Agent mode</span>
+              <span className="text-slate-400"> — uses tools to search docs, graph &amp; catalog before answering.</span>
+            </p>
+          )}
+        </div>
+
+        {/* ── BYOK Settings ───────────────────────────────────────────── */}
+        <div className="flex flex-col gap-2 mb-5 shrink-0">
+          <button
+            onClick={() => setByokOpen(o => !o)}
+            className="flex items-center justify-between w-full group"
+          >
+            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2 group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors">
+              <Key size={14} className="text-slate-400" /> Bring Your Own Key
+              {byokKey && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+                  <Lock className="w-2.5 h-2.5" /> SET
+                </span>
+              )}
+            </h2>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${byokOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {byokOpen && (
+            <div className="kgp-byok-open flex flex-col gap-3 mt-1 bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 border border-slate-200 dark:border-slate-800">
+              <p className="text-[10px] text-slate-400 leading-relaxed">
+                Your key is used only for this session and is never stored server-side.
+              </p>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Provider</label>
+                <select
+                  value={byokProvider}
+                  onChange={e => { setByokProvider(e.target.value); setByokModel(''); setByokKey(''); }}
+                  className="w-full text-[12px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="">Use server default</option>
+                  <option value="gemini">Google Gemini</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="groq">Groq</option>
+                  <option value="anthropic">Anthropic (Claude)</option>
+                </select>
+              </div>
+              {byokProvider && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                    Model <span className="font-normal text-slate-400">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={byokModel}
+                    onChange={e => setByokModel(e.target.value)}
+                    placeholder={{
+                      gemini: 'gemini-3.5-flash-lite',
+                      openai: 'gpt-4o-mini',
+                      groq: 'llama-3.3-70b-versatile',
+                      anthropic: 'claude-3-5-sonnet-20241022',
+                    }[byokProvider] || 'model name...'}
+                    className="w-full text-[12px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              )}
+              {byokProvider && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">API Key</label>
+                  <div className="relative">
+                    <input
+                      type={byokKeyVisible ? 'text' : 'password'}
+                      value={byokKey}
+                      onChange={e => setByokKey(e.target.value)}
+                      placeholder="sk-... or AIza..."
+                      className="w-full text-[12px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 px-2.5 py-2 pr-9 focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setByokKeyVisible(v => !v)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {byokKeyVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {byokKey && (
+                <button
+                  type="button"
+                  onClick={() => { setByokKey(''); setByokProvider(''); setByokModel(''); }}
+                  className="text-[11px] text-red-500 hover:text-red-700 text-left font-medium transition-colors"
+                >
+                  ✕ Clear credentials
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Legend */}
         <div className="flex flex-col gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
           <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Source Types</h2>
@@ -721,9 +892,23 @@ const Chat = () => {
               <Send className="w-5 h-5 ml-0.5" />
             </Button>
           </form>
-          <div className="flex items-center justify-center mt-3 gap-1.5 text-[11px] text-slate-400 font-medium uppercase tracking-wide">
-            <Bot className="w-3.5 h-3.5" />
-            <span>AI responses may be inaccurate. Verify against official course materials.</span>
+          <div className="flex items-center justify-between mt-3 px-1">
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium uppercase tracking-wide">
+              <Bot className="w-3.5 h-3.5" />
+              <span>AI responses may be inaccurate.</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {analysisMode === 'advanced' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r from-violet-100 to-pink-100 dark:from-violet-900/30 dark:to-pink-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
+                  <Brain className="w-2.5 h-2.5" /> Agent
+                </span>
+              )}
+              {byokKey && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                  <Lock className="w-2.5 h-2.5" /> BYOK
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>

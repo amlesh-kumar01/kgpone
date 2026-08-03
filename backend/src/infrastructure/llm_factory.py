@@ -13,32 +13,57 @@ class LLMFactory(ILLMFactory):
         provider = Settings.AI_PROVIDER
         api_key = Settings.AI_API_KEY
         model = model_name or Settings.AI_MODEL
-        
+
         if not api_key:
             logger.error(f"AI_API_KEY is missing for provider: {provider}")
             raise ValueError(f"AI_API_KEY is not set for AI_PROVIDER={provider}")
-            
+
+        return self._build_llm(provider, api_key, model, **kwargs)
+
+    def get_llm_for_request(
+        self,
+        byok_provider: str | None = None,
+        byok_api_key: str | None = None,
+        byok_model: str | None = None,
+        **kwargs,
+    ) -> BaseChatModel:
+        """
+        Returns an LLM using BYOK credentials if provided, otherwise falls back
+        to environment-configured settings. Keys are NEVER stored — used per-request only.
+        """
+        if byok_provider and byok_api_key:
+            logger.info(f"Using BYOK LLM: provider={byok_provider}, model={byok_model or '(default)'}")
+            return self._build_llm(byok_provider, byok_api_key, byok_model, **kwargs)
+        return self.get_llm(**kwargs)
+
+    def _build_llm(self, provider: str, api_key: str, model: str | None, **kwargs) -> BaseChatModel:
+        """Internal: constructs the LLM for the given provider / key / model."""
         if provider == "openai":
             from langchain_openai import ChatOpenAI
             return ChatOpenAI(model=model or "gpt-4o-mini", api_key=api_key, **kwargs)
-            
+
         elif provider == "groq":
             from langchain_groq import ChatGroq
             return ChatGroq(model=model or "llama-3.3-70b-versatile", api_key=api_key, **kwargs)
-            
+
         elif provider == "huggingface":
             from langchain_huggingface import HuggingFaceEndpoint
             from langchain_community.chat_models.huggingface import ChatHuggingFace
             llm = HuggingFaceEndpoint(repo_id=model or "meta-llama/Meta-Llama-3-8B-Instruct", huggingfacehub_api_token=api_key, **kwargs)
             return ChatHuggingFace(llm=llm)
-            
+
         elif provider == "gemini":
             from langchain_google_genai import ChatGoogleGenerativeAI
             return ChatGoogleGenerativeAI(model=model or "gemini-3.5-flash-lite", google_api_key=api_key, **kwargs)
-            
+
+        elif provider == "anthropic":
+            from langchain_anthropic import ChatAnthropic
+            return ChatAnthropic(model=model or "claude-3-5-sonnet-20241022", api_key=api_key, **kwargs)
+
         else:
-            logger.error(f"Unsupported AI_PROVIDER: {provider}")
-            raise ValueError(f"Unsupported AI_PROVIDER: {provider}")
+            logger.error(f"Unsupported AI provider: {provider}")
+            raise ValueError(f"Unsupported AI provider: {provider}")
+
 
     def get_embeddings(self, model_name: str | None = None, **kwargs) -> Embeddings:
         provider = Settings.EMBEDDING_PROVIDER

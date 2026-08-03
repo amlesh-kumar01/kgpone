@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any, Literal
 from uuid import UUID
 from datetime import datetime
 
@@ -16,6 +16,12 @@ class QueryRequest(BaseModel):
     course_code: Optional[str] = None
     course_offering_id: Optional[str] = None
     use_citations: bool = True
+    # Controls which pipeline is used: basic = fast NLP, advanced = tool-calling agent
+    analysis_mode: Literal["basic", "advanced"] = "basic"
+    # BYOK — user supplies own key per-request; never persisted server-side
+    byok_provider: Optional[Literal["openai", "gemini", "groq", "anthropic"]] = None
+    byok_api_key: Optional[str] = Field(default=None, exclude=True)  # excluded from logs/responses
+    byok_model: Optional[str] = None
 
 class CitationRead(BaseModel):
     citation_id: str

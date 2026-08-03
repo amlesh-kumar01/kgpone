@@ -57,6 +57,17 @@ app.include_router(academic_routes.router, prefix="/api/v1")
 app.include_router(document_routes.router, prefix="/api/v1")
 app.include_router(query_routes.router, prefix="/api/v1")
 
+# ── MCP Server — mounted at /mcp for external AI agent access ─────────────────
+# Connect from Claude Desktop, MCP Inspector, or any MCP client:
+#   SSE URL: http://localhost:8000/mcp/sse
+try:
+    from src.mcp.server import mcp as kgpone_mcp
+    mcp_app = kgpone_mcp.sse_app()
+    app.mount("/mcp", mcp_app)
+except Exception as _mcp_err:
+    import logging
+    logging.getLogger("main").warning(f"MCP server could not be mounted: {_mcp_err}")
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to KgpOne Secure API"}

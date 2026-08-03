@@ -19,6 +19,7 @@ from src.services.rag.semantic_cache_service import SemanticCacheService
 from src.services.ingestion.embedding.llm_embedding import LLMEmbedder
 from src.repositories.qdrant.vector_repository import QdrantRepository
 from src.infrastructure.database import get_db
+from src.infrastructure.llm_factory import LLMFactory
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/query", tags=["Query & RAG"])
@@ -32,7 +33,8 @@ def get_rag_services(db: Session = Depends(get_db)):
     citation_formatter = CitationService()
     answer_generator = AnswerService()
     semantic_cache = SemanticCacheService()
-    
+    llm_factory = LLMFactory()
+
     return {
         "planner": planner,
         "retriever": retriever,
@@ -41,6 +43,7 @@ def get_rag_services(db: Session = Depends(get_db)):
         "answer_generator": answer_generator,
         "embedder": embedder,
         "semantic_cache": semantic_cache,
+        "llm_factory": llm_factory,
     }
 
 @router.post("/ask", response_model=StandardResponse[QueryResponse])
@@ -146,18 +149,51 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
 
 @router.post("/ask_stream")
 async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_rag_services)):
-    """SSE endpoint for streaming the RAG answer."""
+    """SSE endpoint for streaming the RAG answer.
+
+    Supports two modes controlled by `analysis_mode` in the request body:
+      - 'basic'    : fast NLP planner (~3ms) → deterministic retrieval pipeline.
+      - 'advanced' : tool-calling agent → autonomously fetches context via tools
+                     before handing off to the generator.
+
+    Also supports BYOK via `byok_provider`, `byok_api_key`, `byok_model` fields.
+    BYOK keys are used only for this request and are never stored.
+    """
     query = req.query
     course_code = req.course_code
     course_offering_id = req.course_offering_id
     t0 = time.time()
-    plan = await services["planner"].detect_intent(query, course_code, course_offering_id)
+
+    # ── Planner: Basic (NLP) or Advanced (Tool-Calling Agent) ──
+    if req.analysis_mode == "advanced":
+        from src.services.rag.agentic_planner_service import AgenticPlannerService
+        llm_factory = services["llm_factory"]
+        agent_llm = llm_factory.get_llm_for_request(
+            byok_provider=req.byok_provider,
+            byok_api_key=req.byok_api_key,
+            byok_model=req.byok_model,
+        )
+        planner = AgenticPlannerService(llm=agent_llm)
+        logger.info(f"[Mode] Advanced Agent (BYOK={bool(req.byok_api_key)})")
+    else:
+        planner = services["planner"]
+        logger.info("[Mode] Basic NLP planner")
+
+    plan = await planner.detect_intent(query, course_code, course_offering_id)
     t1 = time.time()
     logger.info(f"[PERF] Planner took: {t1 - t0:.4f}s")
-    
+
+    # Agent pre-fetched chunks (only present in advanced mode)
+    agent_chunks = getattr(plan, "_agent_chunks", [])
+
     context = await services["retriever"].retrieve_context(query, plan)
     t2 = time.time()
     logger.info(f"[PERF] Retriever took: {t2 - t1:.4f}s")
+
+    # Merge agent tool results with retriever results (agent chunks get priority)
+    if agent_chunks:
+        context["retrieved_chunks"] = agent_chunks + context["retrieved_chunks"]
+        logger.info(f"[Agent] Injected {len(agent_chunks)} pre-fetched tool chunks")
 
     # Inject presigned image URLs into all figure chunks so the LLM context includes them
     _inject_presigned_image_urls(context["retrieved_chunks"])
