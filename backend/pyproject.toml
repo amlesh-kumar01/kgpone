@@ -49,6 +49,7 @@ dependencies = [
 
 [tool.pyright]
 include = ["src", "alembic"]
+extraPaths = ["."]
 executionEnvironments = [
   { root = "." }
 ]
