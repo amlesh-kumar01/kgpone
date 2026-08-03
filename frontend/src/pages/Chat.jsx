@@ -3,11 +3,12 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   Bot, User, Send, Network, Database, Sparkles, BookOpen, Download,
   Filter, ChevronLeft, ImageIcon, Sigma, Table2, FileText,
-  Zap, Brain, Key, ChevronDown, Eye, EyeOff, Lock
+  Zap, Brain, Key, ChevronDown, Eye, EyeOff, Lock, MessageSquare, Plus, Share2, Settings as SettingsIcon, Trash2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from '../lib/api';
@@ -314,6 +315,10 @@ const ChatMessage = React.memo(({ msg, index, isStreaming, handleCitationClick, 
         }`}>
           {msg.role === 'user' ? (
             <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+          ) : msg.isThinking ? (
+            <div className="animate-pulse text-slate-400 italic whitespace-pre-wrap leading-relaxed flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" /> {msg.content}
+            </div>
           ) : (
             <div className="prose prose-slate dark:prose-invert max-w-none break-words leading-relaxed">
               <ReactMarkdown
@@ -420,6 +425,9 @@ const Chat = () => {
   const [streamingIdx, setStreamingIdx] = useState(null); // index of the message being streamed
   const [useCitations, setUseCitations] = useState(true);
 
+  // Settings UI Toggle
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   // Analysis mode: 'basic' | 'advanced'
   const [analysisMode, setAnalysisMode] = useState('basic');
 
@@ -429,6 +437,126 @@ const Chat = () => {
   const [byokModel, setByokModel] = useState('');
   const [byokKey, setByokKey] = useState('');
   const [byokKeyVisible, setByokKeyVisible] = useState(false);
+
+  // Chat History State
+  const [conversations, setConversations] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState(null);
+  const [isShared, setIsShared] = useState(false);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
+  // Memories State
+  const [memories, setMemories] = useState([]);
+  const [memoriesLoading, setMemoriesLoading] = useState(false);
+  const [memoriesOpen, setMemoriesOpen] = useState(false);
+
+  const fetchConversations = useCallback(async () => {
+    try {
+      const res = await api.get('/api/v1/chat/conversations');
+      setConversations(res.data || []);
+    } catch (err) {
+      console.error("Failed to fetch conversations", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchConversations();
+  }, [fetchConversations]);
+
+  const loadConversation = async (id) => {
+    if (id === activeConversationId) return;
+    setIsChatLoading(true);
+    const previousId = activeConversationId;
+    setActiveConversationId(id); // Optimistic update
+    
+    try {
+      const res = await api.get(`/api/v1/chat/conversations/${id}`);
+      const conv = res.data;
+      setIsShared(conv.is_shared);
+      
+      if (conv.messages && conv.messages.length > 0) {
+        const loadedMsgs = conv.messages.map(m => ({
+          role: m.role,
+          content: m.content,
+          metadata: m.metadata_payload
+        }));
+        setMessages(loadedMsgs);
+      } else {
+        setMessages([{ role: 'assistant', content: 'Hello! I am the **KnowledgeOS Assistant**.' }]);
+      }
+    } catch (err) {
+      console.error("Failed to load conversation", err);
+      toast({ title: 'Error', description: 'Failed to load conversation', variant: 'destructive' });
+      setActiveConversationId(previousId); // Revert on failure
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  const createNewChat = () => {
+    setActiveConversationId(null);
+    setIsShared(false);
+    setMessages([{ role: 'assistant', content: 'Hello! I am the **KnowledgeOS Assistant**.' }]);
+  };
+
+  const deleteConversation = async (id, e) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this chat?")) return;
+    try {
+      await api.delete(`/api/v1/chat/conversations/${id}`);
+      setConversations(prev => prev.filter(c => c.id !== id));
+      if (activeConversationId === id) {
+        createNewChat();
+      }
+      toast({ title: 'Success', description: 'Chat deleted' });
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to delete chat', variant: 'destructive' });
+    }
+  };
+
+  const clearMemories = async () => {
+    if (!window.confirm("Are you sure you want to clear all learned facts about you? This action cannot be undone.")) return;
+    try {
+      await api.delete('/api/v1/chat/memories');
+      setMemories([]);
+      toast({ title: 'Success', description: 'Personalization memory cleared' });
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to clear memory', variant: 'destructive' });
+    }
+  };
+
+  const fetchMemories = async () => {
+    setMemoriesLoading(true);
+    try {
+      const res = await api.get('/api/v1/chat/memories');
+      setMemories(res.data);
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to load memories', variant: 'destructive' });
+    } finally {
+      setMemoriesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (memoriesOpen) {
+      fetchMemories();
+    }
+  }, [memoriesOpen]);
+
+  const handleShareToggle = async () => {
+    if (!activeConversationId) return;
+    try {
+      const res = await api.patch(`/api/v1/chat/conversations/${activeConversationId}/share`, { is_shared: !isShared });
+      setIsShared(res.data.is_shared);
+      toast({ title: 'Success', description: res.data.is_shared ? 'Chat is now public' : 'Chat is now private' });
+      if (res.data.is_shared) {
+        const link = `${window.location.origin}/chat/shared/${activeConversationId}`;
+        navigator.clipboard.writeText(link);
+        toast({ title: 'Link Copied', description: 'Public link copied to clipboard!' });
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to update share settings', variant: 'destructive' });
+    }
+  };
 
   // Cascading selection (persisted)
   const [selectedDeptId, setSelectedDeptId] = useState(() => localStorage.getItem('kgpone_chat_dept_id') || '');
@@ -478,10 +606,15 @@ const Chat = () => {
 
     const assistantIdx = messages.length + 1; // after user message
 
+    if (!activeConversationId) {
+      setConversations(prev => [{id: 'temp', title: 'New Conversation...'}, ...prev]);
+      setActiveConversationId('temp');
+    }
+
     setMessages(prev => [
       ...prev,
       { role: 'user', content: userMessage },
-      { role: 'assistant', content: '', metadata: null },
+      { role: 'assistant', content: 'Assistant is thinking...', isThinking: true, metadata: null },
     ]);
     setIsLoading(true);
     setStreamingIdx(null);
@@ -508,6 +641,7 @@ const Chat = () => {
           course_offering_id: selectedOfferingId || null,
           use_citations: useCitations,
           analysis_mode: analysisMode,
+          conversation_id: activeConversationId || undefined,
           ...(analysisMode === 'advanced' && byokProvider && byokKey ? {
             byok_provider: byokProvider,
             byok_api_key: byokKey,
@@ -542,7 +676,12 @@ const Chat = () => {
               setStreamingIdx(assistantIdx);
               setMessages(prev => {
                 const next = [...prev];
-                next[next.length - 1] = { ...next[next.length - 1], content: assistantContent };
+                const msg = next[next.length - 1];
+                if (msg.isThinking) {
+                  msg.isThinking = false;
+                  msg.content = ''; // Clear placeholder
+                }
+                msg.content = assistantContent;
                 return next;
               });
             } else if (data.type === 'metadata') {
@@ -552,6 +691,10 @@ const Chat = () => {
                 next[next.length - 1] = { ...next[next.length - 1], metadata: data };
                 return next;
               });
+              if (data.conversation_id && data.conversation_id !== activeConversationId) {
+                setActiveConversationId(data.conversation_id);
+                fetchConversations();
+              }
             }
           } catch {
             /* ignore parse errors on partial lines */
@@ -639,195 +782,264 @@ const Chat = () => {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col gap-4 mb-6 shrink-0">
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-            <Filter size={14} className="text-slate-400" /> Filters
-          </h2>
-
-          <Select value={selectedDeptId} onValueChange={(val) => {
-            setSelectedDeptId(val === 'all' ? '' : val);
-            setSelectedCourseId('');
-            setSelectedOfferingId('');
-          }}>
-            <SelectTrigger className="h-10 text-[13px] rounded-xl bg-slate-50/50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
-              <SelectValue placeholder="1. Department" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Any Department</SelectItem>
-              {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <Select value={selectedCourseId} onValueChange={(val) => {
-            setSelectedCourseId(val === 'all' ? '' : val);
-            setSelectedOfferingId('');
-          }} disabled={!selectedDeptId}>
-            <SelectTrigger className="h-10 text-[13px] rounded-xl bg-slate-50/50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
-              <SelectValue placeholder="2. Course" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Any Course</SelectItem>
-              {filteredCourses.map(c => <SelectItem key={c.id} value={c.id}>{c.code}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={selectedOfferingId}
-            onValueChange={(val) => setSelectedOfferingId(val === 'all' ? '' : val)}
-            disabled={!selectedCourseId || offerings.length === 0}
-          >
-            <SelectTrigger className="h-10 text-[13px] rounded-xl bg-slate-50/50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
-              <SelectValue placeholder={offerings.length === 0 && selectedCourseId ? 'No offerings' : '3. Offering'} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Any Offering</SelectItem>
-              {offerings.map(o => <SelectItem key={o.id} value={o.id}>{o.semester} {o.year}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <div className="pt-2">
-            <label className="text-[13px] font-medium text-slate-700 dark:text-slate-300 flex items-center cursor-pointer select-none hover:text-slate-900 transition-colors">
-              <input
-                type="checkbox"
-                checked={useCitations}
-                onChange={(e) => setUseCitations(e.target.checked)}
-                className="mr-3 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary transition-all shadow-sm"
-              />
-              Enable Inline Citations
-            </label>
-          </div>
-        </div>
-
-        {/* ── Analysis Mode Toggle ───────────────────────────────────── */}
-        <div className="flex flex-col gap-3 mb-5 shrink-0">
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-            <Brain size={14} className="text-slate-400" /> Analysis Mode
-          </h2>
-          <div className="flex rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
-            <button
-              onClick={() => setAnalysisMode('basic')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-semibold transition-all duration-200 ${
-                analysisMode === 'basic'
-                  ? 'bg-primary text-white shadow-inner'
-                  : 'bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-            >
-              <Zap className="w-3.5 h-3.5" />
-              Basic
-            </button>
-            <button
-              onClick={() => setAnalysisMode('advanced')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-semibold transition-all duration-200 ${
-                analysisMode === 'advanced'
-                  ? 'bg-gradient-to-r from-violet-600 to-pink-600 text-white shadow-inner'
-                  : 'bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-            >
-              <Brain className="w-3.5 h-3.5" />
-              Advanced
-            </button>
-          </div>
-          {analysisMode === 'basic' && (
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              Fast NLP routing — deterministic, &lt;10ms intent detection.
-            </p>
-          )}
-          {analysisMode === 'advanced' && (
-            <p className="text-[11px] leading-relaxed">
-              <span className="kgp-advanced-shimmer font-semibold">Agent mode</span>
-              <span className="text-slate-400"> — uses tools to search docs, graph &amp; catalog before answering.</span>
-            </p>
-          )}
-        </div>
-
-        {/* ── BYOK Settings ───────────────────────────────────────────── */}
-        <div className="flex flex-col gap-2 mb-5 shrink-0">
+        {/* ── Settings Accordion ─────────────────────────────────────── */}
+        <div className="flex flex-col mb-4 shrink-0">
           <button
-            onClick={() => setByokOpen(o => !o)}
-            className="flex items-center justify-between w-full group"
+            onClick={() => setSettingsOpen(o => !o)}
+            className="flex items-center justify-between w-full py-2 group border-b border-slate-100 dark:border-slate-800"
           >
             <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2 group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors">
-              <Key size={14} className="text-slate-400" /> Bring Your Own Key
-              {byokKey && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
-                  <Lock className="w-2.5 h-2.5" /> SET
-                </span>
-              )}
+              <SettingsIcon size={14} className="text-slate-400" /> Chat Settings
             </h2>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${byokOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${settingsOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          {byokOpen && (
-            <div className="kgp-byok-open flex flex-col gap-3 mt-1 bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 border border-slate-200 dark:border-slate-800">
-              <p className="text-[10px] text-slate-400 leading-relaxed">
-                Your key is used only for this session and is never stored server-side.
-              </p>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Provider</label>
-                <select
-                  value={byokProvider}
-                  onChange={e => { setByokProvider(e.target.value); setByokModel(''); setByokKey(''); }}
-                  className="w-full text-[12px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          {settingsOpen && (
+            <div className="flex flex-col gap-5 pt-4 animate-in slide-in-from-top-2 fade-in duration-200">
+              {/* Filters */}
+              <div className="flex flex-col gap-3">
+                <Select value={selectedDeptId} onValueChange={(val) => {
+                  setSelectedDeptId(val === 'all' ? '' : val);
+                  setSelectedCourseId('');
+                  setSelectedOfferingId('');
+                }}>
+                  <SelectTrigger className="h-9 text-[12px] rounded-lg bg-slate-50/50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
+                    <SelectValue placeholder="1. Department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Any Department</SelectItem>
+                    {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+
+                <Select value={selectedCourseId} onValueChange={(val) => {
+                  setSelectedCourseId(val === 'all' ? '' : val);
+                  setSelectedOfferingId('');
+                }} disabled={!selectedDeptId}>
+                  <SelectTrigger className="h-9 text-[12px] rounded-lg bg-slate-50/50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
+                    <SelectValue placeholder="2. Course" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Any Course</SelectItem>
+                    {filteredCourses.map(c => <SelectItem key={c.id} value={c.id}>{c.code}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={selectedOfferingId}
+                  onValueChange={(val) => setSelectedOfferingId(val === 'all' ? '' : val)}
+                  disabled={!selectedCourseId || offerings.length === 0}
                 >
-                  <option value="">Use server default</option>
-                  <option value="gemini">Google Gemini</option>
-                  <option value="openai">OpenAI</option>
-                  <option value="groq">Groq</option>
-                  <option value="anthropic">Anthropic (Claude)</option>
-                </select>
-              </div>
-              {byokProvider && (
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-                    Model <span className="font-normal text-slate-400">(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={byokModel}
-                    onChange={e => setByokModel(e.target.value)}
-                    placeholder={{
-                      gemini: 'gemini-3.5-flash-lite',
-                      openai: 'gpt-4o-mini',
-                      groq: 'llama-3.3-70b-versatile',
-                      anthropic: 'claude-3-5-sonnet-20241022',
-                    }[byokProvider] || 'model name...'}
-                    className="w-full text-[12px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  />
-                </div>
-              )}
-              {byokProvider && (
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">API Key</label>
-                  <div className="relative">
+                  <SelectTrigger className="h-9 text-[12px] rounded-lg bg-slate-50/50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm transition-all focus:ring-2 focus:ring-primary/20">
+                    <SelectValue placeholder={offerings.length === 0 && selectedCourseId ? 'No offerings' : '3. Offering'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Any Offering</SelectItem>
+                    {offerings.map(o => <SelectItem key={o.id} value={o.id}>{o.semester} {o.year}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+
+                <div className="pt-1">
+                  <label className="text-[12px] font-medium text-slate-600 dark:text-slate-300 flex items-center cursor-pointer select-none hover:text-slate-900 transition-colors">
                     <input
-                      type={byokKeyVisible ? 'text' : 'password'}
-                      value={byokKey}
-                      onChange={e => setByokKey(e.target.value)}
-                      placeholder="sk-... or AIza..."
-                      className="w-full text-[12px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 px-2.5 py-2 pr-9 focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
+                      type="checkbox"
+                      checked={useCitations}
+                      onChange={(e) => setUseCitations(e.target.checked)}
+                      className="mr-2.5 h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary transition-all shadow-sm"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setByokKeyVisible(v => !v)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                    >
-                      {byokKeyVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
+                    Enable Inline Citations
+                  </label>
                 </div>
-              )}
-              {byokKey && (
+              </div>
+
+              {/* Analysis Mode Toggle */}
+              <div className="flex flex-col gap-2">
+                <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Analysis Mode</h3>
+                <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+                  <button
+                    onClick={() => setAnalysisMode('general')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold transition-all duration-200 ${
+                      analysisMode === 'general'
+                        ? 'bg-slate-700 text-white shadow-inner'
+                        : 'bg-slate-50 dark:bg-slate-900 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    <MessageSquare className="w-3 h-3" />
+                    General
+                  </button>
+                  <button
+                    onClick={() => setAnalysisMode('basic')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold transition-all duration-200 ${
+                      analysisMode === 'basic'
+                        ? 'bg-primary text-white shadow-inner'
+                        : 'bg-slate-50 dark:bg-slate-900 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    <Zap className="w-3 h-3" />
+                    Basic
+                  </button>
+                  <button
+                    onClick={() => setAnalysisMode('advanced')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold transition-all duration-200 ${
+                      analysisMode === 'advanced'
+                        ? 'bg-gradient-to-r from-violet-600 to-pink-600 text-white shadow-inner'
+                        : 'bg-slate-50 dark:bg-slate-900 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    <Brain className="w-3 h-3" />
+                    Advanced
+                  </button>
+                </div>
+              </div>
+
+              {/* BYOK Settings */}
+              <div className="flex flex-col gap-2">
                 <button
-                  type="button"
-                  onClick={() => { setByokKey(''); setByokProvider(''); setByokModel(''); }}
-                  className="text-[11px] text-red-500 hover:text-red-700 text-left font-medium transition-colors"
+                  onClick={() => setByokOpen(o => !o)}
+                  className="flex items-center justify-between w-full group pt-1"
                 >
-                  ✕ Clear credentials
+                  <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors">
+                    <Key size={12} className="text-slate-400" /> Bring Your Own Key
+                    {byokKey && (
+                      <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[8px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 ml-1">
+                        <Lock className="w-2 h-2" />
+                      </span>
+                    )}
+                  </h3>
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${byokOpen ? 'rotate-180' : ''}`} />
                 </button>
-              )}
+
+                {byokOpen && (
+                  <div className="kgp-byok-open flex flex-col gap-2.5 mt-1 bg-slate-50 dark:bg-slate-900/60 rounded-lg p-2.5 border border-slate-200 dark:border-slate-800">
+                    <div>
+                      <select
+                        value={byokProvider}
+                        onChange={e => { setByokProvider(e.target.value); setByokModel(''); setByokKey(''); }}
+                        className="w-full text-[11px] rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      >
+                        <option value="">Provider (Server Default)</option>
+                        <option value="gemini">Google Gemini</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="groq">Groq</option>
+                        <option value="anthropic">Anthropic (Claude)</option>
+                      </select>
+                    </div>
+                    {byokProvider && (
+                      <div>
+                        <input
+                          type="text"
+                          value={byokModel}
+                          onChange={e => setByokModel(e.target.value)}
+                          placeholder="Model (optional)"
+                          className="w-full text-[11px] rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        />
+                      </div>
+                    )}
+                    {byokProvider && (
+                      <div className="relative">
+                        <input
+                          type={byokKeyVisible ? 'text' : 'password'}
+                          value={byokKey}
+                          onChange={e => setByokKey(e.target.value)}
+                          placeholder="API Key"
+                          className="w-full text-[11px] rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 px-2 py-1.5 pr-8 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setByokKeyVisible(v => !v)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                          {byokKeyVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        </button>
+                      </div>
+                    )}
+                    {byokKey && (
+                      <button
+                        type="button"
+                        onClick={() => { setByokKey(''); setByokProvider(''); setByokModel(''); }}
+                        className="text-[10px] text-red-500 hover:text-red-700 text-left font-medium transition-colors"
+                      >
+                        ✕ Clear
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              {/* Memory Clear */}
+              <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex flex-col gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 justify-center text-[11px]"
+                    onClick={() => setMemoriesOpen(true)}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                    View AI Memory
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 border-red-200 dark:border-red-900/50 justify-center text-[11px]"
+                    onClick={clearMemories}
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                    Clear AI Memory
+                  </Button>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-2 text-center px-1 leading-tight">
+                  Manage the facts the assistant has learned about you.
+                </p>
+              </div>
             </div>
           )}
+        </div>
+
+        {/* ── Recent Chats ───────────────────────────────────────────── */}
+        <div className="flex flex-col gap-2 flex-1 min-h-0 pt-4">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+              <MessageSquare size={14} className="text-slate-400" /> Recent Chats
+            </h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+              onClick={createNewChat}
+              title="New Chat"
+            >
+              <Plus className="w-4 h-4 text-slate-500" />
+            </Button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto no-scrollbar space-y-1 pr-1">
+            {conversations.length === 0 ? (
+              <p className="text-[11px] text-slate-400 py-2 text-center">No recent chats</p>
+            ) : (
+              conversations.map(conv => (
+                <div key={conv.id} className="relative group">
+                  <button
+                    onClick={() => loadConversation(conv.id)}
+                    className={`w-full text-left px-2 py-2 pr-8 text-[12px] rounded-lg transition-all truncate border ${
+                      activeConversationId === conv.id
+                        ? 'bg-primary/10 border-primary/20 text-primary font-medium dark:bg-primary/20 dark:text-primary-foreground'
+                        : 'bg-transparent border-transparent text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {conv.title || 'Untitled Conversation'}
+                  </button>
+                  <button
+                    onClick={(e) => deleteConversation(conv.id, e)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Delete Chat"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
         {/* Legend */}
@@ -848,24 +1060,56 @@ const Chat = () => {
       </div>
 
       {/* ── Main chat area ────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-h-0 bg-transparent rounded-2xl max-w-5xl mx-auto w-full">
+      <div className="flex-1 flex flex-col min-h-0 bg-transparent rounded-2xl max-w-5xl mx-auto w-full relative">
+        
+        {/* Top Header / Share */}
+        <div className="absolute top-2 right-2 z-10 flex gap-2">
+          {activeConversationId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleShareToggle}
+              className={`h-8 gap-1.5 rounded-full text-[11px] font-medium border-slate-200 dark:border-slate-800 shadow-sm bg-white/80 dark:bg-slate-900/80 backdrop-blur ${isShared ? 'text-primary border-primary/30' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              {isShared ? 'Shared Publicly' : 'Share'}
+            </Button>
+          )}
+        </div>
 
         {/* Messages */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 py-4 space-y-8 no-scrollbar scroll-smooth">
-          {messages.map((msg, idx) => {
-            if (msg.role === 'assistant' && msg.content === '' && !msg.metadata && !msg.isError) return null;
-            return (
-              <ChatMessage
-                key={idx}
-                index={idx}
-                msg={msg}
-                isStreaming={streamingIdx === idx}
-                handleCitationClick={handleCitationClick}
-                renderBackendBadge={renderBackendBadge}
-              />
-            );
-          })}
-          {isLoading && <LoadingDots />}
+          {isChatLoading ? (
+            <div className="flex flex-col gap-8 p-4">
+              <div className="flex gap-4">
+                <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-800 animate-pulse shrink-0"></div>
+                <div className="h-24 bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 animate-pulse rounded-3xl rounded-tl-sm w-3/4 shadow-sm"></div>
+              </div>
+              <div className="flex gap-4 flex-row-reverse">
+                <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-800 animate-pulse shrink-0"></div>
+                <div className="h-16 bg-primary/20 animate-pulse rounded-3xl rounded-tr-sm w-1/2 shadow-sm"></div>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-800 animate-pulse shrink-0"></div>
+                <div className="h-32 bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800 animate-pulse rounded-3xl rounded-tl-sm w-2/3 shadow-sm"></div>
+              </div>
+            </div>
+          ) : (
+            messages.map((msg, idx) => {
+              if (msg.role === 'assistant' && msg.content === '' && !msg.metadata && !msg.isError) return null;
+              return (
+                <ChatMessage
+                  key={idx}
+                  index={idx}
+                  msg={msg}
+                  isStreaming={streamingIdx === idx}
+                  handleCitationClick={handleCitationClick}
+                  renderBackendBadge={renderBackendBadge}
+                />
+              );
+            })
+          )}
+          {isLoading && !isChatLoading && <LoadingDots />}
         </div>
 
         {/* Input */}
@@ -912,6 +1156,50 @@ const Chat = () => {
           </div>
         </div>
       </div>
+      {/* Memory Viewer Dialog */}
+      <Dialog open={memoriesOpen} onOpenChange={setMemoriesOpen}>
+        <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col p-0">
+          <DialogHeader className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <Sparkles className="w-5 h-5" />
+              AI Memory
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+            <p className="text-[13px] text-slate-500 mb-4 leading-relaxed">
+              These are the facts the assistant has learned about you across all conversations to personalize its responses.
+            </p>
+            
+            {memoriesLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="animate-pulse flex p-3 rounded-xl border border-slate-100 bg-slate-50 dark:bg-slate-900/50 dark:border-slate-800">
+                    <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-3/4"></div>
+                  </div>
+                ))}
+              </div>
+            ) : memories.length === 0 ? (
+              <div className="text-center py-10 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 border-dashed">
+                <Sparkles className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
+                <div className="text-slate-500 font-medium text-sm">No memories found</div>
+                <div className="text-slate-400 text-xs mt-1">The assistant hasn't learned any specific facts about you yet.</div>
+              </div>
+            ) : (
+              <ul className="space-y-3 pb-2">
+                {memories.map(memory => (
+                  <li key={memory.id} className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-sm dark:bg-slate-900/80 dark:border-slate-800/80 text-[13px] flex gap-3 text-slate-700 dark:text-slate-300 items-start">
+                    <div className="bg-primary/10 text-primary p-1 rounded-full mt-0.5 shrink-0">
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="leading-relaxed pt-0.5">{memory.fact}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

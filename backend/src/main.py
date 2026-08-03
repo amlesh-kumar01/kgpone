@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 
 # Load environment variables from .env file before importing local modules
 load_dotenv()
-from src.api.routes import user_routes, academic_routes, document_routes, query_routes
+from src.api.routes import user_routes, academic_routes, document_routes, query_routes, chat_routes
 from src.api.middleware.security_middleware import SecurityHeadersMiddleware
 from src.api.middleware.request_logger import RequestLoggerMiddleware
 from src.config.settings import Settings
@@ -56,6 +56,7 @@ app.include_router(user_routes.router, prefix="/api/v1")
 app.include_router(academic_routes.router, prefix="/api/v1")
 app.include_router(document_routes.router, prefix="/api/v1")
 app.include_router(query_routes.router, prefix="/api/v1")
+app.include_router(chat_routes.router) # chat_routes already has prefix /api/v1/chat
 
 # ── MCP Server — mounted at /mcp for external AI agent access ─────────────────
 # Connect from Claude Desktop, MCP Inspector, or any MCP client:

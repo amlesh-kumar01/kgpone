@@ -79,6 +79,49 @@ async def vector_semantic_search(
 
     return results
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 1.5. Chat History Search
+# ─────────────────────────────────────────────────────────────────────────────
+
+@tool
+async def search_chat_history(
+    query: str,
+    conversation_id: str,
+) -> str:
+    """
+    Search through the user's complete past chat history for the specified conversation.
+    Use this tool ONLY when the user explicitly asks about something discussed previously in the conversation
+    and the context is not present in your truncated short-term memory (which only holds the last 5 messages).
+    
+    Returns a summarized string of matching past messages.
+    """
+    try:
+        conv_uuid = UUID(conversation_id)
+    except ValueError:
+        return "Invalid conversation ID."
+
+    with SessionLocal() as session:
+        from src.repositories.postgres.chat_repository import ChatRepository
+        repo = ChatRepository(session)
+        conversation = repo.get_conversation(conv_uuid, load_messages=True)
+        if not conversation:
+            return "Conversation not found."
+
+        # Simple keyword/substring search across all past messages
+        query_terms = [t.lower() for t in query.split() if len(t) > 3]
+        if not query_terms:
+            query_terms = [query.lower()]
+            
+        results = []
+        for msg in conversation.messages:
+            content_lower = msg.content.lower()
+            if any(term in content_lower for term in query_terms):
+                results.append(f"{msg.role.name}: {msg.content}")
+
+        if not results:
+            return "No previous messages matched your query."
+            
+        return "\n\n".join(results[-10:]) # Return max 10 matching messages
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. Graph Entity Lookup
@@ -416,6 +459,7 @@ async def get_course_prerequisites(course_code: str) -> dict[str, Any]:
 
 ALL_TOOLS = [
     vector_semantic_search,
+    search_chat_history,
     graph_entity_lookup,
     list_course_documents,
     get_document_metadata,

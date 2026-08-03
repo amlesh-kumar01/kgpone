@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Request
 from fastapi.responses import StreamingResponse
 from typing import List
 import json
@@ -19,8 +19,12 @@ from src.services.rag.semantic_cache_service import SemanticCacheService
 from src.services.ingestion.embedding.llm_embedding import LLMEmbedder
 from src.repositories.qdrant.vector_repository import QdrantRepository
 from src.infrastructure.database import get_db
-from src.infrastructure.llm_factory import LLMFactory
 from sqlalchemy.orm import Session
+from src.infrastructure.llm_factory import LLMFactory
+from src.api.middleware.auth_middleware import get_current_user
+from src.models.user_model import User
+from src.repositories.postgres.chat_repository import ChatRepository
+from src.models.chat_model import MessageRole
 
 router = APIRouter(prefix="/query", tags=["Query & RAG"])
 
@@ -148,7 +152,12 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
     )
 
 @router.post("/ask_stream")
-async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_rag_services)):
+async def ask_question_stream(
+    req: QueryRequest, 
+    services: dict = Depends(get_rag_services),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
     """SSE endpoint for streaming the RAG answer.
 
     Supports two modes controlled by `analysis_mode` in the request body:
@@ -163,6 +172,39 @@ async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_ra
     course_code = req.course_code
     course_offering_id = req.course_offering_id
     t0 = time.time()
+    
+    chat_repo = ChatRepository(db)
+    
+    chat_history_dicts = []
+    user_memories_strs = []
+    
+    # Load user memories
+    memories = chat_repo.get_user_memories(user.id)
+    user_memories_strs = [m.fact for m in memories]
+    
+    # ── Handle Conversation State ──
+    if req.conversation_id:
+        conversation = chat_repo.get_conversation(req.conversation_id, load_messages=True)
+        if not conversation or conversation.user_id != user.id:
+            req.conversation_id = None # Fallback to new if invalid
+        else:
+            if conversation.summary:
+                summary_text = f"Previous Conversation Summary: {conversation.summary}"
+                if conversation.keywords:
+                    summary_text += f"\nKeywords: {conversation.keywords}"
+                chat_history_dicts.append({"role": "system", "content": summary_text})
+                
+            # Only keep the last 5 messages to avoid huge context sizes
+            for msg in conversation.messages[-5:]:
+                chat_history_dicts.append({"role": msg.role.value, "content": msg.content})
+    
+    if not req.conversation_id:
+        # Title can be generated later async, just use query snippet for now
+        conversation = chat_repo.create_conversation(user.id, title=req.query[:50] + "..." if len(req.query) > 50 else req.query)
+        req.conversation_id = conversation.id
+        
+    # Add user message
+    chat_repo.add_message(req.conversation_id, MessageRole.USER, query)
 
     # ── Planner: Basic (NLP) or Advanced (Tool-Calling Agent) ──
     if req.analysis_mode == "advanced":
@@ -179,22 +221,36 @@ async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_ra
         planner = services["planner"]
         logger.info("[Mode] Basic NLP planner")
 
-    plan = await planner.detect_intent(query, course_code, course_offering_id)
+    if req.analysis_mode == "general":
+        from src.schemas.query_schema import QueryPlan
+        plan = QueryPlan(intent="general_qa", backends_needed=[])
+        logger.info("[Mode] General bypass requested")
+    else:
+        plan = await planner.detect_intent(query, course_code, course_offering_id)
     t1 = time.time()
     logger.info(f"[PERF] Planner took: {t1 - t0:.4f}s")
 
     if plan.intent == "general_qa":
         logger.info("[Bypass] General QA detected. Bypassing RAG pipeline.")
         async def general_event_generator():
-            async for text_chunk in services["answer_generator"].generate_general_answer_stream(query):
+            full_response = ""
+            async for text_chunk in services["answer_generator"].generate_general_answer_stream(query, chat_history=chat_history_dicts, user_memories=user_memories_strs):
+                full_response += text_chunk
                 yield f"data: {json.dumps({'type': 'chunk', 'content': text_chunk})}\n\n"
             metadata = {
                 "type": "metadata",
                 "citations": [],
                 "sources": [],
                 "intent": plan.intent,
-                "backends_used": []
+                "backends_used": [],
+                "conversation_id": str(req.conversation_id)
             }
+            chat_repo.add_message(req.conversation_id, MessageRole.ASSISTANT, full_response, metadata)
+            
+            import asyncio
+            from src.workers.tasks.memory_tasks import extract_user_memory_task
+            asyncio.create_task(extract_user_memory_task(req.conversation_id))
+            
             yield f"data: {json.dumps(metadata)}\n\n"
         return StreamingResponse(general_event_generator(), media_type="text/event-stream")
 
@@ -244,7 +300,7 @@ async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_ra
         t_gen_start = time.time()
         first_chunk = True
         full_response = ""
-        async for text_chunk in services["answer_generator"].generate_answer_stream(query, reranked_chunks, req.use_citations):
+        async for text_chunk in services["answer_generator"].generate_answer_stream(query, reranked_chunks, req.use_citations, chat_history=chat_history_dicts, user_memories=user_memories_strs):
             full_response += text_chunk
             if first_chunk:
                 t_first = time.time()
@@ -283,8 +339,18 @@ async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_ra
             "sources": active_sources,
             "intent": plan.intent,
             "backends_used": plan.backends_needed,
-            "graph_context": context.get("graph_visualization")
+            "graph_context": context.get("graph_visualization"),
+            "conversation_id": str(req.conversation_id)
         }
+        
+        # Save assistant message to DB
+        chat_repo.add_message(req.conversation_id, MessageRole.ASSISTANT, full_response, metadata)
+        
+        # Trigger background memory extraction (fire and forget)
+        import asyncio
+        from src.workers.tasks.memory_tasks import extract_user_memory_task
+        asyncio.create_task(extract_user_memory_task(req.conversation_id))
+        
         yield f"data: {json.dumps(metadata)}\n\n"
         
     return StreamingResponse(event_generator(), media_type="text/event-stream")

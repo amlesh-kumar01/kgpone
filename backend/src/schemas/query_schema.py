@@ -13,11 +13,12 @@ class QueryPlan(BaseModel):
 
 class QueryRequest(BaseModel):
     query: str
+    conversation_id: Optional[UUID] = None
     course_code: Optional[str] = None
     course_offering_id: Optional[str] = None
     use_citations: bool = True
-    # Controls which pipeline is used: basic = fast NLP, advanced = tool-calling agent
-    analysis_mode: Literal["basic", "advanced"] = "basic"
+    # Controls which pipeline is used: basic = fast NLP, advanced = tool-calling agent, general = direct LLM
+    analysis_mode: Literal["basic", "advanced", "general"] = "basic"
     # BYOK — user supplies own key per-request; never persisted server-side
     byok_provider: Optional[Literal["openai", "gemini", "groq", "anthropic"]] = None
     byok_api_key: Optional[str] = Field(default=None, exclude=True)  # excluded from logs/responses

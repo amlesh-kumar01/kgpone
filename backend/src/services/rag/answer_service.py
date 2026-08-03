@@ -177,7 +177,7 @@ If they ask for code, provide it. Use markdown formatting beautifully."""),
         except Exception as e:
             logger.error(f"LLM generation failed: {e}")
             return self._generate_offline_grounded_answer(query, ranked_chunks, citations)
-    async def generate_general_answer_stream(self, query: str):
+    async def generate_general_answer_stream(self, query: str, chat_history: list[dict] = None, user_memories: list[str] = None):
         """
         Bypasses the RAG pipeline entirely and streams a direct response to a general query.
         """
@@ -187,6 +187,22 @@ If they ask for code, provide it. Use markdown formatting beautifully."""),
             
         try:
             messages = self.general_qa_template.format_messages(query=query)
+            
+            # Inject memory and history
+            if user_memories:
+                memory_str = "\n".join([f"- {m}" for m in user_memories])
+                messages[0].content += f"\n\nUSER PROFILE (Keep this in mind):\n{memory_str}"
+                
+            from langchain_core.messages import AIMessage, HumanMessage
+            if chat_history:
+                history_msgs = []
+                for msg in chat_history:
+                    if msg["role"] == "user":
+                        history_msgs.append(HumanMessage(content=msg["content"]))
+                    elif msg["role"] == "assistant":
+                        history_msgs.append(AIMessage(content=msg["content"]))
+                messages = [messages[0]] + history_msgs + messages[1:]
+                
             async for chunk in self.llm.astream(messages):
                 if isinstance(chunk.content, str):
                     yield chunk.content
@@ -199,7 +215,14 @@ If they ask for code, provide it. Use markdown formatting beautifully."""),
             logger.error(f"LLM streaming failed for general QA: {e}")
             yield "\n\n*(Error streaming direct answer)*\n\n"
 
-    async def generate_answer_stream(self, query: str, ranked_chunks: list[dict[str, Any]], use_citations: bool = True):
+    async def generate_answer_stream(
+        self, 
+        query: str, 
+        ranked_chunks: list[dict[str, Any]], 
+        use_citations: bool = True,
+        chat_history: list[dict] = None,
+        user_memories: list[str] = None
+    ):
         """
         Generates a streaming academic response.
         """
@@ -237,6 +260,21 @@ If they ask for code, provide it. Use markdown formatting beautifully."""),
                 template = self.prompt_template if use_citations else self.prompt_template_simple
                 
             messages = template.format_messages(context=context_str, query=query)
+            
+            # Inject memory and history
+            if user_memories:
+                memory_str = "\n".join([f"- {m}" for m in user_memories])
+                messages[0].content += f"\n\nUSER PROFILE (Keep this in mind):\n{memory_str}"
+                
+            from langchain_core.messages import AIMessage, HumanMessage
+            if chat_history:
+                history_msgs = []
+                for msg in chat_history:
+                    if msg["role"] == "user":
+                        history_msgs.append(HumanMessage(content=msg["content"]))
+                    elif msg["role"] == "assistant":
+                        history_msgs.append(AIMessage(content=msg["content"]))
+                messages = [messages[0]] + history_msgs + messages[1:]
             
             # Inject image URLs into the user message for Vision support (Only for non-Groq providers since Groq decommissioned vision)
             from src.config.settings import Settings

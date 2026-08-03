@@ -17,6 +17,7 @@ import Courses from './pages/Courses';
 import Documents from './pages/Documents';
 import ComingSoon from './pages/ComingSoon';
 import Chat from './pages/Chat';
+import SharedChat from './pages/SharedChat';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -41,6 +42,7 @@ const AppRoutes = () => {
 
       <Route element={<AcademicLayout />}>
         <Route path="/chat" element={<ProtectedRoute allowedRoles={['STUDENT', 'ADMIN', 'PUBLISHER']}><Chat /></ProtectedRoute>} />
+        <Route path="/chat/shared/:id" element={<ProtectedRoute><SharedChat /></ProtectedRoute>} />
       </Route>
 
       <Route element={<DashboardLayout />}>
