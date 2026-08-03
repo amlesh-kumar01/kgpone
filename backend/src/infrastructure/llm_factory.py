@@ -6,6 +6,8 @@ from src.config.settings import Settings
 
 logger = logging.getLogger("llm_factory")
 
+_embeddings_cache = {}
+
 class LLMFactory(ILLMFactory):
     def get_llm(self, model_name: str | None = None, **kwargs) -> BaseChatModel:
         provider = Settings.AI_PROVIDER
@@ -32,7 +34,7 @@ class LLMFactory(ILLMFactory):
             
         elif provider == "gemini":
             from langchain_google_genai import ChatGoogleGenerativeAI
-            return ChatGoogleGenerativeAI(model=model or "gemini-2.5-flash", google_api_key=api_key, **kwargs)
+            return ChatGoogleGenerativeAI(model=model or "gemini-3.5-flash-lite", google_api_key=api_key, **kwargs)
             
         else:
             logger.error(f"Unsupported AI_PROVIDER: {provider}")
@@ -42,28 +44,54 @@ class LLMFactory(ILLMFactory):
         provider = Settings.EMBEDDING_PROVIDER
         api_key = Settings.EMBEDDING_API_KEY
         model = model_name or Settings.EMBEDDING_MODEL
+        cache_key = f"{provider}:{model}"
+
+        if cache_key in _embeddings_cache:
+            return _embeddings_cache[cache_key]
         
+        embedder = None
         if provider == "local":
             from langchain_huggingface import HuggingFaceEmbeddings
-            return HuggingFaceEmbeddings(model_name=model or "BAAI/bge-small-en-v1.5", **kwargs)
+            embedder = HuggingFaceEmbeddings(model_name=model or "BAAI/bge-small-en-v1.5", **kwargs)
             
-        if not api_key:
-            logger.error(f"EMBEDDING_API_KEY is missing for provider: {provider}")
-            raise ValueError(f"EMBEDDING_API_KEY is not set for EMBEDDING_PROVIDER={provider}")
+        elif provider == "infinity":
+            from langchain_openai import OpenAIEmbeddings
+            base_url = Settings.INFINITY_URL
             
-        if provider == "openai":
+            # Infinity provides an OpenAI compatible API at the root
+            embedder = OpenAIEmbeddings(
+                model=model or "BAAI/bge-small-en-v1.5",
+                base_url=base_url,
+                api_key="infinity", # API key is required by library but ignored by server
+                check_embedding_ctx_length=False,
+                **kwargs
+            )
+            
+        elif provider == "openai":
+            if not api_key:
+                logger.error(f"EMBEDDING_API_KEY is missing for provider: {provider}")
+                raise ValueError(f"EMBEDDING_API_KEY is not set for EMBEDDING_PROVIDER={provider}")
             from langchain_openai import OpenAIEmbeddings
             # Force 768 dimensions for OpenAI (only works on text-embedding-3 models) to match Qdrant
-            return OpenAIEmbeddings(model=model or "text-embedding-3-small", api_key=api_key, dimensions=768, **kwargs)
+            embedder = OpenAIEmbeddings(model=model or "text-embedding-3-small", api_key=api_key, dimensions=768, **kwargs)
             
         elif provider == "huggingface":
+            if not api_key:
+                logger.error(f"EMBEDDING_API_KEY is missing for provider: {provider}")
+                raise ValueError(f"EMBEDDING_API_KEY is not set for EMBEDDING_PROVIDER={provider}")
             from langchain_huggingface import HuggingFaceEndpointEmbeddings
-            return HuggingFaceEndpointEmbeddings(model=model or "sentence-transformers/all-MiniLM-L6-v2", huggingfacehub_api_token=api_key, **kwargs)
+            embedder = HuggingFaceEndpointEmbeddings(model=model or "sentence-transformers/all-MiniLM-L6-v2", huggingfacehub_api_token=api_key, **kwargs)
             
         elif provider == "gemini":
+            if not api_key:
+                logger.error(f"EMBEDDING_API_KEY is missing for provider: {provider}")
+                raise ValueError(f"EMBEDDING_API_KEY is not set for EMBEDDING_PROVIDER={provider}")
             from langchain_google_genai import GoogleGenerativeAIEmbeddings
-            return GoogleGenerativeAIEmbeddings(model=model or "models/gemini-embedding-2", google_api_key=api_key, **kwargs)
+            embedder = GoogleGenerativeAIEmbeddings(model=model or "models/gemini-embedding-2", google_api_key=api_key, **kwargs)
             
         else:
             logger.error(f"Unsupported EMBEDDING_PROVIDER: {provider}")
             raise ValueError(f"Unsupported EMBEDDING_PROVIDER: {provider}")
+
+        _embeddings_cache[cache_key] = embedder
+        return embedder

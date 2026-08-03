@@ -143,11 +143,26 @@ Do not generate code unless explicitly requested."""),
             else:
                 template = self.prompt_template if use_citations else self.prompt_template_simple
                 
-            chain = template | self.llm
-            response = chain.invoke({
-                "context": context_str,
-                "query": query
-            })
+            messages = template.format_messages(context=context_str, query=query)
+            
+            # Inject image URLs into the user message for Vision support (Only for non-Groq providers since Groq decommissioned vision)
+            from src.config.settings import Settings
+            if Settings.AI_PROVIDER != "groq":
+                image_urls = []
+                if not is_irrelevant:
+                    for c in ranked_chunks:
+                        url = c.get("payload", {}).get("image_url")
+                        if url and url not in image_urls:
+                            image_urls.append(url)
+                            
+                if image_urls:
+                    user_msg = messages[-1]
+                    content = [{"type": "text", "text": user_msg.content}]
+                    for url in image_urls:
+                        content.append({"type": "image_url", "image_url": {"url": url}})
+                    user_msg.content = content
+
+            response = self.llm.invoke(messages)
             return response.content
         except Exception as e:
             logger.error(f"LLM generation failed: {e}")
@@ -190,12 +205,34 @@ Do not generate code unless explicitly requested."""),
             else:
                 template = self.prompt_template if use_citations else self.prompt_template_simple
                 
-            chain = template | self.llm
-            async for chunk in chain.astream({
-                "context": context_str,
-                "query": query
-            }):
-                yield chunk.content
+            messages = template.format_messages(context=context_str, query=query)
+            
+            # Inject image URLs into the user message for Vision support (Only for non-Groq providers since Groq decommissioned vision)
+            from src.config.settings import Settings
+            if Settings.AI_PROVIDER != "groq":
+                image_urls = []
+                if not is_irrelevant:
+                    for c in ranked_chunks:
+                        url = c.get("payload", {}).get("image_url")
+                        if url and url not in image_urls:
+                            image_urls.append(url)
+                            
+                if image_urls:
+                    user_msg = messages[-1]
+                    content = [{"type": "text", "text": user_msg.content}]
+                    for url in image_urls:
+                        content.append({"type": "image_url", "image_url": {"url": url}})
+                    user_msg.content = content
+
+            async for chunk in self.llm.astream(messages):
+                if isinstance(chunk.content, str):
+                    yield chunk.content
+                elif isinstance(chunk.content, list):
+                    # Gemini streams sometimes return a list of parts
+                    text_parts = [c.get("text", "") if isinstance(c, dict) else str(c) for c in chunk.content]
+                    yield "".join(text_parts)
+                else:
+                    yield str(chunk.content)
         except Exception as e:
             logger.error(f"LLM streaming failed: {e}")
             yield "\n\n*(Network/API Error. Falling back to offline generation)*\n\n"

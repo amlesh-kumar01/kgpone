@@ -173,7 +173,7 @@ class RetrievalService(BaseRetriever):
                 _inject_presigned_image_urls(chunks)
 
         except Exception as e:
-            logger.error(f"Vector retrieval failed: {e}")
+            logger.exception("Vector retrieval failed")
 
         return chunks
 
@@ -231,7 +231,7 @@ class RetrievalService(BaseRetriever):
         RETURN labels(n)[0] as source_label, n.name as source, 
                type(r) as relation, 
                labels(related)[0] as target_label, related.name as target, 
-               related.description as desc, n.headers as headers
+               related.description as desc
         LIMIT 10
         """
         results = await asyncio.to_thread(

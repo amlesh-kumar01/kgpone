@@ -58,8 +58,6 @@ class CrossEncoderRerankService(BaseReranker):
         chunks = chunks[:30]
 
         client_infinity = await self._get_infinity_client()
-        client_hf = await self._get_client()
-
         scored_chunks = None
 
         # 1. Try Local Infinity first
@@ -76,6 +74,7 @@ class CrossEncoderRerankService(BaseReranker):
 
         # 2. Try HF API if Infinity fails
         if scored_chunks is None:
+            client_hf = await self._get_client()
             if client_hf is not None:
                 try:
                     scored_chunks = await asyncio.wait_for(

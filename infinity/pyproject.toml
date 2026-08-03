@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "infinity-emb[server,torch]>=0.0.77",
+    "python-dotenv>=1.2.2",
     "torch",
 ]
 
