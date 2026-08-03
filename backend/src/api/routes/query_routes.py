@@ -93,6 +93,7 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
         citations = services["citation_formatter"].format_citations(reranked_chunks)
         # Enrich figure citations with presigned GET URLs
         _enrich_citations_with_image_urls(citations)
+        _enrich_citations_with_document_urls(citations)
 
     # 5. Generate Answer
     answer = services["answer_generator"].generate_answer(query, reranked_chunks, citations, use_citations=req.use_citations)
@@ -165,11 +166,10 @@ async def ask_question_stream(req: QueryRequest, services: dict = Depends(get_ra
     t3 = time.time()
     logger.info(f"[PERF] Reranker took: {t3 - t2:.4f}s")
     
-    citations = []
-    if req.use_citations:
-        citations = services["citation_formatter"].format_citations(reranked_chunks)
-        # Enrich figure citations with presigned GET URLs
-        _enrich_citations_with_image_urls(citations)
+    citations = services["citation_formatter"].format_citations(reranked_chunks)
+    # Enrich figure citations with presigned GET URLs
+    _enrich_citations_with_image_urls(citations)
+    _enrich_citations_with_document_urls(citations)
     t4 = time.time()
     logger.info(f"[PERF] Citations took: {t4 - t3:.4f}s")
         
@@ -232,6 +232,26 @@ def _enrich_citations_with_image_urls(citations: list) -> None:
             )
     except Exception as e:
         logger.warning(f"Failed to generate presigned image URLs: {e}")
+
+def _enrich_citations_with_document_urls(citations: list) -> None:
+    """
+    For all citations that have a document_s3_key, generate a presigned GET URL
+    (1-hour expiry) and attach it as document_download_url. Mutates citations in place.
+    """
+    doc_cits = [c for c in citations if c.get("document_s3_key")]
+    if not doc_cits:
+        return
+    try:
+        s3 = S3Storage()
+        # Cache presigned URLs per document to avoid redundant S3 calls
+        cache = {}
+        for cit in doc_cits:
+            key = cit["document_s3_key"]
+            if key not in cache:
+                cache[key] = s3.generate_presigned_get_url(key, expiration=3600)
+            cit["document_download_url"] = cache[key]
+    except Exception as e:
+        logger.warning(f"Failed to generate presigned document URLs: {e}")
 
 @router.post("/search", response_model=StandardResponse[List[SearchResult]])
 async def semantic_search(req: QueryRequest, services: dict = Depends(get_rag_services)):

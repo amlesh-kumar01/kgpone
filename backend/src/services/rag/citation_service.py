@@ -78,6 +78,7 @@ class CitationService(BaseCitationFormatter):
                 # image_url will be populated by the route handler (presigned GET URL)
                 "image_url": None,
                 "source_url": payload.get("url", payload.get("s3_key")),
+                "document_s3_key": payload.get("s3_key"),
                 "text_snippet": text_snippet,
             })
 
