@@ -50,41 +50,72 @@
   }
 
   .dark {
-    --background: 30 15% 5%;
-    /* #0f0d0b */
-    --foreground: 38 33% 96%;
-    /* #faf7f2 */
-
-    --card: 30 8% 9%;
-    /* #1a1816 */
-    --card-foreground: 38 33% 96%;
-
-    --popover: 30 8% 9%;
-    --popover-foreground: 38 33% 96%;
-
-    --primary: 38 33% 96%;
-    /* #faf7f2 */
-    --primary-foreground: 30 8% 9%;
-    /* #1a1816 */
-
-    --secondary: 24 13% 15%;
-    --secondary-foreground: 38 33% 96%;
-
-    --muted: 24 13% 15%;
-    --muted-foreground: 24 8% 63%;
-    /* #a8a09b */
-
-    --accent: 46 65% 52%;
-    /* #d4af37 */
-    --accent-foreground: 0 0% 100%;
-
+    /* Soft Dark Theme (Neutral/Zinc inspired - easy on the eyes) */
+    --background: 0 0% 8%;
+    --foreground: 0 0% 90%;
+    --card: 0 0% 11%;
+    --card-foreground: 0 0% 90%;
+    --popover: 0 0% 11%;
+    --popover-foreground: 0 0% 90%;
+    --primary: 0 0% 96%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 96%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 0 0% 30%;
+  }
 
-    --border: 24 13% 15%;
-    --input: 24 13% 15%;
-    --ring: 46 65% 52%;
-    /* #d4af37 */
+  .dark.theme-slate {
+    /* Slate/Blueish Dark Theme (the old one) */
+    --background: 222 47% 11%;
+    --foreground: 214 32% 91%;
+    --card: 222 47% 11%;
+    --card-foreground: 214 32% 91%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 214 32% 91%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 213 27% 84%;
+  }
+
+  .dark.theme-black {
+    /* OLED Black Theme */
+    --background: 0 0% 0%;
+    --foreground: 0 0% 90%;
+    --card: 0 0% 4%;
+    --card-foreground: 0 0% 90%;
+    --popover: 0 0% 4%;
+    --popover-foreground: 0 0% 90%;
+    --primary: 0 0% 96%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 0 0% 10%;
+    --accent-foreground: 0 0% 96%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14%;
+    --input: 0 0% 14%;
+    --ring: 0 0% 30%;
   }
 }
 

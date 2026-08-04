@@ -52,7 +52,13 @@ Transcript:
             
             chain = prompt | llm
             response = await chain.ainvoke({"transcript": transcript})
-            content = response.content.strip()
+            content_raw = response.content
+            if isinstance(content_raw, list):
+                # Handle models that return a list of blocks
+                content = "".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content_raw])
+            else:
+                content = str(content_raw)
+            content = content.strip()
             
             import json
             import re

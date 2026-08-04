@@ -10,12 +10,12 @@ from src.repositories.s3.storage_repository import S3Storage
 logger = setup_logger("query_routes")
 from src.schemas.query_schema import QueryRequest, QueryResponse, SearchResult
 from src.schemas.response_schema import StandardResponse
-from src.services.rag.nlp_planner_service import NLPPlannerService
-from src.services.rag.retrieval_service import RetrievalService, _inject_presigned_image_urls
-from src.services.rag.cross_encoder_rerank_service import CrossEncoderRerankService
+from src.services.rag.planners.nlp_planner_service import NLPPlannerService
+from src.services.rag.retrievers.retrieval_service import RetrievalService, _inject_presigned_image_urls
+from src.services.rag.retrievers.cross_encoder_rerank_service import CrossEncoderRerankService
 from src.services.rag.citation_service import CitationService
-from src.services.rag.answer_service import AnswerService
-from src.services.rag.semantic_cache_service import SemanticCacheService
+from src.services.rag.generators.answer_service import AnswerService
+from src.services.rag.retrievers.semantic_cache_service import SemanticCacheService
 from src.services.ingestion.embedding.llm_embedding import LLMEmbedder
 from src.repositories.qdrant.vector_repository import QdrantRepository
 from src.infrastructure.database import get_db
@@ -208,7 +208,7 @@ async def ask_question_stream(
 
     # ── Planner: Basic (NLP) or Advanced (Tool-Calling Agent) ──
     if req.analysis_mode == "advanced":
-        from src.services.rag.agentic_planner_service import AgenticPlannerService
+        from src.services.rag.planners.agentic_planner_service import AgenticPlannerService
         llm_factory = services["llm_factory"]
         agent_llm = llm_factory.get_llm_for_request(
             byok_provider=req.byok_provider,
@@ -225,6 +225,10 @@ async def ask_question_stream(
         from src.schemas.query_schema import QueryPlan
         plan = QueryPlan(intent="general_qa", backends_needed=[])
         logger.info("[Mode] General bypass requested")
+    elif req.analysis_mode == "deep_research":
+        from src.schemas.query_schema import QueryPlan
+        plan = QueryPlan(intent="deep_research", execution_strategy="map_reduce", backends_needed=[])
+        logger.info("[Mode] Deep Research Map-Reduce explicitly requested")
     else:
         plan = await planner.detect_intent(query, course_code, course_offering_id)
     t1 = time.time()
@@ -253,6 +257,49 @@ async def ask_question_stream(
             
             yield f"data: {json.dumps(metadata)}\n\n"
         return StreamingResponse(general_event_generator(), media_type="text/event-stream")
+
+    if plan.execution_strategy == "map_reduce":
+        logger.info("[Bypass] Map-Reduce execution strategy triggered.")
+        async def map_reduce_event_generator():
+            from src.services.rag.generators.map_reduce_service import MapReduceService
+            # In Deep Research mode we might not know the target doc yet unless we ask the user or search.
+            # If target_document_ids is empty, we must find one. For now we use the first one found or error.
+            doc_id = plan.target_document_ids[0] if getattr(plan, "target_document_ids", []) else req.document_id
+            if not doc_id:
+                # If we don't have a specific doc id, we should perform a quick catalog search
+                yield f"data: {json.dumps({'type': 'chunk', 'content': 'Error: Deep Research requires a specific target document.'})}\n\n"
+                return
+
+            llm_factory = services["llm_factory"]
+            generator_llm = llm_factory.get_llm_for_request(
+                byok_provider=req.byok_provider,
+                byok_api_key=req.byok_api_key,
+                byok_model=req.byok_model,
+            )
+            mr_service = MapReduceService(llm=generator_llm, vector_repo=services["qdrant_repo"])
+            
+            full_response = ""
+            async for payload in mr_service.execute_stream(query, doc_id, req):
+                # parse the json line to extract content for our db
+                try:
+                    data = json.loads(payload.replace('data: ', '').strip())
+                    if data.get('type') == 'content':
+                        full_response += data.get('content', '')
+                except: pass
+                yield payload
+
+            metadata = {
+                "type": "metadata",
+                "citations": [],
+                "sources": [],
+                "intent": plan.intent,
+                "backends_used": ["map_reduce"],
+                "conversation_id": str(req.conversation_id)
+            }
+            chat_repo.add_message(req.conversation_id, MessageRole.ASSISTANT, full_response, metadata)
+            yield f"data: {json.dumps(metadata)}\n\n"
+
+        return StreamingResponse(map_reduce_event_generator(), media_type="text/event-stream")
 
     # Agent pre-fetched chunks (only present in advanced mode)
     agent_chunks = getattr(plan, "_agent_chunks", [])

@@ -45,7 +45,7 @@ async def vector_semantic_search(
 
     Returns a list of relevant text chunks with their source document info.
     """
-    from src.services.rag.retrieval_service import RetrievalService
+    from src.services.rag.retrievers.retrieval_service import RetrievalService
     from src.services.ingestion.embedding.llm_embedding import LLMEmbedder
     from src.repositories.qdrant.vector_repository import QdrantRepository
     from src.schemas.query_schema import QueryPlan

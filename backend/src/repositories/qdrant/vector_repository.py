@@ -157,3 +157,40 @@ class QdrantRepository(IVectorRepo):
                 collection_name=collection_name,
                 points=batch
             )
+
+    async def get_chunks_by_document_id(self, collection_name: str, document_id: str) -> list[dict]:
+        """
+        Retrieves all chunk payloads for a given document_id.
+        Useful for map-reduce full document extraction.
+        """
+        if self.use_fallback:
+            return [
+                p["payload"] for p in self._fallback_storage
+                if p["payload"].get("document_id") == document_id
+            ]
+
+        # Use Qdrant scroll to get all chunks without vector search
+        conditions = [FieldCondition(key="document_id", match=MatchValue(value=document_id))]
+        query_filter = Filter(must=conditions)
+        
+        chunks = []
+        offset = None
+        while True:
+            records, next_offset = await asyncio.to_thread(
+                self.client.scroll,
+                collection_name=collection_name,
+                scroll_filter=query_filter,
+                limit=100,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False
+            )
+            for record in records:
+                if record.payload:
+                    chunks.append(record.payload)
+            
+            if next_offset is None:
+                break
+            offset = next_offset
+            
+        return chunks

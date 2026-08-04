@@ -14,7 +14,7 @@ from src.services.ingestion.embedding.base import BaseEmbedder
 from src.utils.interfaces import IVectorRepo
 from src.repositories.neo4j.graph_repository import Neo4jRepo
 from src.schemas.query_schema import QueryPlan
-from src.services.rag.fusion import reciprocal_rank_fusion
+from src.services.rag.retrievers.fusion import reciprocal_rank_fusion
 from src.repositories.s3.storage_repository import S3Storage
 
 logger = logging.getLogger("retrieval_service")

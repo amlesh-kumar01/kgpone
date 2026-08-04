@@ -1,5 +1,5 @@
 from uuid import UUID
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
 from src.models.academic_model import Department, Course, CourseOffering, FacultyInfo
 from src.schemas.academic_schema import (
@@ -30,7 +30,7 @@ class AcademicRepository:
         return self.session.get(Course, course_id)
 
     def get_courses(self, department_id: UUID | None = None) -> list[Course]:
-        stmt = select(Course)
+        stmt = select(Course).options(selectinload(Course.offerings))
         if department_id:
             stmt = stmt.where(Course.department_id == department_id)
         return list(self.session.scalars(stmt).all())

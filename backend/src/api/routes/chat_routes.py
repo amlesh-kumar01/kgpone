@@ -8,13 +8,14 @@ from src.api.middleware.auth_middleware import get_current_user
 from src.models.user_model import User
 from src.repositories.postgres.chat_repository import ChatRepository
 from src.schemas.chat_schema import ConversationRead, ConversationDetailRead, ShareRequest, UserMemoryRead
+from src.schemas.response_schema import StandardResponse
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
 
 def get_chat_repo(db: Session = Depends(get_db)):
     return ChatRepository(db)
 
-@router.get("/conversations", response_model=List[ConversationRead])
+@router.get("/conversations", response_model=StandardResponse[List[ConversationRead]])
 async def get_conversations(
     limit: int = 50,
     offset: int = 0,
@@ -22,9 +23,10 @@ async def get_conversations(
     user: User = Depends(get_current_user)
 ):
     """Get all conversations for the logged in user."""
-    return repo.get_user_conversations(user.id, limit=limit, offset=offset)
+    data = repo.get_user_conversations(user.id, limit=limit, offset=offset)
+    return StandardResponse(status="success", message="Conversations retrieved", data=data)
 
-@router.get("/conversations/{conversation_id}", response_model=ConversationDetailRead)
+@router.get("/conversations/{conversation_id}", response_model=StandardResponse[ConversationDetailRead])
 async def get_conversation(
     conversation_id: UUID,
     repo: ChatRepository = Depends(get_chat_repo),
@@ -36,7 +38,7 @@ async def get_conversation(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
     if conversation.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    return conversation
+    return StandardResponse(status="success", message="Conversation retrieved", data=conversation)
 
 @router.patch("/conversations/{conversation_id}/share")
 async def toggle_share(
@@ -53,9 +55,9 @@ async def toggle_share(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         
     repo.toggle_share(conversation_id, req.is_shared)
-    return {"status": "success", "is_shared": req.is_shared}
+    return StandardResponse(status="success", message="Share status updated", data={"is_shared": req.is_shared})
 
-@router.get("/shared/{conversation_id}", response_model=ConversationDetailRead)
+@router.get("/shared/{conversation_id}", response_model=StandardResponse[ConversationDetailRead])
 async def get_shared_conversation(
     conversation_id: UUID,
     repo: ChatRepository = Depends(get_chat_repo),
@@ -70,7 +72,7 @@ async def get_shared_conversation(
     if not conversation.is_shared and conversation.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This conversation is private")
         
-    return conversation
+    return StandardResponse(status="success", message="Shared conversation retrieved", data=conversation)
 
 @router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_conversation(
@@ -95,10 +97,11 @@ def clear_user_memories(
     """Clear all extracted memories for the user."""
     repo.clear_user_memories(user.id)
 
-@router.get("/memories", response_model=list[UserMemoryRead])
+@router.get("/memories", response_model=StandardResponse[list[UserMemoryRead]])
 def get_user_memories(
     repo: ChatRepository = Depends(get_chat_repo),
     user: User = Depends(get_current_user)
 ):
     """Fetch all extracted memories for the user."""
-    return repo.get_user_memories(user.id)
+    data = repo.get_user_memories(user.id)
+    return StandardResponse(status="success", message="Memories retrieved", data=data)

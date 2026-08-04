@@ -18,7 +18,7 @@ const CHUNK_TYPE_CONFIG = {
   equation: { icon: Sigma, label: 'EQ', color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300', border: 'border-violet-200 dark:border-violet-800' },
   figure: { icon: ImageIcon, label: 'FIG', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800' },
   table_row: { icon: Table2, label: 'TBL', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800' },
-  text: { icon: FileText, label: 'TXT', color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400', border: 'border-slate-200 dark:border-slate-700' },
+  text: { icon: FileText, label: 'TXT', color: 'bg-muted text-muted-foreground', border: 'border-border' },
 };
 const getChunkConfig = (chunk_type) => CHUNK_TYPE_CONFIG[chunk_type] || CHUNK_TYPE_CONFIG.text;
 
@@ -26,7 +26,7 @@ const ChatMessage = React.memo(({ msg, handleCitationClick, renderBackendBadge }
   if (msg.role === 'user') {
     return (
       <div className="flex justify-end pr-2 group kgp-msg-enter">
-        <div className="max-w-[75%] px-5 py-3.5 rounded-3xl rounded-tr-sm bg-slate-900 text-slate-50 dark:bg-slate-100 dark:text-slate-900 shadow-sm">
+        <div className="max-w-[75%] px-5 py-3.5 rounded-3xl rounded-tr-sm bg-primary text-primary-foreground shadow-sm">
           <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
         </div>
       </div>
@@ -41,7 +41,7 @@ const ChatMessage = React.memo(({ msg, handleCitationClick, renderBackendBadge }
         </div>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="px-5 py-4 rounded-3xl bg-white border border-slate-200/60 dark:bg-slate-900 dark:border-slate-800 rounded-tl-sm shadow-sm prose prose-slate dark:prose-invert max-w-none text-[15px] leading-relaxed prose-p:my-1.5 prose-headings:font-semibold prose-a:text-primary prose-a:no-underline hover:prose-a:underline">
+        <div className="px-5 py-4 rounded-3xl bg-card border border-border/60 rounded-tl-sm shadow-sm prose prose-slate dark:prose-invert max-w-none text-[15px] leading-relaxed prose-p:my-1.5 prose-headings:font-semibold prose-a:text-primary prose-a:no-underline hover:prose-a:underline">
           <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={{
              a: ({ node, ...props }) => {
               if (props.href && props.href.startsWith('#cit-')) {
@@ -77,7 +77,7 @@ const ChatMessage = React.memo(({ msg, handleCitationClick, renderBackendBadge }
                 <button
                   key={i}
                   onClick={(e) => handleCitationClick(e, cit)}
-                  className={`group relative flex items-center max-w-[200px] h-7 bg-white dark:bg-slate-900 rounded-lg border shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${cfg.border} pr-2 overflow-hidden cursor-pointer`}
+                  className={`group relative flex items-center max-w-[200px] h-7 bg-card rounded-lg border shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${cfg.border} pr-2 overflow-hidden cursor-pointer`}
                 >
                   <div className={`flex items-center justify-center h-full px-2 ${cfg.color} border-r ${cfg.border} transition-colors`}>
                     <span className="text-[10px] font-bold mr-1.5">{cit.id}</span>
@@ -149,9 +149,9 @@ const SharedChat = () => {
   if (error) return <div className="flex items-center justify-center h-screen text-red-500">{error}</div>;
 
   return (
-    <div className="flex flex-col h-screen w-full bg-slate-50/50 dark:bg-slate-950 p-4 gap-6">
-      <div className="w-full flex items-center gap-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md rounded-2xl border shadow-sm p-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="h-8 w-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+    <div className="flex flex-col h-screen w-full bg-background p-4 gap-6">
+      <div className="w-full flex items-center gap-4 bg-card/80 backdrop-blur-md rounded-2xl border shadow-sm p-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="h-8 w-8 rounded-full hover:bg-accent hover:text-accent-foreground">
           <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
         </Button>
         <div className="p-2 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg text-primary shadow-sm border border-primary/10">

@@ -26,17 +26,6 @@ class CourseBase(BaseModel):
 class CourseCreate(CourseBase):
     department_id: UUID
 
-class CourseRead(CourseBase):
-    id: UUID
-    department_id: UUID
-    created_at: datetime
-    updated_at: datetime
-    prerequisites: list[CourseBase] = []
-    model_config = ConfigDict(from_attributes=True)
-
-class CoursePrerequisiteAdd(BaseModel):
-    prerequisite_id: UUID
-
 # ----------------- CourseOffering Schemas -----------------
 class CourseOfferingBase(BaseModel):
     year: int
@@ -49,6 +38,20 @@ class CourseOfferingRead(CourseOfferingBase):
     id: UUID
     course_id: UUID
     model_config = ConfigDict(from_attributes=True)
+
+class CourseRead(CourseBase):
+    id: UUID
+    department_id: UUID
+    created_at: datetime
+    updated_at: datetime
+    prerequisites: list[CourseBase] = []
+    offerings: list[CourseOfferingRead] = []
+    model_config = ConfigDict(from_attributes=True)
+
+class CoursePrerequisiteAdd(BaseModel):
+    prerequisite_id: UUID
+
+
 
 # ----------------- FacultyInfo Schemas -----------------
 class FacultyInfoBase(BaseModel):

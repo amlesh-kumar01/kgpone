@@ -17,7 +17,8 @@ const Dashboard = () => {
   const [stats, setStats] = useState({
     departments: 0,
     courses: 0,
-    documents: 0
+    documents: 0,
+    students: 0
   });
 
   const [departments, setDepartments] = useState([]);
@@ -43,10 +44,33 @@ const Dashboard = () => {
         setDepartments(fetchedDepts);
         setAllCourses(fetchedCourses);
         
+        let studentCount = 0;
+        let docCount = 0;
+
+        if (user?.role === 'ADMIN' || user?.role === 'PUBLISHER') {
+            try {
+                const docsRes = await api.get('/api/v1/documents/');
+                docCount = docsRes.data.data?.length || 0;
+            } catch (e) {
+                console.warn('Failed to fetch documents stats', e);
+            }
+        }
+        
+        if (user?.role === 'ADMIN') {
+            try {
+                const usersRes = await api.get('/api/v1/users/');
+                studentCount = usersRes.data.data?.filter(u => u.role === 'STUDENT').length || 0;
+            } catch (e) {
+                console.warn('Failed to fetch users stats', e);
+            }
+        }
+        
         setStats(prev => ({ 
           ...prev, 
           departments: fetchedDepts.length,
-          courses: fetchedCourses.length 
+          courses: fetchedCourses.length,
+          documents: docCount,
+          students: studentCount
         }));
       } catch (err) {
         console.error("Failed to fetch data", err);
@@ -135,7 +159,7 @@ const Dashboard = () => {
               <Card className="rounded-lg bg-card border-border shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Total Departments</CardTitle>
-                  <Library className="h-4 w-4 text-accent" />
+                  <Library className="h-4 w-4 text-primary" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold font-serif text-foreground">{stats.departments}</div>
@@ -147,7 +171,7 @@ const Dashboard = () => {
               <Card className="rounded-lg bg-card border-border shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Total Courses</CardTitle>
-                  <BookOpen className="h-4 w-4 text-accent" />
+                  <BookOpen className="h-4 w-4 text-primary" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold font-serif text-foreground">{stats.courses}</div>
@@ -159,10 +183,10 @@ const Dashboard = () => {
               <Card className="rounded-lg bg-card border-border shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Active Students</CardTitle>
-                  <Users className="h-4 w-4 text-accent" />
+                  <Users className="h-4 w-4 text-primary" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold font-serif text-foreground">2,350</div>
+                  <div className="text-3xl font-bold font-serif text-foreground">{stats.students || (user?.role === 'STUDENT' ? 'N/A' : 0)}</div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -171,10 +195,10 @@ const Dashboard = () => {
               <Card className="rounded-lg bg-card border-border shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Documents</CardTitle>
-                  <Activity className="h-4 w-4 text-accent" />
+                  <Activity className="h-4 w-4 text-primary" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold font-serif text-foreground">8,234</div>
+                  <div className="text-3xl font-bold font-serif text-foreground">{stats.documents || (user?.role === 'STUDENT' ? 'N/A' : 0)}</div>
                 </CardContent>
               </Card>
             </motion.div>

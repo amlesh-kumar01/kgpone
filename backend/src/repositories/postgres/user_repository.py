@@ -11,6 +11,15 @@ class UserRepository:
     def get_by_id(self, user_id: UUID) -> User | None:
         return self.session.get(User, user_id)
 
+    def get_all_users(self) -> list[User]:
+        stmt = select(User).order_by(User.created_at.desc())
+        return list(self.session.scalars(stmt).all())
+
+    def count_users(self) -> int:
+        from sqlalchemy import func
+        stmt = select(func.count(User.id))
+        return self.session.scalar(stmt) or 0
+
     def get_by_email(self, email: str) -> User | None:
         stmt = select(User).where(User.email == email)
         return self.session.scalars(stmt).first()

@@ -25,6 +25,16 @@ class LoginRequest(BaseModel):
 class RefreshRequest(BaseModel):
     refresh_token: str
 
+@router.get("/", response_model=StandardResponse[list[UserRead]])
+def list_users(service: UserService = Depends(get_user_service), admin: User = Depends(require_role([UserRole.ADMIN]))):
+    users = service.get_all_users()
+    return StandardResponse(status="success", message="Users retrieved successfully", data=users)
+
+@router.post("/", response_model=StandardResponse[UserRead], status_code=status.HTTP_201_CREATED)
+def create_user(user_in: UserCreate, service: UserService = Depends(get_user_service), admin: User = Depends(require_role([UserRole.ADMIN]))):
+    user = service.register_user(user_in)
+    return StandardResponse(status="success", message="User created successfully", data=user)
+
 @router.post("/register", response_model=StandardResponse[UserRead], status_code=status.HTTP_201_CREATED)
 def register_user(user_in: UserCreate, service: UserService = Depends(get_user_service)):
     # Enforce that public registration can only create students

@@ -11,6 +11,14 @@ class DocumentRepository:
     def get_document(self, document_id: UUID) -> Document | None:
         return self.session.get(Document, document_id)
 
+    def get_all_documents(self) -> list[Document]:
+        stmt = select(Document).order_by(Document.created_at.desc())
+        return list(self.session.scalars(stmt).all())
+
+    def count_documents(self) -> int:
+        stmt = select(func.count()).select_from(Document)
+        return self.session.scalar(stmt) or 0
+
     def get_documents_by_offering(self, offering_id: UUID) -> list[Document]:
         stmt = select(Document).where(Document.course_offering_id == offering_id)
         return list(self.session.scalars(stmt).all())

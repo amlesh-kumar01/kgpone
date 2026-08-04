@@ -18,6 +18,9 @@ class UserService:
     def __init__(self, repository: UserRepository):
         self.repository = repository
 
+    def get_all_users(self) -> list[User]:
+        return self.repository.get_all_users()
+
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         try:
             return password_hash.verify(plain_password, hashed_password)

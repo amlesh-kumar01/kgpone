@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { 
   LayoutDashboard, 
@@ -10,7 +11,9 @@ import {
   FileText,
   LogOut,
   Menu,
-  MessageSquare
+  MessageSquare,
+  Palette,
+  Check
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -25,6 +28,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 
 const DashboardLayout = () => {
   const { user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   const location = useLocation();
 
   // Navigation config based on roles
@@ -48,8 +52,8 @@ const DashboardLayout = () => {
             to={item.path}
             className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
               isActive 
-                ? 'bg-slate-100 text-slate-900 font-medium dark:bg-slate-800 dark:text-slate-50' 
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-50'
+                ? 'bg-accent text-accent-foreground font-medium' 
+                : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
             }`}
           >
             {item.icon}
@@ -61,12 +65,12 @@ const DashboardLayout = () => {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden w-full bg-slate-50/50 dark:bg-slate-950">
+    <div className="flex h-screen overflow-hidden w-full bg-background text-foreground">
       {/* Desktop Sidebar */}
-      <aside className="hidden w-64 border-r bg-white dark:bg-slate-900 md:flex md:flex-col">
+      <aside className="hidden w-64 border-r bg-card text-card-foreground md:flex md:flex-col">
         <div className="flex h-14 items-center border-b px-6 lg:h-[60px]">
           <Link to="/" className="flex items-center gap-2 font-bold tracking-tight">
-            <div className="h-6 w-6 rounded bg-accent flex items-center justify-center text-accent-foreground font-serif font-bold text-xs">
+            <div className="h-6 w-6 rounded bg-primary flex items-center justify-center text-primary-foreground font-serif font-bold text-xs">
               L
             </div>
             <span className="font-serif">Knowledge OS</span>
@@ -79,7 +83,7 @@ const DashboardLayout = () => {
 
       {/* Main Content */}
       <div className="flex w-full flex-col">
-        <header className="flex h-14 items-center gap-4 border-b bg-white dark:bg-slate-900 px-4 lg:h-[60px] lg:px-6 justify-between md:justify-end">
+        <header className="flex h-14 items-center gap-4 border-b bg-card text-card-foreground px-4 lg:h-[60px] lg:px-6 justify-between md:justify-end">
           
           {/* Mobile Navigation */}
           <Sheet>
@@ -91,7 +95,7 @@ const DashboardLayout = () => {
             </SheetTrigger>
             <SheetContent side="left" className="flex flex-col">
               <div className="flex items-center gap-2 font-bold tracking-tight mb-4">
-                <div className="h-6 w-6 rounded bg-accent flex items-center justify-center text-accent-foreground font-serif font-bold text-xs">
+                <div className="h-6 w-6 rounded bg-primary flex items-center justify-center text-primary-foreground font-serif font-bold text-xs">
                   L
                 </div>
                 <span className="font-serif">Knowledge OS</span>
@@ -100,12 +104,42 @@ const DashboardLayout = () => {
             </SheetContent>
           </Sheet>
 
-          {/* User Profile Dropdown */}
-          <DropdownMenu>
+          <div className="flex items-center gap-2">
+            {/* Theme Toggle Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 text-muted-foreground hover:text-foreground">
+                  <Palette className="h-4 w-4" />
+                  <span className="sr-only">Toggle theme</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Theme</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setTheme('system')} className="flex items-center justify-between cursor-pointer">
+                  System {theme === 'system' && <Check className="h-4 w-4 ml-2" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('light')} className="flex items-center justify-between cursor-pointer">
+                  Light Mode {theme === 'light' && <Check className="h-4 w-4 ml-2" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('dark')} className="flex items-center justify-between cursor-pointer">
+                  Dark (Neutral) {theme === 'dark' && <Check className="h-4 w-4 ml-2" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('slate')} className="flex items-center justify-between cursor-pointer">
+                  Dark (Slate) {theme === 'slate' && <Check className="h-4 w-4 ml-2" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('black')} className="flex items-center justify-between cursor-pointer">
+                  Dark (Black) {theme === 'black' && <Check className="h-4 w-4 ml-2" />}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* User Profile Dropdown */}
+            <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full">
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-50">
+                  <AvatarFallback className="bg-primary/10 text-primary font-bold">
                     {user?.full_name?.charAt(0) || 'U'}
                   </AvatarFallback>
                 </Avatar>
@@ -116,11 +150,11 @@ const DashboardLayout = () => {
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
                   <p className="text-sm font-medium leading-none">{user?.full_name}</p>
-                  <p className="text-xs leading-none text-slate-500 dark:text-slate-400">
+                  <p className="text-xs leading-none text-muted-foreground">
                     {user?.email}
                   </p>
                   <div className="mt-1 flex items-center">
-                     <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-800 dark:bg-slate-800 dark:text-slate-300">
+                     <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
                         {user?.role}
                      </span>
                   </div>
@@ -131,8 +165,9 @@ const DashboardLayout = () => {
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Log out</span>
               </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </header>
 
         {/* Page Content */}

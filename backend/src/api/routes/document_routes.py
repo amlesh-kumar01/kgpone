@@ -23,6 +23,11 @@ def get_presigned_url(req: PresignedUrlRequest, service: DocumentService = Depen
     data = service.generate_upload_url(user.id, req.filename, req.content_type, req.course_offering_id)
     return StandardResponse(status="success", message="Presigned URL generated successfully", data=data)
 
+@router.get("/", response_model=StandardResponse[list[DocumentRead]])
+def list_documents(service: DocumentService = Depends(get_document_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):
+    data = service.get_all_documents()
+    return StandardResponse(status="success", message="Documents retrieved successfully", data=data)
+
 @router.post("/", response_model=StandardResponse[DocumentRead], status_code=status.HTTP_201_CREATED)
 def upload_document(doc_in: DocumentCreate, service: DocumentService = Depends(get_document_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):
     data = service.upload_document(doc_in)

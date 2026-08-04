@@ -14,7 +14,7 @@ from src.infrastructure.database import SessionLocal
 from src.repositories.postgres.academic_repository import AcademicRepository
 
 # Shared async tool implementations
-from src.services.rag.agent_tools import (
+from src.services.rag.tools.agent_tools import (
     vector_semantic_search,
     graph_entity_lookup,
     list_course_documents,
@@ -199,11 +199,11 @@ def register_tools(mcp: FastMCP):
         + knowledge graph context. Returns a grounded answer with source citations.
         Use this as the primary tool for answering content questions.
         """
-        from src.services.rag.nlp_planner_service import NLPPlannerService
-        from src.services.rag.retrieval_service import RetrievalService
-        from src.services.rag.cross_encoder_rerank_service import CrossEncoderRerankService
+        from src.services.rag.planners.nlp_planner_service import NLPPlannerService
+        from src.services.rag.retrievers.retrieval_service import RetrievalService
+        from src.services.rag.retrievers.cross_encoder_rerank_service import CrossEncoderRerankService
         from src.services.rag.citation_service import CitationService
-        from src.services.rag.answer_service import AnswerService
+        from src.services.rag.generators.answer_service import AnswerService
         from src.services.ingestion.embedding.llm_embedding import LLMEmbedder
         from src.repositories.qdrant.vector_repository import QdrantRepository
 

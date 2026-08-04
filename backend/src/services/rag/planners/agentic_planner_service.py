@@ -21,7 +21,11 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
 
 from src.schemas.query_schema import QueryPlan
-from src.services.rag.agent_tools import ALL_TOOLS
+from src.services.rag.tools.agent_tools import ALL_TOOLS
+from src.services.rag.tools.internet_tools import internet_search
+from src.services.rag.planners.nlp_planner_service import NLPPlannerService
+
+AGENT_TOOLS_WITH_INTERNET = ALL_TOOLS + [internet_search]
 
 logger = logging.getLogger("agentic_planner")
 
@@ -43,8 +47,12 @@ student's query and call the appropriate tools to gather all relevant informatio
    - For full document details → use `get_document_metadata`
    - For "solve a problem" / mathematical or logic problems → use `vector_semantic_search` for theorems/formulas, AND `graph_entity_lookup` for conceptual relationships, iteratively combining them before answering.
    - For "summarize" / broad overarching topics → use `list_course_documents` to find relevant materials, then iteratively call `vector_semantic_search` or `get_document_metadata` across multiple sources to comprehensively synthesize the information.
-   - For general world knowledge, coding help, greetings, or off-topic questions → do not call any tools. Return `{"intent": "general_qa"}` and let the direct answer pipeline handle it.
-4. SYNTHESISE the results. After the tools return, summarise the key findings
+   - **For "generate interview questions", "exam prep", or "extract from the whole document"** → DO NOT use `vector_semantic_search`. Instead, use `search_document_catalog` to find the exact document ID.
+   - For general world knowledge, coding help, greetings, or off-topic questions → use the `internet_search` tool if you need external knowledge.
+4. SET STRATEGY:
+   - If the user wants comprehensive extraction across an entire document (e.g., generating exam questions from everywhere), set `execution_strategy` to `map_reduce` and populate `target_document_ids` with the found document IDs.
+   - For specific factual lookups or multi-hop agent research, use `standard`.
+5. SYNTHESISE the results. After the tools return, summarise the key findings
    in a concise JSON response so the answer generator can use them.
 
 ## Output Format
@@ -52,6 +60,8 @@ After calling all necessary tools, respond with a JSON object:
 {
   "intent": "<detected_intent>",
   "entities": ["<entity1>", "<entity2>"],
+  "execution_strategy": "<'standard' or 'map_reduce'>",
+  "target_document_ids": ["<doc_id_if_map_reduce>"],
   "tool_results_summary": "<brief summary of what you found>",
   "direct_answer": "<if the tools returned a definitive answer (e.g. a download URL), provide it here; otherwise leave empty>"
 }
@@ -68,9 +78,9 @@ class AgenticPlannerService:
     def __init__(self, llm: BaseChatModel):
         self.llm = llm
         # Bind all tools to the LLM for tool-calling
-        self.llm_with_tools = llm.bind_tools(ALL_TOOLS)
+        self.llm_with_tools = llm.bind_tools(AGENT_TOOLS_WITH_INTERNET)
         # Build a quick lookup for tool execution
-        self._tool_map = {t.name: t for t in ALL_TOOLS}
+        self._tool_map = {t.name: t for t in AGENT_TOOLS_WITH_INTERNET}
 
     async def detect_intent(
         self,
@@ -82,6 +92,13 @@ class AgenticPlannerService:
         Runs the tool-calling agent loop and returns a QueryPlan.
         The plan carries an extra `_agent_context` attribute with all tool results.
         """
+        # --- Fast Pre-classification for General QA Bypass ---
+        nlp_planner = NLPPlannerService()
+        fast_plan = await nlp_planner.detect_intent(query, context_course, context_offering)
+        if fast_plan.intent == "general_qa":
+            logger.info("[AgenticPlanner] Fast pre-classification detected general_qa. Bypassing heavy agent loop.")
+            return fast_plan
+
         user_content = query
         if context_course:
             user_content = f"[Course context: {context_course}]\n\n{query}"
@@ -95,6 +112,8 @@ class AgenticPlannerService:
         direct_answer: str = ""
         intent = "advanced_agent"
         entities: list[str] = []
+        execution_strategy = "standard"
+        target_document_ids: list[str] = []
 
         try:
             # --- Agentic loop (max 5 iterations to prevent runaway) ---
@@ -121,10 +140,14 @@ class AgenticPlannerService:
                         summary = json.loads(raw.strip())
                         intent = summary.get("intent", "advanced_agent")
                         entities = summary.get("entities", [])
+                        execution_strategy = summary.get("execution_strategy", "standard")
+                        target_document_ids = summary.get("target_document_ids", [])
                         direct_answer = summary.get("direct_answer", "")
                     except Exception:
                         # If parsing fails, treat raw text as summary
                         direct_answer = raw
+                        execution_strategy = "standard"
+                        target_document_ids = []
                     break
 
                 # Execute each tool call concurrently
@@ -196,6 +219,8 @@ class AgenticPlannerService:
             entities_mentioned=entities,
             backends_needed=["qdrant", "neo4j"],
             confidence_score=0.95,
+            execution_strategy=execution_strategy,
+            target_document_ids=target_document_ids,
         )
         # Attach extra context for the route handler to inject into the generator
         object.__setattr__(plan, "_agent_chunks", agent_chunks)

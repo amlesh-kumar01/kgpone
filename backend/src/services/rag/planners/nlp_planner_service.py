@@ -30,6 +30,11 @@ _DEFAULT_VECTORIZER_PATH = os.path.join(_MODELS_DIR, "tfidf_vectorizer.pkl")
 _MIN_CONFIDENCE = 0.60
 
 
+_CLASSIFIER = None
+_VECTORIZER = None
+_MODELS_LOADED = False
+_MODELS_LOAD_ATTEMPTED = False
+
 class NLPPlannerService(BaseQueryPlanner):
     """
     Sub-millisecond intent classification and entity extraction
@@ -41,18 +46,25 @@ class NLPPlannerService(BaseQueryPlanner):
         classifier_path: str = _DEFAULT_CLASSIFIER_PATH,
         vectorizer_path: str = _DEFAULT_VECTORIZER_PATH,
     ):
+        global _CLASSIFIER, _VECTORIZER, _MODELS_LOADED, _MODELS_LOAD_ATTEMPTED
         self.classifier = None
         self.vectorizer = None
 
-        try:
-            self.classifier = joblib.load(classifier_path)
-            self.vectorizer = joblib.load(vectorizer_path)
-            logger.info("NLP Planner models loaded successfully.")
-        except Exception as e:
-            logger.warning(
-                f"Failed to load NLP models ({e}). "
-                "Falling back to heuristic-only routing."
-            )
+        if not _MODELS_LOAD_ATTEMPTED:
+            _MODELS_LOAD_ATTEMPTED = True
+            if os.path.exists(classifier_path) and os.path.exists(vectorizer_path):
+                try:
+                    _CLASSIFIER = joblib.load(classifier_path)
+                    _VECTORIZER = joblib.load(vectorizer_path)
+                    _MODELS_LOADED = True
+                    logger.info("NLP Planner models loaded successfully.")
+                except Exception as e:
+                    logger.warning(f"Failed to load NLP models ({e}). Falling back to heuristic-only routing.")
+            else:
+                logger.warning(f"NLP model files not found at {classifier_path}. Falling back to heuristic-only routing. This warning will only be shown once.")
+        
+        self.classifier = _CLASSIFIER
+        self.vectorizer = _VECTORIZER
 
         # Pre-compiled regex for course code extraction (e.g. CS101, CS 60001, EE20005)
         self.course_pattern = re.compile(r"\b[A-Za-z]{2,4}\s?\d{3,5}\b")

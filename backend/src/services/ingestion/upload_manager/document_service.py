@@ -60,6 +60,9 @@ class DocumentService:
             raise HTTPException(status_code=404, detail="Document not found")
         return doc
 
+    def get_all_documents(self) -> list[Document]:
+        return self.repository.get_all_documents()
+
     def delete_document(self, document_id: UUID):
         doc = self.repository.get_document(document_id)
         if not doc or doc.is_deleted:
