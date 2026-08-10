@@ -14,7 +14,20 @@ class AcademicService:
         self.repository = repository
 
     def create_department(self, dept_in: DepartmentCreate) -> Department:
-        return self.repository.create_department(dept_in)
+        dept = self.repository.create_department(dept_in)
+        
+        # Real-time sync to Neo4j
+        import logging
+        logger = logging.getLogger("academic_service")
+        try:
+            from src.repositories.neo4j.graph_repository import Neo4jRepo
+            neo4j = Neo4jRepo()
+            neo4j.merge_department(dept.code, {"name": dept.name})
+            logger.info(f"Synced department {dept.code} to Neo4j")
+        except Exception as e:
+            logger.warning(f"Failed to sync department to Neo4j: {e}")
+            
+        return dept
 
     def get_departments(self) -> list[Department]:
         return self.repository.get_departments()

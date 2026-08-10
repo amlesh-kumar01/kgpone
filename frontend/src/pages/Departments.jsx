@@ -1,13 +1,43 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { BookOpen, Users, Library, ArrowRight } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { BookOpen, Users, Library, ArrowRight, Plus } from "lucide-react";
 import { motion } from 'framer-motion';
 import { useAcademic } from '../context/AcademicContext';
+import { useToast } from "@/hooks/use-toast";
 
 const Departments = () => {
   const navigate = useNavigate();
-  const { departments, loading } = useAcademic();
+  const { departments, loading, addDepartment } = useAcademic();
+  const { toast } = useToast();
+  
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newDept, setNewDept] = useState({ code: '', name: '' });
+
+  const handleAddDepartment = async () => {
+    setIsSubmitting(true);
+    try {
+      await addDepartment(newDept);
+      setAddDialogOpen(false);
+      setNewDept({ code: '', name: '' });
+      toast({
+        title: "Department Created",
+        description: `Successfully added ${newDept.name}.`,
+      });
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err.message || "Failed to create department.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -21,12 +51,59 @@ const Departments = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
-      <div>
-        <h1 className="text-4xl font-serif font-bold text-foreground mb-3">Academic Departments</h1>
-        <p className="text-muted-foreground text-lg max-w-2xl">
-          Browse and manage the hierarchical structure of Knowledge OS academic programs.
-        </p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-4xl font-serif font-bold text-foreground mb-3">Academic Departments</h1>
+          <p className="text-muted-foreground text-lg max-w-2xl">
+            Browse and manage the hierarchical structure of Knowledge OS academic programs.
+          </p>
+        </div>
+        <button 
+          onClick={() => setAddDialogOpen(true)}
+          className="px-5 py-2.5 bg-accent text-accent-foreground font-semibold rounded-lg shadow-sm hover:shadow-md hover:bg-opacity-90 transition-all flex items-center gap-2"
+        >
+          <Plus size={20} /> Add Department
+        </button>
       </div>
+
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="sm:max-w-[425px] bg-card border-border shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-serif text-foreground">Create Department</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4 mt-2">
+            <div className="grid gap-2">
+              <Label htmlFor="code" className="text-sm font-medium text-foreground">Department Code</Label>
+              <Input
+                id="code"
+                placeholder="e.g. CS"
+                className="col-span-3 bg-background border-border focus:ring-accent"
+                value={newDept.code}
+                onChange={(e) => setNewDept(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="name" className="text-sm font-medium text-foreground">Department Name</Label>
+              <Input
+                id="name"
+                placeholder="e.g. Computer Science"
+                className="col-span-3 bg-background border-border focus:ring-accent"
+                value={newDept.name}
+                onChange={(e) => setNewDept(prev => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <button 
+              onClick={handleAddDepartment}
+              disabled={isSubmitting || !newDept.code || !newDept.name}
+              className="px-6 py-2.5 bg-accent text-accent-foreground font-semibold rounded-lg shadow-sm hover:bg-opacity-90 transition-all disabled:opacity-50"
+            >
+              {isSubmitting ? "Creating..." : "Save Department"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -77,7 +154,10 @@ const Departments = () => {
           </div>
           <h3 className="text-xl font-serif font-semibold text-foreground mb-2">No departments established</h3>
           <p className="text-muted-foreground mb-6">There are currently no academic departments configured in the system.</p>
-          <button className="px-6 py-3 bg-accent text-accent-foreground font-medium rounded-lg hover:bg-opacity-90 transition-colors">
+          <button 
+            onClick={() => setAddDialogOpen(true)}
+            className="px-6 py-3 bg-accent text-accent-foreground font-medium rounded-lg hover:bg-opacity-90 transition-colors"
+          >
             Create First Department
           </button>
         </div>

@@ -40,8 +40,22 @@ export const AcademicProvider = ({ children }) => {
     await fetchAcademicData();
   };
 
+  const addDepartment = async (departmentData) => {
+    try {
+      const res = await api.post('/api/v1/academic/departments', departmentData);
+      if (res.data.status === 'success') {
+        setDepartments(prev => [...prev, res.data.data]);
+        return res.data.data;
+      }
+      throw new Error(res.data.message);
+    } catch (err) {
+      console.error("Failed to add department:", err);
+      throw err;
+    }
+  };
+
   return (
-    <AcademicContext.Provider value={{ departments, courses, loading, refreshAcademicData }}>
+    <AcademicContext.Provider value={{ departments, courses, loading, refreshAcademicData, addDepartment }}>
       {children}
     </AcademicContext.Provider>
   );
