@@ -11,7 +11,7 @@ import { ChatInput } from '../components/chat/ChatInput';
 import { ChatMessageList } from '../components/chat/ChatMessageList';
 import { MemoryViewerDialog } from '../components/chat/MemoryViewerDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Sigma, ImageIcon, Table2, Settings, MessageSquare, Zap, Brain, Globe } from "lucide-react";
+import { FileText, Sigma, ImageIcon, Table2, Settings, MessageSquare, Zap, Brain, Globe, Database, Network } from "lucide-react";
 
 /* ── Inline styles injected once ──────────────────────────────────────── */
 const GLOBAL_STYLES = `
@@ -285,7 +285,7 @@ const Chat = () => {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\\n');
+        const lines = buffer.split('\n');
         buffer = lines.pop();
 
         for (const line of lines) {
@@ -297,19 +297,23 @@ const Chat = () => {
               setStreamingIdx(assistantIdx);
               setMessages(prev => {
                 const next = [...prev];
-                const msg = next[next.length - 1];
+                const lastIdx = next.length - 1;
+                const msg = { ...next[lastIdx] };
                 if (msg.isThinking) {
                   msg.isThinking = false;
                   msg.content = ''; // Clear placeholder
                 }
                 msg.content = assistantContent;
+                next[lastIdx] = msg;
                 return next;
               });
             } else if (data.type === 'metadata') {
               setStreamingIdx(null); // stop cursor
               setMessages(prev => {
                 const next = [...prev];
-                next[next.length - 1] = { ...next[next.length - 1], metadata: data };
+                const lastIdx = next.length - 1;
+                const msg = { ...next[lastIdx], metadata: data };
+                next[lastIdx] = msg;
                 return next;
               });
               if (data.conversation_id && data.conversation_id !== activeConversationId) {
