@@ -74,14 +74,14 @@ class SemanticCacheService(BaseSemanticCache):
         if redis is None:
             return None
 
-        # Determine the pattern for the current scope
-        pattern = f"{_CACHE_PREFIX}{scope_key or 'global'}:*"
+        # Determine the pattern and index set for the current scope
+        scope = scope_key or 'global'
+        index_key = f"{_CACHE_PREFIX}index:{scope}"
 
         try:
-            # 1. Fetch all keys in this scope
-            keys = []
-            async for key in redis.scan_iter(match=pattern, count=1000):
-                keys.append(key)
+            # 1. Fetch all keys in this scope using O(1) SMEMBERS instead of slow SCAN
+            keys = await redis.smembers(index_key)
+            keys = list(keys)
             
             if not keys:
                 return None
@@ -140,10 +140,21 @@ class SemanticCacheService(BaseSemanticCache):
             "response": response
         }
 
+        scope = scope_key or 'global'
+        index_key = f"{_CACHE_PREFIX}index:{scope}"
+
         try:
             serialized = json.dumps(payload, default=str)
-            await redis.setex(cache_key, self.ttl, serialized)
-            logger.info(f"Semantic cache SET for scope '{scope_key or 'global'}' (TTL={self.ttl}s)")
+            
+            # Use a pipeline to set the key and add it to our O(1) index set atomically
+            pipe = redis.pipeline()
+            pipe.setex(cache_key, self.ttl, serialized)
+            pipe.sadd(index_key, cache_key)
+            # Set the TTL of the index set itself to match the longest-living key
+            pipe.expire(index_key, self.ttl)
+            await pipe.execute()
+            
+            logger.info(f"Semantic cache SET for scope '{scope}' (TTL={self.ttl}s)")
         except Exception as e:
             logger.warning(f"Cache write failed: {e}")
 
@@ -158,17 +169,21 @@ class SemanticCacheService(BaseSemanticCache):
             return 0
 
         try:
-            if scope_key:
-                pattern = f"{_CACHE_PREFIX}{scope_key}:*"
-            else:
-                pattern = f"{_CACHE_PREFIX}*"
-
+            scope = scope_key or 'global'
+            index_key = f"{_CACHE_PREFIX}index:{scope}"
+            
+            keys = await redis.smembers(index_key)
             count = 0
-            async for key in redis.scan_iter(match=pattern, count=1000):
-                await redis.delete(key)
-                count += 1
+            
+            if keys:
+                pipe = redis.pipeline()
+                for key in keys:
+                    pipe.delete(key)
+                pipe.delete(index_key)
+                await pipe.execute()
+                count = len(keys)
 
-            logger.info(f"Invalidated {count} cache entries (pattern: {pattern})")
+            logger.info(f"Invalidated {count} cache entries for scope: {scope}")
             return count
         except Exception as e:
             logger.warning(f"Cache invalidation failed: {e}")

@@ -173,8 +173,69 @@ async def ask_question_stream(
     course_offering_id = req.course_offering_id
     t0 = time.time()
     
-    chat_repo = ChatRepository(db)
+    # ── 1. FAST PATH: Semantic Cache Check ──
+    semantic_cache = services["semantic_cache"]
+    embedder = services["embedder"]
     
+    try:
+        query_embedding = await embedder.embed_query(query)
+    except Exception as e:
+        logger.error(f"Error embedding query: {e}")
+        query_embedding = []
+        
+    t_embed = time.time()
+    logger.info(f"[PERF-DEBUG] Embed query took: {t_embed - t0:.4f}s")
+        
+    if query_embedding:
+        scope_key = course_offering_id if course_offering_id else None
+        cached = await semantic_cache.get(query, query_embedding, scope_key=scope_key)
+        
+        t_cache = time.time()
+        logger.info(f"[PERF-DEBUG] Cache Redis Lookup took: {t_cache - t_embed:.4f}s")
+        
+        if cached:
+            logger.info("[Cache] Semantic cache HIT in streaming route.")
+            async def cached_event_generator():
+                cached_answer = cached.get("answer", "")
+                
+                # yield the whole answer as a single chunk (fast stream)
+                yield f"data: {json.dumps({'type': 'chunk', 'content': cached_answer})}\n\n"
+                
+                # NOW do the database chat operations (hidden from the user's wait time)
+                chat_repo = ChatRepository(db)
+                if not req.conversation_id:
+                    conversation = chat_repo.create_conversation(user.id, title=req.query[:50] + "..." if len(req.query) > 50 else req.query)
+                    req.conversation_id = conversation.id
+                    
+                # Add user message
+                chat_repo.add_message(req.conversation_id, MessageRole.USER, query)
+                
+                metadata = {
+                    "type": "metadata",
+                    "citations": cached.get("citations", []),
+                    "sources": cached.get("sources", []),
+                    "intent": cached.get("intent", ""),
+                    "backends_used": cached.get("backends_used", []),
+                    "graph_context": cached.get("graph_context"),
+                    "conversation_id": str(req.conversation_id),
+                    "cache_hit": True
+                }
+                
+                # Save assistant message to DB
+                chat_repo.add_message(req.conversation_id, MessageRole.ASSISTANT, cached_answer, metadata)
+                
+                # Trigger background memory extraction
+                import asyncio
+                from src.workers.tasks.memory_tasks import extract_user_memory_task
+                asyncio.create_task(extract_user_memory_task(req.conversation_id))
+                
+                # Yield the metadata to close out the stream
+                yield f"data: {json.dumps(metadata)}\n\n"
+                
+            return StreamingResponse(cached_event_generator(), media_type="text/event-stream")
+
+    # ── 2. SLOW PATH: Handle Conversation State (Cache Miss) ──
+    chat_repo = ChatRepository(db)
     chat_history_dicts = []
     user_memories_strs = []
     
@@ -182,7 +243,9 @@ async def ask_question_stream(
     memories = chat_repo.get_user_memories(user.id)
     user_memories_strs = [m.fact for m in memories]
     
-    # ── Handle Conversation State ──
+    t_db1 = time.time()
+    logger.info(f"[PERF-DEBUG] Fetching memories took: {t_db1 - t_cache:.4f}s")
+    
     if req.conversation_id:
         conversation = chat_repo.get_conversation(req.conversation_id, load_messages=True)
         if not conversation or conversation.user_id != user.id:
@@ -194,17 +257,18 @@ async def ask_question_stream(
                     summary_text += f"\nKeywords: {conversation.keywords}"
                 chat_history_dicts.append({"role": "system", "content": summary_text})
                 
-            # Only keep the last 5 messages to avoid huge context sizes
             for msg in conversation.messages[-5:]:
                 chat_history_dicts.append({"role": msg.role.value, "content": msg.content})
     
     if not req.conversation_id:
-        # Title can be generated later async, just use query snippet for now
         conversation = chat_repo.create_conversation(user.id, title=req.query[:50] + "..." if len(req.query) > 50 else req.query)
         req.conversation_id = conversation.id
         
     # Add user message
     chat_repo.add_message(req.conversation_id, MessageRole.USER, query)
+
+    t_db2 = time.time()
+    logger.info(f"[PERF-DEBUG] DB Chat operations took: {t_db2 - t_db1:.4f}s")
 
     # ── Planner: Basic (NLP) or Advanced (Tool-Calling Agent) ──
     if req.analysis_mode == "advanced":
@@ -392,6 +456,29 @@ async def ask_question_stream(
         
         # Save assistant message to DB
         chat_repo.add_message(req.conversation_id, MessageRole.ASSISTANT, full_response, metadata)
+        
+        # Cache the response for future identical queries
+        if query_embedding:
+            scope_key = course_offering_id if course_offering_id else None
+            try:
+                cache_payload = {
+                    "answer": full_response,
+                    "citations": active_citations,
+                    "sources": active_sources,
+                    "graph_context": context.get("graph_visualization"),
+                    "intent": plan.intent,
+                    "backends_used": plan.backends_needed,
+                    "cache_hit": False,
+                    "confidence_score": getattr(plan, "confidence_score", 1.0)
+                }
+                await semantic_cache.set(
+                    query,
+                    query_embedding,
+                    cache_payload,
+                    scope_key=scope_key,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to set semantic cache: {e}")
         
         # Trigger background memory extraction (fire and forget)
         import asyncio

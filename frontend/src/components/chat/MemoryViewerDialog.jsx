@@ -12,7 +12,7 @@ export const MemoryViewerDialog = ({ open, onOpenChange, memories, setMemories, 
         try {
           setIsLoading(true);
           const response = await api.get('/api/v1/chat/memories');
-          setMemories(response.data || []);
+          setMemories(response.data.data || []);
         } catch (error) {
           console.error("Failed to fetch memories:", error);
         } finally {

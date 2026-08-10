@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Optional
 from src.infrastructure.neo4j import get_neo4j_driver
 
 logger = logging.getLogger("neo4j_repository")
+_schema_initialized = False
 
 class Neo4jRepo:
     def __init__(self):
@@ -11,7 +12,10 @@ class Neo4jRepo:
         if driver is None:
             self.use_fallback = True
             
-        self.initialize_schema()
+        global _schema_initialized
+        if not _schema_initialized:
+            self.initialize_schema()
+            _schema_initialized = True
 
     def _get_driver(self):
         driver = get_neo4j_driver()

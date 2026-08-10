@@ -16,8 +16,17 @@ async def extract_user_memory_task(conversation_id: uuid.UUID):
         with SessionLocal() as session:
             repo = ChatRepository(session)
             conversation = repo.get_conversation(conversation_id, load_messages=True)
-            if not conversation or len(conversation.messages) < 3:
+            if not conversation:
+                return
+                
+            msg_count = len(conversation.messages)
+            if msg_count < 3:
                 return # Not enough data
+                
+            # OPTIMIZATION: Only run memory extraction every 3 full turns (6 messages)
+            # This drastically reduces LLM token costs and background processing overhead.
+            if msg_count % 6 != 0:
+                return
                 
             # Combine messages into a transcript
             transcript = ""
@@ -32,10 +41,19 @@ async def extract_user_memory_task(conversation_id: uuid.UUID):
                 logger.warning("Could not get LLM for memory extraction")
                 return
                 
+            # Fetch existing memories to merge them
+            existing_memories = repo.get_user_memories(conversation.user_id)
+            existing_facts = [m.fact for m in existing_memories]
+            existing_facts_str = "\n".join([f"- {f}" for f in existing_facts]) if existing_facts else "None"
+                
             prompt = PromptTemplate.from_template(
                 """Analyze the following conversation transcript between a student and an AI tutor.
 You have three tasks:
 1. Extract permanent facts about the student (e.g. "prefers visual explanations", "struggles with algebra").
+   - You MUST merge the new facts with the existing facts provided below.
+   - If a new fact contradicts an old fact, update the old fact based on the new transcript.
+   - If a new fact is similar to an old fact, merge them into a single comprehensive fact.
+   - Keep the most important facts. You must NOT output more than 20 facts in total.
 2. Write a concise 1-2 sentence summary of the entire conversation so far.
 3. Extract 3-5 important keywords/topics discussed.
 
@@ -46,12 +64,18 @@ Output your response STRICTLY as a JSON object matching this schema:
   "keywords": ["topic1", "topic2"]
 }}
 
+Existing Facts:
+{existing_facts}
+
 Transcript:
 {transcript}"""
             )
             
             chain = prompt | llm
-            response = await chain.ainvoke({"transcript": transcript})
+            response = await chain.ainvoke({
+                "transcript": transcript,
+                "existing_facts": existing_facts_str
+            })
             content_raw = response.content
             if isinstance(content_raw, list):
                 # Handle models that return a list of blocks
@@ -72,12 +96,16 @@ Transcript:
                     
                 data = json.loads(content.strip())
                 
-                # 1. Update Memories
+                # 1. Update Memories (Consolidate and Limit to 20)
                 facts = data.get("facts", [])
-                for fact in facts:
-                    if fact:
+                facts = [f.strip() for f in facts if f and f.strip()][:20]
+                
+                if facts:
+                    # Clear old memories and replace with the consolidated list
+                    repo.clear_user_memories(conversation.user_id)
+                    for fact in facts:
                         repo.add_user_memory(user_id=conversation.user_id, fact=fact)
-                        logger.info(f"Extracted new user memory for {conversation.user_id}: {fact}")
+                    logger.info(f"Consolidated and saved {len(facts)} user memories for {conversation.user_id}.")
                         
                 # 2. Update Conversation Summary & Keywords
                 summary = data.get("summary", "")
