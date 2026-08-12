@@ -7,13 +7,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, BookOpen } from "lucide-react";
+import { Loader2, Plus, BookOpen, BrainCircuit } from "lucide-react";
 import api from '../lib/api';
 import { useAcademic } from '../context/AcademicContext';
 import ManageOfferings from '../components/ManageOfferings';
+import { useNavigate } from 'react-router-dom';
 
 const Courses = () => {
   const { departments, courses, loading, refreshAcademicData } = useAcademic();
+  const navigate = useNavigate();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   const [formData, setFormData] = useState({ 
@@ -168,7 +170,17 @@ const Courses = () => {
                       {departments.find(d => d.id === course.department_id)?.code || 'Unknown'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <ManageOfferings course={course} />
+                      <div className="flex justify-end items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/courses/${course.id}/analyze`)}
+                          className="gap-1.5 text-accent border-accent/30 hover:bg-accent/5"
+                        >
+                          <BrainCircuit className="w-4 h-4" /> Course Studio
+                        </Button>
+                        <ManageOfferings course={course} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

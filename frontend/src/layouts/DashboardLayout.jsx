@@ -13,7 +13,8 @@ import {
   Menu,
   MessageSquare,
   Palette,
-  Check
+  Check,
+  BrainCircuit
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {

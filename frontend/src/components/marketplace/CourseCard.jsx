@@ -1,9 +1,14 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { GraduationCap, Library } from 'lucide-react';
+import { GraduationCap, Library, BrainCircuit } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 const CourseCard = ({ course, departmentName }) => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
@@ -34,8 +39,18 @@ const CourseCard = ({ course, departmentName }) => {
             <span>{departmentName}</span>
           </div>
         </CardContent>
-        <CardFooter className="pt-4 pb-6 px-6 border-t border-border/50 bg-background/50">
-          <button className="w-full px-4 py-2 border-2 border-accent text-accent font-medium rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors flex justify-center items-center gap-2">
+        <CardFooter className="pt-4 pb-6 px-6 border-t border-border/50 bg-background/50 flex flex-col gap-2">
+          {/* Exam Prep CTA for students */}
+          {(user?.role === 'STUDENT' || user?.role === 'ADMIN' || user?.role === 'PUBLISHER') && (
+            <button
+              onClick={() => navigate(`/courses/${course.id}/analyze`)}
+              className="w-full px-4 py-2.5 bg-accent text-accent-foreground font-semibold rounded-lg hover:bg-accent/90 transition-colors flex justify-center items-center gap-2 text-sm"
+            >
+              <BrainCircuit size={16} />
+              Prepare for Exam
+            </button>
+          )}
+          <button className="w-full px-4 py-2 border border-border text-muted-foreground font-medium rounded-lg hover:bg-muted transition-colors flex justify-center items-center gap-2 text-sm">
             View Details
           </button>
         </CardFooter>

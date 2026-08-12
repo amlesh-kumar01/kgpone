@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UploadCloud, FileText, CheckCircle2, AlertCircle, Filter, Trash2, Eye, Download } from "lucide-react";
+import { Loader2, UploadCloud, FileText, CheckCircle2, AlertCircle, Filter, Trash2, Eye, Download, FlaskConical } from "lucide-react";
 import api from '../lib/api';
 import { useAcademic } from '../context/AcademicContext';
 
 const Documents = () => {
   const { departments, courses: allCourses } = useAcademic();
+  const navigate = useNavigate();
   const [documents, setDocuments] = useState([]);
   const [filteredCourses, setFilteredCourses] = useState([]);
   const [offerings, setOfferings] = useState([]);
@@ -404,6 +406,15 @@ const Documents = () => {
                     </TableCell>
                     <TableCell className="text-right px-6 py-4">
                       <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/analyze/${doc.id}`); }}
+                          className="text-muted-foreground hover:text-accent hover:bg-accent/5"
+                          title="Open Analysis Studio"
+                        >
+                          <FlaskConical size={16} />
+                        </Button>
                         <Button 
                           variant="ghost" 
                           size="icon" 

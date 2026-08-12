@@ -20,6 +20,8 @@ import Documents from './pages/Documents';
 import ComingSoon from './pages/ComingSoon';
 import Chat from './pages/Chat';
 import SharedChat from './pages/SharedChat';
+import AnalysisStudio from './pages/AnalysisStudio';
+import CourseAnalysisStudio from './pages/CourseAnalysisStudio';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -57,6 +59,8 @@ const AppRoutes = () => {
           <Route path="/departments" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><Departments /></ProtectedRoute>} />
           <Route path="/courses" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><Courses /></ProtectedRoute>} />
           <Route path="/documents" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><Documents /></ProtectedRoute>} />
+          <Route path="/analyze/:documentId" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><AnalysisStudio /></ProtectedRoute>} />
+          <Route path="/courses/:courseId/analyze" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER', 'STUDENT']}><CourseAnalysisStudio /></ProtectedRoute>} />
         </Route>
         <Route path="/marketplace" element={<ProtectedRoute allowedRoles={['STUDENT']}><Marketplace /></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute allowedRoles={['ADMIN']}><UsersPage /></ProtectedRoute>} />
