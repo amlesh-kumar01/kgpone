@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, UploadCloud, FileText, CheckCircle2, AlertCircle, Filter, Trash2, Eye, Download, FlaskConical } from "lucide-react";
 import api from '../lib/api';
 import { useAcademic } from '../context/AcademicContext';
+import IngestionPipelineViewer from '../components/IngestionPipelineViewer';
 
 const Documents = () => {
   const { departments, courses: allCourses } = useAcademic();
@@ -20,6 +21,9 @@ const Documents = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
+  const [ingestionJobs, setIngestionJobs] = useState([]);
+  const [activeTab, setActiveTab] = useState("details");
+  const [retryingStage, setRetryingStage] = useState(null);
   
   // Cascading Selection State (Global for the page)
   const [selectedDeptId, setSelectedDeptId] = useState(() => localStorage.getItem('kgpone_docs_dept_id') || '');
@@ -421,6 +425,7 @@ const Documents = () => {
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedDoc(doc);
+                            setActiveTab("details");
                             setIsViewDialogOpen(true);
                           }} 
                           className="text-muted-foreground hover:text-primary hover:bg-primary/5"
@@ -439,34 +444,69 @@ const Documents = () => {
           </Table>
         </CardContent>
       </Card>
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] bg-card border border-border p-6 rounded-xl shadow-xl">
+      <Dialog open={isViewDialogOpen} onOpenChange={(open) => {
+        setIsViewDialogOpen(open);
+        if (!open) {
+          setIngestionJobs([]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[900px] bg-card border border-border p-6 rounded-xl shadow-xl max-h-[90vh] overflow-hidden flex flex-col">
           {selectedDoc && (
             <>
-              <DialogHeader className="mb-4">
+              <DialogHeader className="mb-4 shrink-0">
                 <DialogTitle className="text-xl font-serif font-bold text-foreground pr-8">{selectedDoc.title}</DialogTitle>
                 <div className="flex gap-2 mt-2">
                   <span className="text-xs font-mono bg-accent/10 text-accent px-2 py-1 rounded">{selectedDoc.doc_type}</span>
                   {getStatusBadge(selectedDoc.status)}
                 </div>
               </DialogHeader>
-              
-              <div className="space-y-4 text-sm text-foreground my-6">
-                <div>
-                  <span className="font-semibold text-muted-foreground block mb-1">Description:</span>
-                  <p>{selectedDoc.description || "No description provided."}</p>
-                </div>
-                <div>
-                  <span className="font-semibold text-muted-foreground block mb-1">Ingested Date:</span>
-                  <p>{new Date(selectedDoc.created_at).toLocaleString()}</p>
-                </div>
-                <div>
-                  <span className="font-semibold text-muted-foreground block mb-1">File Size:</span>
-                  <p>{Math.round(selectedDoc.file_size_bytes / 1024)} KB</p>
-                </div>
+
+              {/* Tabs */}
+              <div className="flex border-b border-border shrink-0 mb-4">
+                <button
+                  className={`px-4 py-2 text-sm font-medium border-b-2 ${activeTab === 'details' ? 'border-accent text-accent' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => setActiveTab('details')}
+                >
+                  Details
+                </button>
+                <button
+                  className={`px-4 py-2 text-sm font-medium border-b-2 ${activeTab === 'pipeline' ? 'border-accent text-accent' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => {
+                    setActiveTab('pipeline');
+                    // Fetch jobs
+                    api.get(`/api/v1/ingestion/${selectedDoc.id}/jobs`)
+                      .then(res => setIngestionJobs(res.data.data || []))
+                      .catch(err => console.error(err));
+                  }}
+                >
+                  Ingestion Pipeline
+                </button>
               </div>
               
-              <div className="flex justify-end gap-3 mt-6">
+              <div className="overflow-y-auto flex-1 pr-2">
+                {activeTab === 'details' ? (
+                  <div className="space-y-4 text-sm text-foreground my-2">
+                    <div>
+                      <span className="font-semibold text-muted-foreground block mb-1">Description:</span>
+                      <p>{selectedDoc.description || "No description provided."}</p>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-muted-foreground block mb-1">Ingested Date:</span>
+                      <p>{new Date(selectedDoc.created_at).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-muted-foreground block mb-1">File Size:</span>
+                      <p>{Math.round(selectedDoc.file_size_bytes / 1024)} KB</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="my-2 h-full">
+                    <IngestionPipelineViewer documentId={selectedDoc.id} />
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border shrink-0">
                 <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>Close</Button>
                 <Button 
                   className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2"

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from src.repositories.postgres.document_repository import DocumentRepository
 from src.repositories.neo4j.graph_repository import Neo4jRepo
 from src.services.ingestion.artifact_manager import ArtifactManager
-from src.infrastructure.s3 import S3Storage
+from src.repositories.s3.storage_repository import S3Storage
 from src.models.ingestion_job_model import IngestionJob
 
 logger = logging.getLogger("document_inspector")

@@ -15,9 +15,17 @@ from src.schemas.response_schema import StandardResponse
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
-def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
+from src.repositories.redis.cache_repository import CacheRepository
+
+def get_cache_repository() -> CacheRepository:
+    return CacheRepository()
+
+def get_document_service(
+    db: Session = Depends(get_db),
+    cache_repo: CacheRepository = Depends(get_cache_repository)
+) -> DocumentService:
     repo = DocumentRepository(db)
-    return DocumentService(repo)
+    return DocumentService(repo, cache_repo)
 
 @router.post("/presigned-url", response_model=StandardResponse[PresignedUrlResponse], status_code=status.HTTP_201_CREATED)
 def get_presigned_url(req: PresignedUrlRequest, service: DocumentService = Depends(get_document_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):

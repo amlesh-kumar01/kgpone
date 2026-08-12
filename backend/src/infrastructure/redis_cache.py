@@ -7,12 +7,14 @@ import logging
 from typing import Optional
 
 import redis.asyncio as aioredis
+import redis
 
 from src.config.settings import Settings
 
 logger = logging.getLogger("redis_cache")
 
 _cache_client: Optional[aioredis.Redis] = None
+_sync_cache_client: Optional[redis.Redis] = None
 
 
 def get_redis_cache_client() -> Optional[aioredis.Redis]:
@@ -32,10 +34,37 @@ def get_redis_cache_client() -> Optional[aioredis.Redis]:
     return _cache_client
 
 
+def get_sync_redis_cache_client() -> Optional[redis.Redis]:
+    """Returns a singleton synchronous Redis client for service-layer caching."""
+    global _sync_cache_client
+    if _sync_cache_client is None:
+        try:
+            _sync_cache_client = redis.from_url(
+                Settings.REDIS_CACHE_URL,
+                decode_responses=True,
+                socket_connect_timeout=3.0,
+            )
+            # Test connection
+            _sync_cache_client.ping()
+            logger.info(f"Sync Redis cache client initialized at {Settings.REDIS_CACHE_URL}")
+        except Exception as e:
+            logger.warning(f"Failed to initialize sync Redis cache client: {e}")
+            _sync_cache_client = None
+    return _sync_cache_client
+
+
 async def close_redis_cache_client():
     """Closes the singleton Redis client gracefully."""
     global _cache_client
     if _cache_client is not None:
         await _cache_client.aclose()
         _cache_client = None
-        logger.info("Redis cache client closed.")
+        logger.info("Async Redis cache client closed.")
+
+def close_sync_redis_cache_client():
+    """Closes the singleton synchronous Redis client gracefully."""
+    global _sync_cache_client
+    if _sync_cache_client is not None:
+        _sync_cache_client.close()
+        _sync_cache_client = None
+        logger.info("Sync Redis cache client closed.")

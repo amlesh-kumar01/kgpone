@@ -7,7 +7,7 @@ from src.models.user_model import User, UserRole
 from src.api.middleware.auth_middleware import get_current_user, require_role
 from src.schemas.response_schema import StandardResponse
 from src.models.analysis_job_model import AnalysisJob, AnalysisType, AnalysisJobStatus
-from src.infrastructure.s3 import S3Storage
+from src.repositories.s3.storage_repository import S3Storage
 
 router = APIRouter(prefix="/analysis", tags=["Analysis"])
 

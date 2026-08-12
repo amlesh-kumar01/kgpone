@@ -1,6 +1,6 @@
 # KgpOne Backend API
 
-Welcome to the KgpOne Backend! This repository serves as the intelligence and API layer for the platform, leveraging modern FastAPI, Celery, LlamaParse, Gemini, PostgreSQL, and Qdrant to ingest and retrieve academic documents securely.
+Welcome to the KgpOne Backend! This repository serves as the intelligence and API layer for the platform, leveraging modern FastAPI, Celery, Docling, Gemini, PostgreSQL, and Qdrant to ingest and retrieve academic documents securely.
 
 ## 📚 Developer Documentation
 To understand how the system is architected, please read the documentation inside the `/docs` folder:
@@ -21,7 +21,7 @@ To understand how the system is architected, please read the documentation insid
 - Docker & Docker Compose
 
 ### 1. Environment Setup
-Copy the example environment file and configure your API keys (especially `LLAMA_CLOUD_API_KEY`, `GEMINI_API_KEY`, and `HUGGINGFACE_API_KEY` for the cross-encoder).
+Copy the example environment file and configure your API keys (especially `GEMINI_API_KEY`, and `HUGGINGFACE_API_KEY` for the cross-encoder).
 ```bash
 cp .env.example .env
 ```

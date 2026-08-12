@@ -8,10 +8,13 @@ from src.schemas.academic_schema import (
 from src.models.academic_model import Department, Course, CourseOffering, FacultyInfo
 from src.models.system_model import CleanupJob, DeletionStatus
 from src.workers.tasks.cleanup_tasks import cleanup_course_task
+from src.repositories.redis.cache_repository import CacheRepository
+from src.schemas.academic_schema import DepartmentRead, CourseRead, CourseOfferingRead
 
 class AcademicService:
-    def __init__(self, repository: AcademicRepository):
+    def __init__(self, repository: AcademicRepository, cache_repo: CacheRepository):
         self.repository = repository
+        self.cache_repo = cache_repo
 
     def create_department(self, dept_in: DepartmentCreate) -> Department:
         dept = self.repository.create_department(dept_in)
@@ -27,10 +30,19 @@ class AcademicService:
         except Exception as e:
             logger.warning(f"Failed to sync department to Neo4j: {e}")
             
+        self.cache_repo.delete("academic:departments:v1")
         return dept
 
-    def get_departments(self) -> list[Department]:
-        return self.repository.get_departments()
+    def get_departments(self):
+        cache_key = "academic:departments:v1"
+        cached = self.cache_repo.get(cache_key)
+        if cached is not None:
+            return cached
+
+        depts = self.repository.get_departments()
+        serialized = [DepartmentRead.model_validate(d).model_dump(mode="json") for d in depts]
+        self.cache_repo.set(cache_key, serialized, ttl=3600)
+        return depts
 
     def get_department(self, dept_id: UUID) -> Department:
         dept = self.repository.get_department(dept_id)
@@ -42,10 +54,21 @@ class AcademicService:
         dept = self.repository.get_department(course_in.department_id)
         if not dept:
             raise HTTPException(status_code=404, detail="Department not found")
-        return self.repository.create_course(course_in)
+        course = self.repository.create_course(course_in)
+        self.cache_repo.delete("academic:courses:v1")
+        return course
 
-    def get_courses(self, department_id: UUID | None = None) -> list[Course]:
-        return self.repository.get_courses(department_id)
+    def get_courses(self, department_id: UUID | None = None):
+        # We cache the main list. If filtered by department, we can construct a specific key or just let it fall through.
+        cache_key = f"academic:courses:v1:dept:{department_id}" if department_id else "academic:courses:v1:all"
+        cached = self.cache_repo.get(cache_key)
+        if cached is not None:
+            return cached
+
+        courses = self.repository.get_courses(department_id)
+        serialized = [CourseRead.model_validate(c).model_dump(mode="json") for c in courses]
+        self.cache_repo.set(cache_key, serialized, ttl=3600)
+        return courses
 
     def get_course(self, course_id: UUID) -> Course:
         course = self.repository.get_course(course_id)
@@ -72,6 +95,10 @@ class AcademicService:
         # Dispatch Celery Task
         cleanup_course_task.delay(str(course_id), str(job.id))
         
+        self.cache_repo.delete("academic:courses:v1:all")
+        self.cache_repo.delete(f"academic:courses:v1:dept:{course.department_id}")
+        self.cache_repo.delete(f"academic:offerings:v1:course:{course_id}")
+        
         return course
 
     def add_prerequisite(self, course_id: UUID, prerequisite_id: UUID) -> Course:
@@ -91,10 +118,20 @@ class AcademicService:
         course = self.repository.get_course(offering_in.course_id)
         if not course:
             raise HTTPException(status_code=404, detail="Course not found")
-        return self.repository.create_offering(offering_in)
+        offering = self.repository.create_offering(offering_in)
+        self.cache_repo.delete(f"academic:offerings:v1:course:{offering_in.course_id}")
+        return offering
 
-    def get_offerings(self, course_id: UUID) -> list[CourseOffering]:
-        return self.repository.get_offerings(course_id)
+    def get_offerings(self, course_id: UUID):
+        cache_key = f"academic:offerings:v1:course:{course_id}"
+        cached = self.cache_repo.get(cache_key)
+        if cached is not None:
+            return cached
+
+        offerings = self.repository.get_offerings(course_id)
+        serialized = [CourseOfferingRead.model_validate(o).model_dump(mode="json") for o in offerings]
+        self.cache_repo.set(cache_key, serialized, ttl=3600)
+        return offerings
 
     def get_offering(self, offering_id: UUID) -> CourseOffering:
         offering = self.repository.get_offering(offering_id)
@@ -108,6 +145,7 @@ class AcademicService:
             raise HTTPException(status_code=404, detail="Course Offering not found")
         self.repository.session.delete(offering)
         self.repository.session.commit()
+        self.cache_repo.delete(f"academic:offerings:v1:course:{offering.course_id}")
         return offering
 
     def create_faculty(self, faculty_in: FacultyInfoCreate) -> FacultyInfo:

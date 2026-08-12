@@ -2,6 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 from sqlalchemy import String, Enum, Text, ForeignKey, DateTime, Uuid, BigInteger, UniqueConstraint, Integer, Boolean, Float
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.infrastructure.database import Base
@@ -45,6 +46,7 @@ class Document(Base):
 
     s3_key: Mapped[str] = mapped_column(Text, nullable=False) # Legacy
     file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    artifacts: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default='{}')
     
     status: Mapped[ProcessingStatus] = mapped_column(Enum(ProcessingStatus), default=ProcessingStatus.PENDING)
     qdrant_collection_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -82,3 +84,7 @@ class DocumentMetadata(Base):
 
     # Relationship
     document: Mapped["Document"] = relationship("Document", back_populates="metadata_entries")
+
+# Import knowledge models to ensure they are registered with SQLAlchemy
+from src.models.knowledge_model import ExtractedEntity, ExtractedFormula, ExtractedQuestion
+

@@ -22,6 +22,9 @@ def get_artifact_manager(document_id: str, db: Session) -> ArtifactManager:
     return ArtifactManager(document_id, s3_prefix, S3Storage())
 
 def set_job_running(db: Session, document_id: str, stage: IngestionStage):
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        return
     job = db.query(IngestionJob).filter_by(document_id=document_id, stage=stage).first()
     if not job:
         job = IngestionJob(document_id=document_id, stage=stage)
@@ -32,14 +35,27 @@ def set_job_running(db: Session, document_id: str, stage: IngestionStage):
     db.commit()
 
 def set_job_completed(db: Session, document_id: str, stage: IngestionStage, output_s3_key: str = None):
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        return
     job = db.query(IngestionJob).filter_by(document_id=document_id, stage=stage).first()
     if job:
         job.status = IngestionJobStatus.COMPLETED
         job.completed_at = datetime.now(timezone.utc)
         job.output_s3_key = output_s3_key
-        db.commit()
+        
+    if output_s3_key:
+        import copy
+        new_artifacts = copy.deepcopy(doc.artifacts or {})
+        new_artifacts[stage.value.lower()] = output_s3_key
+        doc.artifacts = new_artifacts
+        
+    db.commit()
 
 def set_job_failed(db: Session, document_id: str, stage: IngestionStage, error: str):
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        return
     job = db.query(IngestionJob).filter_by(document_id=document_id, stage=stage).first()
     if job:
         job.status = IngestionJobStatus.FAILED
@@ -71,7 +87,7 @@ def parse_document_task(self, document_id: str):
         am = get_artifact_manager(document_id, db)
         am.init_manifest()
         parser_key = am.parser_key("llamaparse")
-        am.upload_json(parser_key, {"raw": parsed_data})
+        am.upload_json(parser_key, {"raw": parsed_data.model_dump()})
         
         os.remove(temp_path)
         set_job_completed(db, document_id, stage, parser_key)
@@ -79,6 +95,7 @@ def parse_document_task(self, document_id: str):
         build_canonical_ast_task.delay(document_id)
         
     except Exception as e:
+        db.rollback()
         set_job_failed(db, document_id, stage, str(e))
         db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
         db.commit()
@@ -118,6 +135,7 @@ def build_canonical_ast_task(self, document_id: str):
         extract_entities_task.delay(document_id)
         
     except Exception as e:
+        db.rollback()
         set_job_failed(db, document_id, stage, str(e))
         db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
         db.commit()
@@ -138,7 +156,41 @@ def extract_formulas_task(self, document_id: str):
         from src.services.ingestion.extraction.formula_extractor import FormulaExtractor
         from src.services.ingestion.canonical.ast_schema import CanonicalDocument
         extractor = FormulaExtractor()
-        formulas = extractor.extract(CanonicalDocument(**canonical_doc))
+        canonical_model = CanonicalDocument(**canonical_doc)
+        formulas_res = extractor.extract(canonical_model.nodes, {})
+        formulas = formulas_res.get("formulas", [])
+        
+        # 2. Targeted LLM Fallback for nodes that failed regex
+        # Find nodes marked EQUATION but without latex, or with low confidence
+        from src.infrastructure.llm_factory import LLMFactory
+        from src.services.ingestion.canonical.ast_schema import NodeType
+        
+        failed_nodes = [n for n in canonical_model.nodes if n.type in [NodeType.EQUATION, NodeType.FORMULA] and getattr(n, "source", None) and getattr(n.source, "confidence", 1.0) <= 0.2]
+        
+        if failed_nodes:
+            llm = LLMFactory().get_llm()
+            import asyncio
+            from langchain_core.prompts import ChatPromptTemplate
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", "Extract only the raw LaTeX math formula from the text. Do not add markdown backticks. If you can't find math, return nothing."),
+                ("user", "Text: {text}")
+            ])
+            chain = prompt | llm
+            
+            for node in failed_nodes:
+                if node.text_content:
+                    try:
+                        res = asyncio.run(chain.ainvoke({"text": node.text_content}))
+                        latex = res.content.strip()
+                        if latex:
+                            formulas.append({
+                                "id": str(node.id) + "_llm",
+                                "source_node_id": node.id,
+                                "latex": latex,
+                                "confidence": 0.8
+                            })
+                    except Exception as e:
+                        pass
         
         out_key = am.knowledge_key("formulas")
         am.upload_json(out_key, {"formulas": formulas})
@@ -147,6 +199,7 @@ def extract_formulas_task(self, document_id: str):
         check_extraction_completion_task.delay(document_id)
         
     except Exception as e:
+        db.rollback()
         set_job_failed(db, document_id, stage, str(e))
         db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
         db.commit()
@@ -169,7 +222,9 @@ def extract_questions_task(self, document_id: str):
         extractor = QuestionExtractor()
         
         meta = {"doc_type": "Exam", "year": 2024, "exam": "Midterm"}
-        questions = extractor.extract(CanonicalDocument(**canonical_doc), meta)
+        canonical_model = CanonicalDocument(**canonical_doc)
+        questions_res = extractor.extract(canonical_model.nodes, meta)
+        questions = questions_res.get("questions", [])
         
         out_key = am.knowledge_key("questions")
         am.upload_json(out_key, {"questions": questions})
@@ -178,6 +233,7 @@ def extract_questions_task(self, document_id: str):
         check_extraction_completion_task.delay(document_id)
         
     except Exception as e:
+        db.rollback()
         set_job_failed(db, document_id, stage, str(e))
         db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
         db.commit()
@@ -196,10 +252,36 @@ def extract_entities_task(self, document_id: str):
         canonical_doc = am.download_json(am.canonical_key())
         
         from src.services.ingestion.extraction.gliner_extractor import GLiNERExtractor
+        from src.services.ingestion.extraction.llm_extractor import LLMEntityExtractor
         from src.services.ingestion.canonical.ast_schema import CanonicalDocument
-        extractor = GLiNERExtractor()
-        entities = extractor.extract_from_ast(CanonicalDocument(**canonical_doc))
+        import asyncio
         
+        canonical_model = CanonicalDocument(**canonical_doc)
+        
+        # 1. Heuristic Extraction (GLiNER)
+        extractor = GLiNERExtractor()
+        entities_res = asyncio.run(extractor.extract(canonical_model.nodes, {}))
+        entities = entities_res.get("entities", [])
+        
+        # 2. Neural Fallback (LLM) for high-value chunks
+        llm_extractor = LLMEntityExtractor()
+        # Collect top 10 longest paragraphs to send to LLM
+        text_chunks = [n.text_content for n in canonical_model.nodes if getattr(n, "text_content", None)]
+        text_chunks = sorted(text_chunks, key=len, reverse=True)[:10]
+        
+        if text_chunks:
+            llm_entities_res = asyncio.run(llm_extractor.extract(text_chunks, {"title": canonical_model.title, "doc_type": canonical_model.doc_type}))
+            # Merge LLM entities (topics, concepts, algorithms) into the main entities list
+            for category in ["topics", "concepts", "algorithms", "technologies"]:
+                for item in llm_entities_res.get(category, []):
+                    entities.append({
+                        "canonical_name": item.get("name", ""),
+                        "surface_forms": [item.get("name", "")],
+                        "type": category.upper()[:-1], # e.g. CONCEPT
+                        "confidence": 0.9,
+                        "description": item.get("description", "")
+                    })
+                    
         out_key = am.knowledge_key("entities")
         am.upload_json(out_key, {"entities": entities})
         
@@ -207,6 +289,7 @@ def extract_entities_task(self, document_id: str):
         extract_relations_task.delay(document_id)
         
     except Exception as e:
+        db.rollback()
         set_job_failed(db, document_id, stage, str(e))
         db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
         db.commit()
@@ -228,7 +311,9 @@ def extract_relations_task(self, document_id: str):
         from src.services.ingestion.extraction.relation_extractor import RelationExtractor
         from src.services.ingestion.canonical.ast_schema import CanonicalDocument
         extractor = RelationExtractor()
-        relations = extractor.extract(CanonicalDocument(**canonical_doc), entities)
+        canonical_model = CanonicalDocument(**canonical_doc)
+        import asyncio
+        relations = asyncio.run(extractor.extract_relations(canonical_model.nodes, entities))
         
         out_key = am.knowledge_key("relations")
         am.upload_json(out_key, {"relations": relations})
@@ -237,6 +322,7 @@ def extract_relations_task(self, document_id: str):
         check_extraction_completion_task.delay(document_id)
         
     except Exception as e:
+        db.rollback()
         set_job_failed(db, document_id, stage, str(e))
         db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
         db.commit()
@@ -290,6 +376,7 @@ def build_chunks_task(self, document_id: str):
         build_neo4j_task.delay(document_id)
         
     except Exception as e:
+        db.rollback()
         set_job_failed(db, document_id, stage, str(e))
         db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
         db.commit()
@@ -320,6 +407,9 @@ def index_qdrant_task(self, document_id: str):
         from src.repositories.qdrant.vector_repository import QdrantRepository
         repo = QdrantRepository()
         
+        # Delete old vectors to prevent orphan chunks upon retry
+        repo.delete_by_filter("documents", {"document_id": document_id})
+        
         doc = db.query(Document).filter(Document.id == document_id).first()
         course = doc.course_offering.course
         
@@ -344,6 +434,7 @@ def index_qdrant_task(self, document_id: str):
         check_indexing_completion_task.delay(document_id)
         
     except Exception as e:
+        db.rollback()
         set_job_failed(db, document_id, stage, str(e))
         db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
         db.commit()
@@ -360,6 +451,7 @@ def build_neo4j_task(self, document_id: str):
         set_job_completed(db, document_id, stage, None)
         check_indexing_completion_task.delay(document_id)
     except Exception as e:
+        db.rollback()
         set_job_failed(db, document_id, stage, str(e))
         db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
         db.commit()
@@ -396,6 +488,7 @@ def finalize_manifest_task(self, document_id: str):
         set_job_completed(db, document_id, stage, None)
         logger.info(f"Pipeline completed for document {document_id}")
     except Exception as e:
+        db.rollback()
         set_job_failed(db, document_id, stage, str(e))
         db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
         db.commit()

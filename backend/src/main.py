@@ -1,3 +1,7 @@
+import os
+os.environ["TORCH_COMPILE_DISABLE"] = "1"
+os.environ["TORCHDYNAMO_DISABLE"] = "1"
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -16,7 +20,7 @@ from sqlalchemy.exc import IntegrityError
 
 # Load environment variables from .env file before importing local modules
 load_dotenv()
-from src.api.routes import user_routes, academic_routes, document_routes, query_routes, chat_routes, inspection_routes, analysis_routes
+from src.api.routes import user_routes, academic_routes, document_routes, query_routes, chat_routes, inspection_routes, analysis_routes, ingestion_routes
 from src.api.middleware.security_middleware import SecurityHeadersMiddleware
 from src.api.middleware.request_logger import RequestLoggerMiddleware
 from src.config.settings import Settings
@@ -59,6 +63,7 @@ app.include_router(query_routes.router, prefix="/api/v1")
 app.include_router(chat_routes.router) # chat_routes already has prefix /api/v1/chat
 app.include_router(inspection_routes.router, prefix="/api/v1")
 app.include_router(analysis_routes.router, prefix="/api/v1")
+app.include_router(ingestion_routes.router, prefix="/api/v1/ingestion", tags=["Ingestion"])
 
 # ── MCP Server — mounted at /mcp for external AI agent access ─────────────────
 # Connect from Claude Desktop, MCP Inspector, or any MCP client:

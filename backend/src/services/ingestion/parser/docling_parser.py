@@ -28,6 +28,31 @@ class DoclingParser:
         raw_output = docling_doc.export_to_dict()
         self.artifact_manager.upload_json(self.artifact_manager.parser_key("docling"), raw_output)
         
+        # 1. Export native markdown and save as document.md
+        markdown_content = docling_doc.export_to_markdown()
+        self.artifact_manager.upload_text(self.artifact_manager.prefix() + "/document.md", markdown_content)
+        
+        # 2. Extract page renders and save dimensions
+        pages_manifest = {}
+        if hasattr(result, 'pages') and result.pages:
+            from io import BytesIO
+            for page_no, page_info in result.pages.items():
+                if hasattr(page_info, 'image') and page_info.image:
+                    # Save the image
+                    img_byte_arr = BytesIO()
+                    page_info.image.pil_image.save(img_byte_arr, format='PNG')
+                    img_bytes = img_byte_arr.getvalue()
+                    self.artifact_manager.s3.upload_image(self.artifact_manager.page_key(page_no), img_bytes)
+                
+                # Save dimensions
+                if hasattr(page_info, 'size'):
+                    pages_manifest[str(page_no)] = {
+                        "width": page_info.size.width,
+                        "height": page_info.size.height
+                    }
+            if pages_manifest:
+                self.artifact_manager.upload_json(self.artifact_manager.prefix() + "/pages_manifest.json", pages_manifest)
+        
         # Translate to CanonicalDocument
         nodes = self._translate_docling_to_ast(docling_doc)
         

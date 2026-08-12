@@ -16,6 +16,7 @@ def cleanup_document_task(self, document_id: str, job_id: str):
     db = SessionLocal()
     s3_storage = S3Storage()
     qdrant_repo = QdrantRepository()
+    job = None
     
     try:
         job = db.get(CleanupJob, UUID(job_id))
@@ -84,6 +85,7 @@ def cleanup_course_task(self, course_id: str, job_id: str):
     db = SessionLocal()
     s3_storage = S3Storage()
     qdrant_repo = QdrantRepository()
+    job = None
     
     try:
         job = db.get(CleanupJob, UUID(job_id))

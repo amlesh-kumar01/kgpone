@@ -47,8 +47,34 @@ class NLPModelFactory:
         if cls._docling_model is None:
             logger.info("Initializing Docling DocumentConverter")
             try:
-                from docling.document_converter import DocumentConverter
-                cls._docling_model = DocumentConverter()
+                # Disable torch dynamo/compile to prevent 'cl' compiler errors on Windows
+                os.environ["TORCH_COMPILE_DISABLE"] = "1"
+                os.environ["TORCHDYNAMO_DISABLE"] = "1"
+                
+                from docling.document_converter import DocumentConverter, PdfFormatOption
+                from docling.datamodel.base_models import InputFormat
+                from docling.datamodel.pipeline_options import PdfPipelineOptions, AcceleratorOptions, AcceleratorDevice
+                import torch
+                
+                pipeline_options = PdfPipelineOptions()
+                pipeline_options.do_ocr = True
+                pipeline_options.do_table_structure = True
+                pipeline_options.generate_page_images = True
+                pipeline_options.generate_picture_images = True
+                
+                if torch.cuda.is_available():
+                    logger.info("CUDA is available! Configuring Docling to use GPU.")
+                    pipeline_options.accelerator_options = AcceleratorOptions(
+                        num_threads=4, device=AcceleratorDevice.CUDA
+                    )
+                else:
+                    logger.info("CUDA not available. Docling will use CPU.")
+                    
+                cls._docling_model = DocumentConverter(
+                    format_options={
+                        InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+                    }
+                )
             except ImportError:
                 logger.error("docling package not installed. Cannot load model.")
                 raise

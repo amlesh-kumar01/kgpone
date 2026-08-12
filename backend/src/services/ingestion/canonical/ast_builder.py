@@ -7,6 +7,7 @@ from src.services.ingestion.parser.docling_parser import DoclingParser
 from src.services.ingestion.parser.llama_parser import LlamaParserImpl
 from src.services.ingestion.quality.quality_evaluator import QualityEvaluator, QualityReport
 from src.services.ingestion.hierarchy.hierarchy_engine import HierarchyEngine
+from src.services.ingestion.quality.confidence_scorer import ConfidenceScorer
 
 logger = logging.getLogger("ast_builder")
 
@@ -17,6 +18,7 @@ class ASTBuilder:
         self.llama_parser = llama_parser
         self.quality_evaluator = QualityEvaluator()
         self.hierarchy_engine = HierarchyEngine()
+        self.confidence_scorer = ConfidenceScorer()
         
     async def build(self, file_path: str, parsing_instructions: Optional[str] = None) -> CanonicalDocument:
         """
@@ -39,8 +41,9 @@ class ASTBuilder:
             logger.info("Falling back to LlamaParse.")
             best_doc = await self._run_llama_fallback(file_path, parsing_instructions, None, None)
             
-        # 2. Reconstruct Hierarchy
+        # 2. Reconstruct Hierarchy & Score Confidence
         best_doc = self.hierarchy_engine.reconstruct(best_doc)
+        best_doc = self.confidence_scorer.score(best_doc)
         
         # 3. Save Canonical Artifacts
         dumped_data = best_doc.model_dump(mode="json")

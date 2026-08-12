@@ -30,7 +30,7 @@ class DocumentSummarizer(BaseAnalysisJob):
             s3_prefix = doc.s3_prefix or f"documents/UNKNOWN/UNKNOWN/UNKNOWN/{doc_id}"
             
             # Using synchronous ArtifactManager directly
-            from src.infrastructure.s3 import S3Storage
+            from src.repositories.s3.storage_repository import S3Storage
             am = ArtifactManager(doc_id, s3_prefix, S3Storage())
             
             # 1. Load canonical.json
@@ -80,7 +80,7 @@ class DocumentSummarizer(BaseAnalysisJob):
         am.upload_json(result_s3_key, result_content)
         
         import io
-        from src.infrastructure.s3 import S3Storage
+        from src.repositories.s3.storage_repository import S3Storage
         s3 = S3Storage()
         s3.client.upload_fileobj(
             io.BytesIO(summary_text.encode('utf-8')),

@@ -16,9 +16,17 @@ from src.schemas.response_schema import StandardResponse
 
 router = APIRouter(prefix="/academic", tags=["Academic & Departments"])
 
-def get_academic_service(db: Session = Depends(get_db)) -> AcademicService:
+from src.repositories.redis.cache_repository import CacheRepository
+
+def get_cache_repository() -> CacheRepository:
+    return CacheRepository()
+
+def get_academic_service(
+    db: Session = Depends(get_db),
+    cache_repo: CacheRepository = Depends(get_cache_repository)
+) -> AcademicService:
     repo = AcademicRepository(db)
-    return AcademicService(repo)
+    return AcademicService(repo, cache_repo)
 
 # --- Departments ---
 @router.post("/departments", response_model=StandardResponse[DepartmentRead], status_code=status.HTTP_201_CREATED)

@@ -172,5 +172,4 @@ def seed_data():
         db.close()
 
 if __name__ == "__main__":
-    init_db()
     seed_data()

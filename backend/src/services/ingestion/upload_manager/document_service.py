@@ -8,11 +8,14 @@ from src.repositories.s3.storage_repository import S3Storage
 from src.workers.tasks.ingestion_tasks import process_document_task
 from src.workers.tasks.cleanup_tasks import cleanup_document_task
 from src.models.academic_model import CourseOffering
+from src.repositories.redis.cache_repository import CacheRepository
+from src.schemas.document_schema import DocumentRead
 import uuid
 
 class DocumentService:
-    def __init__(self, repository: DocumentRepository, s3_storage: S3Storage = None):
+    def __init__(self, repository: DocumentRepository, cache_repo: CacheRepository, s3_storage: S3Storage = None):
         self.repository = repository
+        self.cache_repo = cache_repo
         self.s3_storage = s3_storage or S3Storage()
 
     def generate_upload_url(self, user_id: UUID, filename: str, content_type: str, course_offering_id: UUID) -> PresignedUrlResponse:
@@ -58,6 +61,10 @@ class DocumentService:
         # Trigger the asynchronous Celery pipeline
         process_document_task.delay(str(doc.id))
         
+        self.cache_repo.delete("documents:all:v1")
+        if doc.course_offering_id:
+            self.cache_repo.delete(f"documents:offering:{doc.course_offering_id}:v1")
+            
         return doc
 
     def get_document(self, document_id: UUID) -> Document:
@@ -66,8 +73,16 @@ class DocumentService:
             raise HTTPException(status_code=404, detail="Document not found")
         return doc
 
-    def get_all_documents(self) -> list[Document]:
-        return self.repository.get_all_documents()
+    def get_all_documents(self):
+        cache_key = "documents:all:v1"
+        cached = self.cache_repo.get(cache_key)
+        if cached is not None:
+            return cached
+            
+        docs = self.repository.get_all_documents()
+        serialized = [DocumentRead.model_validate(d).model_dump(mode="json") for d in docs]
+        self.cache_repo.set(cache_key, serialized, ttl=3600)
+        return docs
 
     def delete_document(self, document_id: UUID):
         doc = self.repository.get_document(document_id)
@@ -88,18 +103,36 @@ class DocumentService:
         # Dispatch Celery Task
         cleanup_document_task.delay(str(document_id), str(job.id))
         
+        self.cache_repo.delete("documents:all:v1")
+        if doc.course_offering_id:
+            self.cache_repo.delete(f"documents:offering:{doc.course_offering_id}:v1")
+            
         return doc
 
-    def get_documents_for_offering(self, offering_id: UUID) -> list[Document]:
-        return self.repository.get_documents_by_offering(offering_id)
+    def get_documents_for_offering(self, offering_id: UUID):
+        cache_key = f"documents:offering:{offering_id}:v1"
+        cached = self.cache_repo.get(cache_key)
+        if cached is not None:
+            return cached
+            
+        docs = self.repository.get_documents_by_offering(offering_id)
+        serialized = [DocumentRead.model_validate(d).model_dump(mode="json") for d in docs]
+        self.cache_repo.set(cache_key, serialized, ttl=3600)
+        return docs
 
     def update_document(self, document_id: UUID, doc_update: DocumentUpdate) -> Document:
         doc = self.get_document(document_id)
-        return self.repository.update_document(doc, doc_update)
+        updated_doc = self.repository.update_document(doc, doc_update)
+        self.cache_repo.delete("documents:all:v1")
+        if updated_doc.course_offering_id:
+            self.cache_repo.delete(f"documents:offering:{updated_doc.course_offering_id}:v1")
+        return updated_doc
 
     def mark_processing_complete(self, document_id: UUID, qdrant_id: str) -> Document:
         doc = self.repository.update_status(document_id, ProcessingStatus.COMPLETED, qdrant_id)
         if not doc:
             raise HTTPException(status_code=404, detail="Document not found")
-        return doc
+        self.cache_repo.delete("documents:all:v1")
+        if doc.course_offering_id:
+            self.cache_repo.delete(f"documents:offering:{doc.course_offering_id}:v1")
         return doc

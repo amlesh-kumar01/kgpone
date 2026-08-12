@@ -7,13 +7,17 @@ from src.infrastructure.qdrant import get_qdrant_client
 from src.infrastructure.neo4j import get_neo4j_driver
 
 # Import all models so they register with Base.metadata
-from src.models import user_model, academic_model, document_model, system_model
+from src.models import user_model, academic_model, document_model, system_model, knowledge_model, chat_model, analysis_job_model, ingestion_job_model
 
 def reset_postgres():
     print("Resetting PostgreSQL database...")
-    # Drop all tables and recreate
+    # Drop all tables
     Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    # Also drop alembic_version
+    with engine.connect() as conn:
+        from sqlalchemy import text
+        conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE;"))
+        conn.commit()
     print("PostgreSQL reset complete.")
 
 def reset_qdrant():
@@ -71,12 +75,8 @@ def reset_s3():
         print(f"Failed to reset S3: {e}")
 
 if __name__ == "__main__":
-    confirm = input("WARNING: This will delete ALL data in Postgres, Neo4j, Qdrant, and S3. Are you sure? (y/N): ")
-    if confirm.lower() == 'y':
-        reset_postgres()
-        reset_qdrant()
-        reset_neo4j()
-        reset_s3()
-        print("Full reset completed successfully! You can now run seed.py.")
-    else:
-        print("Aborted.")
+    reset_postgres()
+    reset_qdrant()
+    reset_neo4j()
+    reset_s3()
+    print("Full reset completed successfully! You can now run seed.py.")
