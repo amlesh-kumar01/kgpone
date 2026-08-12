@@ -7,7 +7,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from src.repositories.qdrant.vector_repository import QdrantRepository
+from src.services.retrieval.unified_retriever import UnifiedRetriever
 from src.schemas.query_schema import QueryRequest
 
 logger = logging.getLogger("map_reduce_service")
@@ -29,9 +29,9 @@ If the extracted information contains "NO_RELEVANT_INFO" and nothing else, polit
 """
 
 class MapReduceService:
-    def __init__(self, llm: BaseChatModel, vector_repo: QdrantRepository):
+    def __init__(self, llm: BaseChatModel, retriever: UnifiedRetriever):
         self.llm = llm
-        self.vector_repo = vector_repo
+        self.retriever = retriever
         # Cap concurrent map requests to avoid hitting rate limits (e.g. Gemini 15 RPM)
         self.semaphore = asyncio.Semaphore(3)
 
@@ -73,8 +73,7 @@ class MapReduceService:
         logger.info(f"[MapReduce] Starting Deep Research for doc={document_id}")
         
         # 1. Fetch all chunks for the document
-        chunks = await self.vector_repo.get_chunks_by_document_id(
-            collection_name="kgpone_vectors", 
+        chunks = await self.retriever.get_document_chunks(
             document_id=document_id
         )
         

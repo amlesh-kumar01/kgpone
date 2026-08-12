@@ -11,6 +11,7 @@ class NLPModelFactory:
     """
     _gliner_model = None
     _spacy_model = None
+    _docling_model = None
 
     @classmethod
     def get_gliner(cls) -> Any:
@@ -42,6 +43,18 @@ class NLPModelFactory:
         return cls._spacy_model
 
     @classmethod
+    def get_docling(cls) -> Any:
+        if cls._docling_model is None:
+            logger.info("Initializing Docling DocumentConverter")
+            try:
+                from docling.document_converter import DocumentConverter
+                cls._docling_model = DocumentConverter()
+            except ImportError:
+                logger.error("docling package not installed. Cannot load model.")
+                raise
+        return cls._docling_model
+
+    @classmethod
     def unload_gliner(cls):
         """Releases GLiNER model to free VRAM."""
         if cls._gliner_model is not None:
@@ -53,3 +66,16 @@ class NLPModelFactory:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             logger.info("Unloaded GLiNER model from memory.")
+
+    @classmethod
+    def unload_docling(cls):
+        """Releases Docling models to free memory."""
+        if cls._docling_model is not None:
+            import gc
+            import torch
+            del cls._docling_model
+            cls._docling_model = None
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            logger.info("Unloaded Docling model from memory.")

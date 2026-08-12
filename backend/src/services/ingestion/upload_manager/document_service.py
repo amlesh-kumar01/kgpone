@@ -24,14 +24,20 @@ class DocumentService:
         course_code = offering.course.code
         offering_str = f"{offering.year}_{offering.semester.value}"
         
-        unique_file_key = f"documents/{dept_code}/{course_code}/{offering_str}/{uuid.uuid4()}_{filename}"
+        doc_id = uuid.uuid4()
+        s3_prefix = f"documents/{dept_code}/{course_code}/{offering_str}/{doc_id}"
+        original_s3_key = f"{s3_prefix}/original/{filename}"
+        
         presigned_data = self.s3_storage.generate_presigned_url(
-            file_key=unique_file_key,
+            file_key=original_s3_key,
             content_type=content_type
         )
         return PresignedUrlResponse(
             upload_url=presigned_data["url"],
-            file_key=presigned_data["file_key"]
+            file_key=original_s3_key, # legacy support if needed
+            document_id=doc_id,
+            s3_prefix=s3_prefix,
+            original_s3_key=original_s3_key
         )
 
     def generate_download_url(self, document_id: UUID) -> str:

@@ -120,6 +120,12 @@ class QdrantRepository(IVectorRepo):
             self.client.create_payload_index(collection_name, "document_type", field_schema=PayloadSchemaType.KEYWORD)
             self.client.create_payload_index(collection_name, "semester", field_schema=PayloadSchemaType.KEYWORD)
             self.client.create_payload_index(collection_name, "year", field_schema=PayloadSchemaType.INTEGER)
+            
+            # Phase 5 AST chunks metadata
+            self.client.create_payload_index(collection_name, "section_id", field_schema=PayloadSchemaType.KEYWORD)
+            self.client.create_payload_index(collection_name, "heading_path", field_schema=PayloadSchemaType.TEXT)
+            self.client.create_payload_index(collection_name, "concept_ids", field_schema=PayloadSchemaType.KEYWORD)
+            self.client.create_payload_index(collection_name, "formula_ids", field_schema=PayloadSchemaType.KEYWORD)
 
     async def upsert(self, collection_name: str, vectors: list[list[float]], metadata: list[dict]):
         if len(vectors) != len(metadata):

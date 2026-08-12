@@ -25,9 +25,12 @@ class DocumentBase(BaseModel):
     format: DocFormat
 
 class DocumentCreate(DocumentBase):
+    id: UUID | None = None
     course_offering_id: UUID
     uploader_id: UUID | None = None
     s3_key: str
+    s3_prefix: str | None = None
+    original_s3_key: str | None = None
     file_size_bytes: int | None = None
     metadata_entries: list[DocumentMetadataCreate] = []
 
@@ -36,6 +39,8 @@ class DocumentRead(DocumentBase):
     course_offering_id: UUID
     uploader_id: UUID | None
     s3_key: str
+    s3_prefix: str | None = None
+    original_s3_key: str | None = None
     file_size_bytes: int | None
     status: ProcessingStatus
     qdrant_collection_id: str | None
@@ -61,3 +66,6 @@ class PresignedUrlRequest(BaseModel):
 class PresignedUrlResponse(BaseModel):
     upload_url: str
     file_key: str
+    document_id: UUID
+    s3_prefix: str
+    original_s3_key: str

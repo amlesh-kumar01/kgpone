@@ -1,4 +1,6 @@
 import logging
+import json
+from botocore.exceptions import ClientError
 from src.utils.interfaces import IS3Storage
 from src.infrastructure.s3 import get_s3_client
 from src.config.settings import Settings
@@ -109,3 +111,39 @@ class S3Storage(IS3Storage):
         logger.info(f"Deleted {deleted_count} objects under prefix '{prefix}'")
         return deleted_count
 
+    def upload_json(self, key: str, data: dict) -> str:
+        """Uploads a dictionary as a JSON file to S3 and returns the key."""
+        json_str = json.dumps(data)
+        self.upload_text(key, json_str, content_type="application/json")
+        return key
+
+    def upload_text(self, key: str, text: str, content_type: str = "text/plain") -> str:
+        """Uploads a text string to S3 and returns the key."""
+        self.upload(key, text.encode('utf-8'), content_type=content_type)
+        return key
+
+    def download_json(self, key: str) -> dict:
+        """Downloads a JSON file from S3 and parses it."""
+        client = get_s3_client()
+        if client is None:
+            raise RuntimeError("S3 client is not initialized.")
+        try:
+            response = client.get_object(Bucket=self.bucket_name, Key=key)
+            content = response['Body'].read().decode('utf-8')
+            return json.loads(content)
+        except Exception as e:
+            logger.error(f"Failed to download JSON from S3 key '{key}': {e}")
+            raise e
+
+    def exists(self, key: str) -> bool:
+        """Checks if an object exists in S3 using head_object."""
+        client = get_s3_client()
+        if client is None:
+            raise RuntimeError("S3 client is not initialized.")
+        try:
+            client.head_object(Bucket=self.bucket_name, Key=key)
+            return True
+        except ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                return False
+            raise e

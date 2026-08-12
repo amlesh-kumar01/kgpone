@@ -2,7 +2,8 @@ import logging
 import warnings
 
 warnings.filterwarnings("ignore", message="The `resume_download` argument is deprecated")
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
+from src.services.ingestion.canonical.ast_schema import ASTNode
 from src.services.ingestion.extraction.base import BaseEntityExtractor
 from src.infrastructure.model_factory import NLPModelFactory
 
@@ -15,9 +16,9 @@ class GLiNERExtractor(BaseEntityExtractor):
             "Author", "Tool", "Task", "Methodology"
         ]
         
-    async def extract(self, chunks: List[str], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def extract(self, nodes_or_chunks: Union[List[str], List[ASTNode]], context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Extracts entities from text chunks using GLiNER deterministically.
+        Extracts entities from text chunks or AST nodes using GLiNER deterministically.
         """
         try:
             model = NLPModelFactory.get_gliner()
@@ -27,19 +28,25 @@ class GLiNERExtractor(BaseEntityExtractor):
 
         extracted_entities = []
         
-        # We can process in batches or individually.
-        for chunk in chunks:
-            # GLiNER predict_entities
+        for item in nodes_or_chunks:
+            is_node = isinstance(item, ASTNode)
+            text = item.text_content if is_node else item
+            
+            if not text or not text.strip():
+                continue
+                
             try:
-                entities = model.predict_entities(chunk, self.labels)
+                entities = model.predict_entities(text, self.labels)
                 for ent in entities:
                     extracted_entities.append({
                         "text": ent["text"],
                         "label": ent["label"],
-                        "score": ent.get("score", 1.0)
+                        "score": ent.get("score", 1.0),
+                        "source_node_id": item.id if is_node else None,
+                        "source_page": item.source.page_start if is_node and item.source else None
                     })
             except Exception as e:
-                logger.error(f"Error during GLiNER extraction on chunk: {e}")
+                logger.error(f"Error during GLiNER extraction on item: {e}")
                 
         # Deduplicate naive implementation (EntityResolver will handle proper resolution)
         seen = set()

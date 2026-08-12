@@ -447,3 +447,59 @@ class LlamaParserImpl(BaseParser):
 
         dom.nodes = nodes
         return dom
+
+    # ------------------------------------------------------------------
+    # Adapter for Phase 2 Canonical AST
+    # ------------------------------------------------------------------
+    
+    def to_canonical(self, dom: DocumentDOM) -> "CanonicalDocument":
+        from src.services.ingestion.canonical.ast_schema import (
+            CanonicalDocument, ASTNode, NodeType, NodeSource, ParserProvenance
+        )
+        from datetime import datetime
+        
+        nodes: List[ASTNode] = []
+        
+        for dom_node in dom.nodes:
+            # Map node type
+            node_type = NodeType.PARAGRAPH
+            if dom_node.node_type == "heading":
+                node_type = NodeType.SECTION
+            elif dom_node.node_type == "table":
+                node_type = NodeType.TABLE
+            elif dom_node.node_type == "figure":
+                node_type = NodeType.FIGURE
+            elif dom_node.node_type == "equation":
+                node_type = NodeType.EQUATION
+                
+            source = NodeSource(
+                document_id=self.document_id or dom.document_id,
+                page_start=dom_node.page_number,
+                page_end=dom_node.page_number,
+                parser="llamaparse" if not self.use_fallback else "pypdf",
+                parser_version="1.0"
+            )
+            
+            ast_node = ASTNode(
+                id=dom_node.node_id,
+                type=node_type,
+                text_content=dom_node.text_content,
+                source=source,
+                latex=dom_node.raw_latex if dom_node.node_type == "equation" else None,
+                equation_label=dom_node.equation_label if dom_node.node_type == "equation" else None,
+                image_s3_key=dom_node.metadata.image_s3_key if dom_node.metadata else None
+            )
+            nodes.append(ast_node)
+            
+        prov = ParserProvenance(
+            parser_used="llamaparse" if not self.use_fallback else "pypdf",
+            parser_version="1.0",
+            quality_score=0.0,
+            processing_timestamp=datetime.utcnow()
+        )
+        
+        return CanonicalDocument(
+            document_id=self.document_id or dom.document_id,
+            nodes=nodes,
+            provenance=prov
+        )

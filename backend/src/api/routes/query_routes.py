@@ -340,7 +340,9 @@ async def ask_question_stream(
                 byok_api_key=req.byok_api_key,
                 byok_model=req.byok_model,
             )
-            mr_service = MapReduceService(llm=generator_llm, vector_repo=services["qdrant_repo"])
+            from src.services.retrieval.unified_retriever import UnifiedRetriever
+            unified_retriever = UnifiedRetriever()
+            mr_service = MapReduceService(llm=generator_llm, retriever=unified_retriever)
             
             full_response = ""
             async for payload in mr_service.execute_stream(query, doc_id, req):

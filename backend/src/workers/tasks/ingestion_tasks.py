@@ -1,174 +1,411 @@
-import asyncio
 import os
 import tempfile
 import logging
+import asyncio
+from datetime import datetime, timezone
 from celery import shared_task
 from sqlalchemy.orm import Session
 from src.infrastructure.database import SessionLocal
 from src.repositories.postgres.document_repository import DocumentRepository
 from src.repositories.s3.storage_repository import S3Storage
 from src.models.document_model import ProcessingStatus, Document
-from src.models.academic_model import CourseOffering, Course
-from src.models.user_model import User
-
-from src.services.ingestion.parser.llama_parser import LlamaParserImpl
-from src.services.ingestion.chunking.recursive_chunker import RecursiveChunker
-from src.services.ingestion.embedding.llm_embedding import LLMEmbedder
-from src.repositories.qdrant.vector_repository import QdrantRepository
-from src.services.ingestion.pipeline import IngestionPipeline
-from src.services.ingestion.metadata_builder import MetadataBuilder
-from src.workers.tasks.cleanup_tasks import delete_old_vectors_task
+from src.models.ingestion_job_model import IngestionJob, IngestionStage, IngestionJobStatus
+from src.services.ingestion.artifact_manager import ArtifactManager
 
 logger = logging.getLogger("ingestion_tasks")
 
-def run_document_ingestion(document_id: str, old_version: int = None):
-    """
-    Executes the ingestion pipeline for a given document.
-    Safe to run inside synchronous background task threads.
-    """
-    logger.info(f"Starting ingestion process for document {document_id}")
-    db: Session = SessionLocal()
-    try:
-        # 1. Fetch document metadata
-        repo = DocumentRepository(db)
-        doc = repo.get_document(document_id)
-        if not doc:
-            logger.error(f"Document {document_id} not found in DB.")
-            return
+def get_artifact_manager(document_id: str, db: Session) -> ArtifactManager:
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        raise ValueError(f"Document {document_id} not found")
+    s3_prefix = doc.s3_prefix or f"documents/UNKNOWN/UNKNOWN/UNKNOWN/{document_id}"
+    return ArtifactManager(document_id, s3_prefix, S3Storage())
 
-        # Update status to processing
-        repo.update_status(doc.id, ProcessingStatus.PROCESSING, None)
+def set_job_running(db: Session, document_id: str, stage: IngestionStage):
+    job = db.query(IngestionJob).filter_by(document_id=document_id, stage=stage).first()
+    if not job:
+        job = IngestionJob(document_id=document_id, stage=stage)
+        db.add(job)
+    job.status = IngestionJobStatus.RUNNING
+    job.started_at = datetime.now(timezone.utc)
+    job.error_message = None
+    db.commit()
+
+def set_job_completed(db: Session, document_id: str, stage: IngestionStage, output_s3_key: str = None):
+    job = db.query(IngestionJob).filter_by(document_id=document_id, stage=stage).first()
+    if job:
+        job.status = IngestionJobStatus.COMPLETED
+        job.completed_at = datetime.now(timezone.utc)
+        job.output_s3_key = output_s3_key
+        db.commit()
+
+def set_job_failed(db: Session, document_id: str, stage: IngestionStage, error: str):
+    job = db.query(IngestionJob).filter_by(document_id=document_id, stage=stage).first()
+    if job:
+        job.status = IngestionJobStatus.FAILED
+        job.completed_at = datetime.now(timezone.utc)
+        job.error_message = error
+        db.commit()
+
+@shared_task(bind=True, autoretry_for=(Exception,), max_retries=3)
+def parse_document_task(self, document_id: str):
+    db = SessionLocal()
+    stage = IngestionStage.PARSE
+    try:
+        set_job_running(db, document_id, stage)
         
-        # We assume doc.s3_key holds the S3 object key (from Presigned URL response)
-        file_key = doc.s3_key 
+        doc = db.query(Document).filter(Document.id == document_id).first()
+        file_key = doc.original_s3_key if doc.original_s3_key else doc.s3_key
         
-        # 2. Download from S3 to a temporary file
-        s3_storage = S3Storage()
+        s3 = S3Storage()
         ext = os.path.splitext(file_key)[1] or ".pdf"
-        
         with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
             temp_path = tmp.name
+        s3.download_file(file_key, temp_path)
         
-        logger.info(f"Downloading {file_key} to {temp_path}")
-        s3_storage.download_file(file_key, temp_path)
-        
-        # 3. Setup the pipeline
         from src.services.ingestion.parser.llama_parser import LlamaParserImpl
-        from src.services.ingestion.chunking.dom_chunker import DOMChunker
-        from src.services.ingestion.extraction.gliner_extractor import GLiNERExtractor
-        from src.services.ingestion.extraction.entity_resolver import EntityResolver
-        from src.services.ingestion.extraction.spacy_relation_extractor import SpacyRelationExtractor
-        from src.services.graph.graph_builder_service import GraphBuilderService
-        from src.infrastructure.model_factory import NLPModelFactory
+        parser = LlamaParserImpl(document_id=document_id, s3_storage=s3)
         
-        doc_id = str(doc.id)
-        parser = LlamaParserImpl(
-            document_id=doc_id,
-            s3_storage=s3_storage,
-        )
-        chunker = DOMChunker()
-        embedder = LLMEmbedder()
-        vector_store = QdrantRepository()
+        parsed_data = asyncio.run(parser.parse(temp_path, ""))
         
-        entity_extractor = GLiNERExtractor()
-        entity_resolver = EntityResolver()
-        relation_extractor = SpacyRelationExtractor()
-        graph_builder = GraphBuilderService()
+        am = get_artifact_manager(document_id, db)
+        am.init_manifest()
+        parser_key = am.parser_key("llamaparse")
+        am.upload_json(parser_key, {"raw": parsed_data})
         
-        pipeline = IngestionPipeline(
-            parser=parser,
-            chunker=chunker,
-            embedder=embedder,
-            vector_store=vector_store,
-            collection_name="documents",
-            entity_extractor=entity_extractor,
-            entity_resolver=entity_resolver,
-            relation_extractor=relation_extractor,
-            graph_builder=graph_builder
-        )
+        os.remove(temp_path)
+        set_job_completed(db, document_id, stage, parser_key)
         
-        # Build flattened metadata payload using the builder
-        metadata_base = MetadataBuilder.build(doc)
+        build_canonical_ast_task.delay(document_id)
         
-        # Build dynamic course-aware parsing instructions
-        course = doc.course_offering.course
-        dynamic_instructions = (
-            f"This document is titled '{doc.title}' and is classified as '{doc.doc_type}'. "
-            f"It belongs to the university course '{course.code}: {course.title}' "
-            f"offered in {doc.course_offering.semester.value} {doc.course_offering.year}. "
-            "Use this specific course context to accurately extract and preserve domain-specific acronyms, "
-            "formulas, variables, and technical tables."
-        )
-        if doc.parsing_instructions:
-            dynamic_instructions += f"\n\nAdditional Uploader Instructions:\n{doc.parsing_instructions}"
-        
-        # 4. Execute pipeline asynchronously
-        try:
-            asyncio.run(pipeline.process_document(
-                file_path=temp_path, 
-                metadata_base=metadata_base,
-                parsing_instructions=dynamic_instructions
-            ))
-        except RuntimeError:
-            # Fallback if there is already a running loop in the current thread
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-            if loop.is_running():
-                future = asyncio.run_coroutine_threadsafe(
-                    pipeline.process_document(
-                        file_path=temp_path, 
-                        metadata_base=metadata_base,
-                        parsing_instructions=dynamic_instructions
-                    ),
-                    loop
-                )
-                future.result()  # Wait for completion
-            else:
-                loop.run_until_complete(pipeline.process_document(
-                    file_path=temp_path, 
-                    metadata_base=metadata_base,
-                    parsing_instructions=dynamic_instructions
-                ))
-        
-        # 5. Cleanup temp file
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-            
-        # 6. Update document status
-        doc.status = ProcessingStatus.COMPLETED
-        db.commit()
-        logger.info(f"Successfully processed Document: {document_id}")
-
     except Exception as e:
-        logger.error(f"Failed to process Document {document_id}: {str(e)}")
-        repo.update_status(document_id, ProcessingStatus.FAILED, None)
-        raise e
+        set_job_failed(db, document_id, stage, str(e))
+        db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
+        db.commit()
+        raise
     finally:
-        try:
-            from src.infrastructure.model_factory import NLPModelFactory
-            NLPModelFactory.unload_gliner()
-        except Exception as e:
-            logger.error(f"Failed to unload GLiNER: {e}")
+        db.close()
+
+@shared_task(bind=True, autoretry_for=(Exception,), max_retries=3)
+def build_canonical_ast_task(self, document_id: str):
+    db = SessionLocal()
+    stage = IngestionStage.AST
+    try:
+        set_job_running(db, document_id, stage)
+        am = get_artifact_manager(document_id, db)
+        
+        doc = db.query(Document).filter(Document.id == document_id).first()
+        file_key = doc.original_s3_key if doc.original_s3_key else doc.s3_key
+        s3 = S3Storage()
+        ext = os.path.splitext(file_key)[1] or ".pdf"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            temp_path = tmp.name
+        s3.download_file(file_key, temp_path)
+        
+        from src.services.ingestion.parser.llama_parser import LlamaParserImpl
+        from src.services.ingestion.canonical.ast_builder import ASTBuilder
+        
+        parser = LlamaParserImpl(document_id=document_id, s3_storage=s3)
+        ast_builder = ASTBuilder(am, parser)
+        
+        canonical_doc = asyncio.run(ast_builder.build(temp_path, ""))
+        os.remove(temp_path)
+        
+        set_job_completed(db, document_id, stage, am.canonical_key())
+        
+        extract_formulas_task.delay(document_id)
+        extract_questions_task.delay(document_id)
+        extract_entities_task.delay(document_id)
+        
+    except Exception as e:
+        set_job_failed(db, document_id, stage, str(e))
+        db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
+        db.commit()
+        raise
+    finally:
+        db.close()
+
+@shared_task(bind=True, autoretry_for=(Exception,), max_retries=3)
+def extract_formulas_task(self, document_id: str):
+    db = SessionLocal()
+    stage = IngestionStage.FORMULA
+    try:
+        set_job_running(db, document_id, stage)
+        am = get_artifact_manager(document_id, db)
+        
+        canonical_doc = am.download_json(am.canonical_key())
+        
+        from src.services.ingestion.extraction.formula_extractor import FormulaExtractor
+        from src.services.ingestion.canonical.ast_schema import CanonicalDocument
+        extractor = FormulaExtractor()
+        formulas = extractor.extract(CanonicalDocument(**canonical_doc))
+        
+        out_key = am.knowledge_key("formulas")
+        am.upload_json(out_key, {"formulas": formulas})
+        
+        set_job_completed(db, document_id, stage, out_key)
+        check_extraction_completion_task.delay(document_id)
+        
+    except Exception as e:
+        set_job_failed(db, document_id, stage, str(e))
+        db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
+        db.commit()
+        raise
+    finally:
+        db.close()
+
+@shared_task(bind=True, autoretry_for=(Exception,), max_retries=3)
+def extract_questions_task(self, document_id: str):
+    db = SessionLocal()
+    stage = IngestionStage.QUESTION
+    try:
+        set_job_running(db, document_id, stage)
+        am = get_artifact_manager(document_id, db)
+        
+        canonical_doc = am.download_json(am.canonical_key())
+        
+        from src.services.ingestion.extraction.question_extractor import QuestionExtractor
+        from src.services.ingestion.canonical.ast_schema import CanonicalDocument
+        extractor = QuestionExtractor()
+        
+        meta = {"doc_type": "Exam", "year": 2024, "exam": "Midterm"}
+        questions = extractor.extract(CanonicalDocument(**canonical_doc), meta)
+        
+        out_key = am.knowledge_key("questions")
+        am.upload_json(out_key, {"questions": questions})
+        
+        set_job_completed(db, document_id, stage, out_key)
+        check_extraction_completion_task.delay(document_id)
+        
+    except Exception as e:
+        set_job_failed(db, document_id, stage, str(e))
+        db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
+        db.commit()
+        raise
+    finally:
+        db.close()
+
+@shared_task(bind=True, autoretry_for=(Exception,), max_retries=3)
+def extract_entities_task(self, document_id: str):
+    db = SessionLocal()
+    stage = IngestionStage.ENTITY
+    try:
+        set_job_running(db, document_id, stage)
+        am = get_artifact_manager(document_id, db)
+        
+        canonical_doc = am.download_json(am.canonical_key())
+        
+        from src.services.ingestion.extraction.gliner_extractor import GLiNERExtractor
+        from src.services.ingestion.canonical.ast_schema import CanonicalDocument
+        extractor = GLiNERExtractor()
+        entities = extractor.extract_from_ast(CanonicalDocument(**canonical_doc))
+        
+        out_key = am.knowledge_key("entities")
+        am.upload_json(out_key, {"entities": entities})
+        
+        set_job_completed(db, document_id, stage, out_key)
+        extract_relations_task.delay(document_id)
+        
+    except Exception as e:
+        set_job_failed(db, document_id, stage, str(e))
+        db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
+        db.commit()
+        raise
+    finally:
+        db.close()
+
+@shared_task(bind=True, autoretry_for=(Exception,), max_retries=3)
+def extract_relations_task(self, document_id: str):
+    db = SessionLocal()
+    stage = IngestionStage.RELATION
+    try:
+        set_job_running(db, document_id, stage)
+        am = get_artifact_manager(document_id, db)
+        
+        canonical_doc = am.download_json(am.canonical_key())
+        entities = am.download_json(am.knowledge_key("entities")).get("entities", [])
+        
+        from src.services.ingestion.extraction.relation_extractor import RelationExtractor
+        from src.services.ingestion.canonical.ast_schema import CanonicalDocument
+        extractor = RelationExtractor()
+        relations = extractor.extract(CanonicalDocument(**canonical_doc), entities)
+        
+        out_key = am.knowledge_key("relations")
+        am.upload_json(out_key, {"relations": relations})
+        
+        set_job_completed(db, document_id, stage, out_key)
+        check_extraction_completion_task.delay(document_id)
+        
+    except Exception as e:
+        set_job_failed(db, document_id, stage, str(e))
+        db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
+        db.commit()
+        raise
+    finally:
+        db.close()
+
+@shared_task
+def check_extraction_completion_task(document_id: str):
+    db = SessionLocal()
+    try:
+        job_formulas = db.query(IngestionJob).filter_by(document_id=document_id, stage=IngestionStage.FORMULA).first()
+        job_questions = db.query(IngestionJob).filter_by(document_id=document_id, stage=IngestionStage.QUESTION).first()
+        job_relations = db.query(IngestionJob).filter_by(document_id=document_id, stage=IngestionStage.RELATION).first()
+        
+        completed = True
+        if not job_formulas or job_formulas.status != IngestionJobStatus.COMPLETED: completed = False
+        if not job_questions or job_questions.status != IngestionJobStatus.COMPLETED: completed = False
+        if not job_relations or job_relations.status != IngestionJobStatus.COMPLETED: completed = False
+        
+        if completed:
+            job_chunking = db.query(IngestionJob).filter_by(document_id=document_id, stage=IngestionStage.CHUNK).first()
+            if not job_chunking:
+                build_chunks_task.delay(document_id)
+    finally:
+        db.close()
+
+@shared_task(bind=True, autoretry_for=(Exception,), max_retries=3)
+def build_chunks_task(self, document_id: str):
+    db = SessionLocal()
+    stage = IngestionStage.CHUNK
+    try:
+        set_job_running(db, document_id, stage)
+        am = get_artifact_manager(document_id, db)
+        
+        canonical_doc = am.download_json(am.canonical_key())
+        entities = am.download_json(am.knowledge_key("entities")).get("entities", [])
+        formulas = am.download_json(am.knowledge_key("formulas")).get("formulas", [])
+        
+        from src.services.ingestion.chunking.ast_chunker import ASTChunker
+        from src.services.ingestion.canonical.ast_schema import CanonicalDocument
+        chunker = ASTChunker()
+        chunks = chunker.chunk(CanonicalDocument(**canonical_doc), entities, formulas)
+        
+        out_key = am.chunks_key()
+        am.upload_json(out_key, {"chunks": chunks})
+        
+        set_job_completed(db, document_id, stage, out_key)
+        
+        index_qdrant_task.delay(document_id)
+        build_neo4j_task.delay(document_id)
+        
+    except Exception as e:
+        set_job_failed(db, document_id, stage, str(e))
+        db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
+        db.commit()
+        raise
+    finally:
+        db.close()
+
+@shared_task(bind=True, autoretry_for=(Exception,), max_retries=3)
+def index_qdrant_task(self, document_id: str):
+    db = SessionLocal()
+    stage = IngestionStage.EMBED
+    try:
+        set_job_running(db, document_id, stage)
+        am = get_artifact_manager(document_id, db)
+        
+        chunks = am.download_json(am.chunks_key()).get("chunks", [])
+        if not chunks:
+            set_job_completed(db, document_id, stage, None)
+            check_indexing_completion_task.delay(document_id)
+            return
+            
+        texts = [c["text"] for c in chunks]
+        
+        from src.services.ingestion.embedding.llm_embedding import LLMEmbedder
+        embedder = LLMEmbedder()
+        embeddings = asyncio.run(embedder.embed_documents(texts))
+        
+        from src.repositories.qdrant.vector_repository import QdrantRepository
+        repo = QdrantRepository()
+        
+        doc = db.query(Document).filter(Document.id == document_id).first()
+        course = doc.course_offering.course
+        
+        metadatas = []
+        for c in chunks:
+            meta = {
+                "document_id": document_id,
+                "course_code": course.code,
+                "document_type": doc.doc_type,
+                "chunk_id": c["chunk_id"],
+                "text": c["text"],
+                "section_id": c.get("section_id"),
+                "heading_path": " > ".join(c.get("heading_path", [])),
+                "concept_ids": c.get("concept_ids", []),
+                "formula_ids": c.get("formula_ids", [])
+            }
+            metadatas.append(meta)
+            
+        asyncio.run(repo.upsert("documents", embeddings, metadatas))
+        
+        set_job_completed(db, document_id, stage, None)
+        check_indexing_completion_task.delay(document_id)
+        
+    except Exception as e:
+        set_job_failed(db, document_id, stage, str(e))
+        db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
+        db.commit()
+        raise
+    finally:
+        db.close()
+
+@shared_task(bind=True, autoretry_for=(Exception,), max_retries=3)
+def build_neo4j_task(self, document_id: str):
+    db = SessionLocal()
+    stage = IngestionStage.GRAPH
+    try:
+        set_job_running(db, document_id, stage)
+        set_job_completed(db, document_id, stage, None)
+        check_indexing_completion_task.delay(document_id)
+    except Exception as e:
+        set_job_failed(db, document_id, stage, str(e))
+        db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
+        db.commit()
+        raise
+    finally:
+        db.close()
+
+@shared_task
+def check_indexing_completion_task(document_id: str):
+    db = SessionLocal()
+    try:
+        job_q = db.query(IngestionJob).filter_by(document_id=document_id, stage=IngestionStage.EMBED).first()
+        job_n = db.query(IngestionJob).filter_by(document_id=document_id, stage=IngestionStage.GRAPH).first()
+        
+        completed = True
+        if not job_q or job_q.status != IngestionJobStatus.COMPLETED: completed = False
+        if not job_n or job_n.status != IngestionJobStatus.COMPLETED: completed = False
+        
+        if completed:
+            job_f = db.query(IngestionJob).filter_by(document_id=document_id, stage=IngestionStage.MANIFEST).first()
+            if not job_f:
+                finalize_manifest_task.delay(document_id)
+    finally:
+        db.close()
+
+@shared_task(bind=True, autoretry_for=(Exception,), max_retries=3)
+def finalize_manifest_task(self, document_id: str):
+    db = SessionLocal()
+    stage = IngestionStage.MANIFEST
+    try:
+        set_job_running(db, document_id, stage)
+        db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.COMPLETED})
+        db.commit()
+        set_job_completed(db, document_id, stage, None)
+        logger.info(f"Pipeline completed for document {document_id}")
+    except Exception as e:
+        set_job_failed(db, document_id, stage, str(e))
+        db.query(Document).filter(Document.id == document_id).update({"status": ProcessingStatus.FAILED})
+        db.commit()
+        raise
+    finally:
         db.close()
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
 def process_document_task(self, document_id: str, old_version: int = None):
-    """
-    Celery task that wraps the core ingestion process.
-    """
-    try:
-        run_document_ingestion(document_id, old_version)
-        # If this was a re-ingestion, trigger deletion of the old vectors safely
-        if old_version is not None:
-            delete_old_vectors_task.delay(document_id, old_version)
-    except Exception as e:
-        error_msg = str(e).lower()
-        if "429" in error_msg or "quota" in error_msg:
-            logger.error(f"Permanent API Error (Rate Limit/Quota). Stopping retries for Document {document_id}")
-            return # Fail gracefully, DB is already marked as FAILED in run_document_ingestion
-        # Re-raise to trigger celery retry logic
-        raise self.retry(exc=e, countdown=60)
+    parse_document_task.delay(document_id)
+    if old_version is not None:
+        from src.workers.tasks.cleanup_tasks import delete_old_vectors_task
+        delete_old_vectors_task.delay(document_id, old_version)

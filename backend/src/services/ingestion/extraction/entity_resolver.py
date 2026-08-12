@@ -18,6 +18,8 @@ class EntityResolver:
             logger.error("rapidfuzz is not installed. Returning unresolved entities.")
             for ent in extracted_entities:
                 ent["canonical_name"] = ent["text"]
+                ent["surface_forms"] = [ent["text"]]
+                ent["source_node_ids"] = [ent.get("source_node_id")] if ent.get("source_node_id") else []
             return extracted_entities
 
         resolved_entities = []
@@ -32,6 +34,8 @@ class EntityResolver:
             
             if not canonical_map:
                 ent["canonical_name"] = norm_text
+                ent["surface_forms"] = {text}
+                ent["source_node_ids"] = {ent.get("source_node_id")} if ent.get("source_node_id") else set()
                 canonical_map[norm_text] = ent
                 continue
                 
@@ -43,18 +47,27 @@ class EntityResolver:
             
             if match_result and match_result[1] >= self.score_cutoff:
                 matched_name = match_result[0]
+                existing_ent = canonical_map[matched_name]
+                
                 # We found a match, so they are the same entity
-                ent["canonical_name"] = matched_name
+                existing_ent["surface_forms"].add(text)
+                if ent.get("source_node_id"):
+                    existing_ent["source_node_ids"].add(ent.get("source_node_id"))
                 
                 # Merge scores or keep highest
-                existing_ent = canonical_map[matched_name]
                 if ent.get("score", 0) > existing_ent.get("score", 0):
                     existing_ent["score"] = ent.get("score")
                     
             else:
                 # No match, it's a new canonical entity
                 ent["canonical_name"] = norm_text
+                ent["surface_forms"] = {text}
+                ent["source_node_ids"] = {ent.get("source_node_id")} if ent.get("source_node_id") else set()
                 canonical_map[norm_text] = ent
                 
-        # Return unique canonical entities
+        # Convert sets to lists
+        for ent in canonical_map.values():
+            ent["surface_forms"] = list(ent.get("surface_forms", []))
+            ent["source_node_ids"] = list(ent.get("source_node_ids", []))
+            
         return list(canonical_map.values())

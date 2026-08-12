@@ -45,36 +45,30 @@ async def vector_semantic_search(
 
     Returns a list of relevant text chunks with their source document info.
     """
-    from src.services.rag.retrievers.retrieval_service import RetrievalService
-    from src.services.ingestion.embedding.llm_embedding import LLMEmbedder
-    from src.repositories.qdrant.vector_repository import QdrantRepository
-    from src.schemas.query_schema import QueryPlan
+    from src.services.retrieval.unified_retriever import UnifiedRetriever
 
-    embedder = LLMEmbedder()
-    vector_repo = QdrantRepository()
-    retriever = RetrievalService(embedder=embedder, vector_store=vector_repo)
+    retriever = UnifiedRetriever()
+    
+    # We can pass course_code as a metadata filter
+    filters = {}
+    if course_code:
+        filters["course_code"] = course_code
+    if course_offering_id:
+        filters["course_offering_id"] = course_offering_id
 
-    plan = QueryPlan(
-        intent="semantic_search",
-        course_code=course_code,
-        course_offering_id=course_offering_id,
-        backends_needed=["qdrant"],
-    )
-
-    context = await retriever.retrieve_context(query, plan)
-    chunks = context.get("retrieved_chunks", [])[:top_k]
+    result = await retriever.retrieve(query=query, filters=filters, limit=top_k)
+    chunks = result.chunks
 
     results = []
     for chunk in chunks:
-        payload = chunk.get("payload", {})
         results.append({
-            "document_id": payload.get("document_id"),
-            "document_title": payload.get("document_title") or payload.get("title"),
-            "course_code": payload.get("course_code"),
-            "doc_type": payload.get("document_type"),
-            "page": payload.get("page_number"),
-            "text_snippet": payload.get("text", "")[:500],
-            "score": round(chunk.get("score", 0.0), 4),
+            "document_id": chunk.get("document_id"),
+            "document_title": chunk.get("document_title") or chunk.get("title"),
+            "course_code": chunk.get("course_code"),
+            "doc_type": chunk.get("document_type"),
+            "page": chunk.get("page_number"),
+            "text_snippet": chunk.get("text", "")[:500],
+            "score": round(chunk.get("score", 0.0), 4) if "score" in chunk else 0.0,
         })
 
     return results

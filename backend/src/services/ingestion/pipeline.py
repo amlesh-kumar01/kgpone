@@ -39,7 +39,12 @@ class IngestionPipeline:
         # 1. Parse (ToC-aware DOM Creation)
         logger.info("Parsing document into DOM...")
         document_dom = await self.parser.parse(file_path, parsing_instructions=parsing_instructions)
+        await self.process_dom(document_dom, metadata_base)
         
+    async def process_dom(self, document_dom: Any, metadata_base: dict):
+        """
+        Executes downstream pipeline from an already built DOM.
+        """
         # Merge base metadata into the DOM for inheritance
         document_dom.metadata.document_id = metadata_base.get("document_id")
         document_dom.metadata.course_offering_id = metadata_base.get("course_offering_id")

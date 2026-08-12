@@ -34,10 +34,12 @@ class Neo4jRepo:
             "CREATE CONSTRAINT course_code IF NOT EXISTS FOR (c:Course) REQUIRE c.code IS UNIQUE",
             "CREATE CONSTRAINT offering_id IF NOT EXISTS FOR (o:CourseOffering) REQUIRE o.offering_id IS UNIQUE",
             "CREATE CONSTRAINT doc_id IF NOT EXISTS FOR (d:Document) REQUIRE d.doc_id IS UNIQUE",
+            "CREATE CONSTRAINT section_id IF NOT EXISTS FOR (s:Section) REQUIRE s.section_id IS UNIQUE",
+            "CREATE CONSTRAINT formula_id IF NOT EXISTS FOR (f:Formula) REQUIRE f.formula_id IS UNIQUE",
+            "CREATE CONSTRAINT question_id IF NOT EXISTS FOR (q:Question) REQUIRE q.question_id IS UNIQUE",
             "CREATE INDEX topic_name IF NOT EXISTS FOR (t:Topic) ON (t.name)",
             "CREATE INDEX concept_name IF NOT EXISTS FOR (c:Concept) ON (c.name)",
             "CREATE INDEX algo_name IF NOT EXISTS FOR (a:Algorithm) ON (a.name)",
-            "CREATE INDEX formula_name IF NOT EXISTS FOR (f:Formula) ON (f.name)",
             "CREATE INDEX tech_name IF NOT EXISTS FOR (t:Technology) ON (t.name)"
         ]
         
@@ -114,8 +116,14 @@ class Neo4jRepo:
     def merge_algorithm(self, name: str, properties: dict):
         return self.merge_node("Algorithm", "name", name, properties)
 
-    def merge_formula(self, name: str, properties: dict):
-        return self.merge_node("Formula", "name", name, properties)
+    def merge_formula(self, formula_id: str, properties: dict):
+        return self.merge_node("Formula", "formula_id", formula_id, properties)
+
+    def merge_section(self, section_id: str, properties: dict):
+        return self.merge_node("Section", "section_id", section_id, properties)
+
+    def merge_question(self, question_id: str, properties: dict):
+        return self.merge_node("Question", "question_id", question_id, properties)
 
     def merge_technology(self, name: str, properties: dict):
         return self.merge_node("Technology", "name", name, properties)

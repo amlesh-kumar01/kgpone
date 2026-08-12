@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KnowledgeOS Inspector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-7xl mx-auto flex gap-8">
+        <!-- Sidebar: Document List -->
+        <div class="w-1/3 bg-white p-4 rounded-lg shadow h-screen overflow-y-auto">
+            <h2 class="text-xl font-bold mb-4">Documents</h2>
+            <div class="mb-4">
+                <input type="text" id="docIdInput" placeholder="Enter Document ID (UUID)" class="w-full p-2 border rounded text-sm mb-2">
+                <button onclick="loadDocument(document.getElementById('docIdInput').value)" class="w-full bg-blue-600 text-white p-2 rounded text-sm font-medium hover:bg-blue-700">Load Inspector</button>
+            </div>
+            <div id="authWarning" class="text-xs text-red-600 hidden">
+                Note: You must be authenticated to use this inspector. Make sure you are logged in or provide a token.
+            </div>
+        </div>
+
+        <!-- Main Content: Inspector -->
+        <div class="w-2/3 space-y-6 hidden" id="inspectorContent">
+            <!-- Header -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h1 class="text-2xl font-bold" id="docTitle">Document Inspector</h1>
+                <p class="text-sm text-gray-500 font-mono mt-1" id="docIdDisplay"></p>
+                <p class="text-sm text-gray-500 font-mono mt-1" id="s3PrefixDisplay"></p>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-3 gap-4">
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-bold text-gray-600 uppercase">Canonical AST</h3>
+                    <p class="text-2xl font-bold text-blue-600 mt-2" id="astNodeCount">0</p>
+                    <p class="text-xs text-gray-500">Nodes parsed</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-bold text-gray-600 uppercase">Knowledge Entities</h3>
+                    <p class="text-2xl font-bold text-green-600 mt-2" id="entityCount">0</p>
+                    <p class="text-xs text-gray-500">Entities extracted</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-bold text-gray-600 uppercase">Neo4j Graph</h3>
+                    <p class="text-2xl font-bold text-purple-600 mt-2" id="neo4jCount">0</p>
+                    <p class="text-xs text-gray-500">Nodes / Edges</p>
+                </div>
+            </div>
+
+            <!-- Artifacts -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h3 class="text-lg font-bold mb-4">S3 Artifacts</h3>
+                <div class="grid grid-cols-2 gap-4" id="artifactsList">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Stages -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h3 class="text-lg font-bold mb-4">Ingestion Stages</h3>
+                <div class="space-y-2 font-mono text-sm" id="stagesList">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://localhost:8000/api/v1";
+        let token = localStorage.getItem('kgpone_access_token');
+
+        async function fetchWithAuth(url) {
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            
+            const response = await fetch(url, { headers });
+            if (response.status === 401) {
+                document.getElementById('authWarning').classList.remove('hidden');
+                throw new Error("Unauthorized");
+            }
+            return response.json();
+        }
+
+        async function loadDocument(docId) {
+            if (!docId) return;
+            
+            try {
+                const res = await fetchWithAuth(`${API_BASE}/inspect/${docId}`);
+                if (res.status === 'success') {
+                    renderInspector(res.data);
+                } else {
+                    alert("Error: " + (res.message || "Failed to load document"));
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function renderInspector(data) {
+            document.getElementById('inspectorContent').classList.remove('hidden');
+            document.getElementById('docIdDisplay').textContent = "ID: " + data.document_id;
+            document.getElementById('s3PrefixDisplay').textContent = "S3: " + data.s3_prefix;
+
+            // Stats
+            document.getElementById('astNodeCount').textContent = data.canonical_summary?.node_count || 0;
+            const k = data.knowledge_summary || {};
+            document.getElementById('entityCount').textContent = `${k.entities || 0} / ${k.formulas || 0} / ${k.questions || 0}`;
+            
+            const n = data.neo4j_summary || {};
+            document.getElementById('neo4jCount').textContent = `${n.node_count || 0} / ${n.rel_count || 0}`;
+
+            // Artifacts
+            const artifactsHtml = (data.artifacts || []).map(a => `
+                <div class="p-3 border rounded ${a.exists ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}">
+                    <div class="font-medium text-sm ${a.exists ? 'text-green-800' : 'text-gray-500'}">
+                        ${a.exists ? '✅' : '❌'} ${a.name}
+                    </div>
+                    <div class="text-xs text-gray-400 mt-1 truncate" title="${a.s3_key}">${a.s3_key}</div>
+                </div>
+            `).join('');
+            document.getElementById('artifactsList').innerHTML = artifactsHtml;
+
+            // Stages
+            const stagesHtml = (data.stages || []).map(s => {
+                let color = 'text-gray-600';
+                if (s.status === 'COMPLETED') color = 'text-green-600';
+                if (s.status === 'FAILED') color = 'text-red-600';
+                if (s.status === 'RUNNING') color = 'text-blue-600';
+                
+                return `
+                    <div class="flex justify-between items-center border-b pb-2">
+                        <div>
+                            <span class="font-bold w-32 inline-block">${s.stage}</span>
+                            <span class="${color} font-bold">${s.status}</span>
+                            ${s.error_message ? `<div class="text-red-500 text-xs mt-1">${s.error_message}</div>` : ''}
+                        </div>
+                        <div class="text-xs text-gray-500 text-right">
+                            ${s.started_at ? `Started: ${new Date(s.started_at).toLocaleTimeString()}` : ''}<br>
+                            ${s.completed_at ? `Ended: ${new Date(s.completed_at).toLocaleTimeString()}` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            document.getElementById('stagesList').innerHTML = stagesHtml;
+        }
+    </script>
+</body>
+</html>

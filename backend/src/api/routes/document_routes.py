@@ -1,5 +1,6 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from src.infrastructure.database import get_db
 from src.schemas.document_schema import (
@@ -57,3 +58,47 @@ def update_document(document_id: UUID, doc_update: DocumentUpdate, service: Docu
 def delete_document(document_id: UUID, service: DocumentService = Depends(get_document_service), user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))):
     data = service.delete_document(document_id)
     return StandardResponse(status="success", message="Document soft-deleted. Cleanup job dispatched successfully.", data=data)
+
+class RetryStageRequest(BaseModel):
+    stage: str
+
+@router.post("/{document_id}/retry-stage", response_model=StandardResponse[str])
+def retry_document_stage(
+    document_id: UUID, 
+    req: RetryStageRequest,
+    db: Session = Depends(get_db), 
+    user: User = Depends(require_role([UserRole.ADMIN, UserRole.PUBLISHER]))
+):
+    from src.models.ingestion_job_model import IngestionJob, IngestionStage, IngestionJobStatus
+    import src.workers.tasks.ingestion_tasks as tasks
+
+    # 1. Map string to enum
+    try:
+        stage_enum = IngestionStage(req.stage.upper())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid stage name")
+
+    # 2. Find the job
+    job = db.query(IngestionJob).filter_by(document_id=document_id, stage=stage_enum).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Stage job not found for this document")
+
+    # 3. Mark as pending
+    job.status = IngestionJobStatus.PENDING
+    job.error_message = None
+    db.commit()
+
+    # 4. Dispatch the correct task
+    doc_id_str = str(document_id)
+    if stage_enum == IngestionStage.PARSE: tasks.parse_document_task.delay(doc_id_str)
+    elif stage_enum == IngestionStage.AST: tasks.build_canonical_ast_task.delay(doc_id_str)
+    elif stage_enum == IngestionStage.FORMULA: tasks.extract_formulas_task.delay(doc_id_str)
+    elif stage_enum == IngestionStage.QUESTION: tasks.extract_questions_task.delay(doc_id_str)
+    elif stage_enum == IngestionStage.ENTITY: tasks.extract_entities_task.delay(doc_id_str)
+    elif stage_enum == IngestionStage.RELATION: tasks.extract_relations_task.delay(doc_id_str)
+    elif stage_enum == IngestionStage.CHUNK: tasks.build_chunks_task.delay(doc_id_str)
+    elif stage_enum == IngestionStage.EMBED: tasks.index_qdrant_task.delay(doc_id_str)
+    elif stage_enum == IngestionStage.GRAPH: tasks.build_neo4j_task.delay(doc_id_str)
+    elif stage_enum == IngestionStage.MANIFEST: tasks.finalize_manifest_task.delay(doc_id_str)
+
+    return StandardResponse(status="success", message=f"Stage {stage_enum.value} retry dispatched", data="")

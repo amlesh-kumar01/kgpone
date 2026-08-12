@@ -32,8 +32,13 @@ class DocumentRepository:
             doc_type=doc_in.doc_type,
             format=doc_in.format,
             s3_key=doc_in.s3_key,
+            s3_prefix=doc_in.s3_prefix,
+            original_s3_key=doc_in.original_s3_key,
             file_size_bytes=doc_in.file_size_bytes
         )
+        if doc_in.id:
+            doc.id = doc_in.id
+            
         self.session.add(doc)
         
         # Add metadata

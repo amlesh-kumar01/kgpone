@@ -1,7 +1,7 @@
 import enum
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Enum, Text, ForeignKey, DateTime, Uuid, BigInteger, UniqueConstraint, Integer, Boolean
+from sqlalchemy import String, Enum, Text, ForeignKey, DateTime, Uuid, BigInteger, UniqueConstraint, Integer, Boolean, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.infrastructure.database import Base
@@ -34,7 +34,16 @@ class Document(Base):
     doc_type: Mapped[str] = mapped_column(String(50), nullable=False) # 'PYQ', 'SLIDES', 'NOTES', 'SYLLABUS'
     format: Mapped[DocFormat] = mapped_column(Enum(DocFormat), nullable=False)
     
-    s3_key: Mapped[str] = mapped_column(Text, nullable=False)
+    # New Phase 1 columns
+    s3_prefix: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    original_s3_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    manifest_s3_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parser_used: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    parser_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    processing_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    s3_key: Mapped[str] = mapped_column(Text, nullable=False) # Legacy
     file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     
     status: Mapped[ProcessingStatus] = mapped_column(Enum(ProcessingStatus), default=ProcessingStatus.PENDING)
@@ -55,6 +64,11 @@ class Document(Base):
     )
     uploader: Mapped["User"] = relationship("User", back_populates="documents")
     metadata_entries: Mapped[list["DocumentMetadata"]] = relationship("DocumentMetadata", back_populates="document", cascade="all, delete-orphan")
+    
+    # Knowledge extractions (Phase 3)
+    extracted_entities: Mapped[list["ExtractedEntity"]] = relationship("ExtractedEntity", back_populates="document", cascade="all, delete-orphan")
+    extracted_formulas: Mapped[list["ExtractedFormula"]] = relationship("ExtractedFormula", back_populates="document", cascade="all, delete-orphan")
+    extracted_questions: Mapped[list["ExtractedQuestion"]] = relationship("ExtractedQuestion", back_populates="document", cascade="all, delete-orphan")
 
 
 class DocumentMetadata(Base):
