@@ -34,7 +34,7 @@ const MarketplaceSearch = ({ orgUnits = [], studyUnits = [], onOrgUnitYearSelect
   ];
 
   return (
-    <div className="bg-card border border-border rounded-lg p-6 flex flex-col gap-4 shadow-sm mb-8" ref={dropdownRef}>
+    <div className="bg-card border border-border/60 rounded-xl p-6 flex flex-col gap-4 shadow-none mb-8" ref={dropdownRef}>
       <div className="relative flex-1">
         <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
         <input 

@@ -156,7 +156,7 @@ const Dashboard = () => {
           {/* Stats Overview */}
           <motion.div variants={containerVariants} className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
             <motion.div variants={itemVariants}>
-              <Card className="rounded-lg bg-card border-border shadow-sm hover:shadow-md transition-shadow">
+              <Card className="rounded-xl bg-card border border-border/60 shadow-none hover:border-primary/20 transition-colors">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Total OrgUnits</CardTitle>
                   <Library className="h-4 w-4 text-primary" />
@@ -168,7 +168,7 @@ const Dashboard = () => {
             </motion.div>
             
             <motion.div variants={itemVariants}>
-              <Card className="rounded-lg bg-card border-border shadow-sm hover:shadow-md transition-shadow">
+              <Card className="rounded-xl bg-card border border-border/60 shadow-none hover:border-primary/20 transition-colors">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Total StudyUnits</CardTitle>
                   <BookOpen className="h-4 w-4 text-primary" />
@@ -180,7 +180,7 @@ const Dashboard = () => {
             </motion.div>
             
             <motion.div variants={itemVariants}>
-              <Card className="rounded-lg bg-card border-border shadow-sm hover:shadow-md transition-shadow">
+              <Card className="rounded-xl bg-card border border-border/60 shadow-none hover:border-primary/20 transition-colors">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Active Students</CardTitle>
                   <Users className="h-4 w-4 text-primary" />
@@ -192,7 +192,7 @@ const Dashboard = () => {
             </motion.div>
             
             <motion.div variants={itemVariants}>
-              <Card className="rounded-lg bg-card border-border shadow-sm hover:shadow-md transition-shadow">
+              <Card className="rounded-xl bg-card border border-border/60 shadow-none hover:border-primary/20 transition-colors">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Documents</CardTitle>
                   <Activity className="h-4 w-4 text-primary" />
@@ -266,7 +266,7 @@ const Dashboard = () => {
           {!selectedDeptId && (
             <motion.div variants={containerVariants} className="grid gap-8 md:grid-cols-2 lg:grid-cols-7 pt-6 border-t border-border">
               <motion.div variants={itemVariants} className="col-span-4">
-                <Card className="rounded-lg bg-card border-border shadow-sm h-full flex flex-col">
+                <Card className="rounded-xl bg-card border border-border/60 shadow-none h-full flex flex-col">
                   <CardHeader>
                     <CardTitle className="font-serif text-xl">Recent Activity</CardTitle>
                     <CardDescription className="text-sm">
@@ -282,7 +282,7 @@ const Dashboard = () => {
               </motion.div>
               
               <motion.div variants={itemVariants} className="col-span-3">
-                <Card className="rounded-lg bg-card border-border shadow-sm h-full">
+                <Card className="rounded-xl bg-card border border-border/60 shadow-none h-full">
                   <CardHeader>
                     <CardTitle className="font-serif text-xl">Quick Actions</CardTitle>
                     <CardDescription className="text-sm">

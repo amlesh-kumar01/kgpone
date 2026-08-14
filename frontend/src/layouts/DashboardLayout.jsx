@@ -284,8 +284,8 @@ const DashboardLayout = () => {
       {/* Main Content */}
       <div className="flex flex-col flex-1 w-full overflow-hidden">
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto no-scrollbar relative w-full pt-14 md:pt-0">
-          <div className="min-h-full p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto w-full">
+        <main className="flex-1 overflow-y-auto no-scrollbar relative w-full pt-14 md:pt-0 flex flex-col">
+          <div className={`flex-1 w-full mx-auto ${location.pathname === '/chat' ? 'p-0 max-w-none' : 'p-4 sm:p-6 lg:p-8 max-w-[1400px]'}`}>
             <Outlet />
           </div>
         </main>

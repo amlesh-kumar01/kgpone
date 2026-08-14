@@ -44,17 +44,17 @@ export const ChatSettingsSheet = ({
         <div className="flex flex-col gap-6">
           {/* Filters */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">StudyUnit Context</h3>
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Organization Hierarchy</h3>
             <Select value={selectedDeptId} onValueChange={(val) => {
               setSelectedDeptId(val === 'all' ? '' : val);
               setSelectedStudyUnitId('');
               setSelectedOfferingId('');
             }}>
               <SelectTrigger className="h-10 text-sm rounded-lg bg-muted border-border shadow-sm focus:ring-2 focus:ring-primary/20">
-                <SelectValue placeholder="1. OrgUnit" />
+                <SelectValue placeholder="1. Organization" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Any OrgUnit</SelectItem>
+                <SelectItem value="all">Any Organization</SelectItem>
                 {orgUnits.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -64,11 +64,15 @@ export const ChatSettingsSheet = ({
               setSelectedOfferingId('');
             }} disabled={!selectedDeptId}>
               <SelectTrigger className="h-10 text-sm rounded-lg bg-muted border-border shadow-sm focus:ring-2 focus:ring-primary/20">
-                <SelectValue placeholder="2. StudyUnit" />
+                <SelectValue placeholder="2. Study Unit" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Any StudyUnit</SelectItem>
-                {filteredStudyUnits.map(c => <SelectItem key={c.id} value={c.id}>{c.code} - {c.title}</SelectItem>)}
+                <SelectItem value="all">Any Study Unit</SelectItem>
+                {filteredStudyUnits.map(c => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.code}{c.name ? ` - ${c.name}` : ''}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -82,7 +86,11 @@ export const ChatSettingsSheet = ({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Any Offering</SelectItem>
-                {offerings.map(o => <SelectItem key={o.id} value={o.id}>{o.semester} {o.year}</SelectItem>)}
+                {offerings.map(o => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.name}{o.code ? ` (${o.code})` : ''}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             

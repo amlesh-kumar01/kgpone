@@ -412,7 +412,7 @@ const Chat = () => {
   }, []);
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-4.5rem)] sm:h-[calc(100vh-3rem)] lg:h-[calc(100vh-4rem)] w-full bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-3.5rem)] md:h-screen w-full bg-card overflow-hidden">
 
       {/* ── Sidebar ──────────────────────────────────────────────────── */}
       <ChatSidebar

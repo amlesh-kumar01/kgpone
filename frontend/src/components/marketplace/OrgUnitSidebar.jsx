@@ -5,7 +5,7 @@ import { Library } from 'lucide-react';
 const OrgUnitSidebar = ({ orgUnits }) => {
   return (
     <div className="w-full md:w-64 flex-shrink-0">
-      <div className="bg-card border border-border rounded-lg p-4 shadow-sm sticky top-24">
+      <div className="bg-card border border-border/60 rounded-xl p-4 sticky top-24">
         <h2 className="text-lg font-serif font-semibold text-foreground mb-4 flex items-center gap-2">
           <Library size={20} className="text-accent" />
           OrgUnits
