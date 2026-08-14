@@ -306,7 +306,15 @@ def extract_relations_task(self, document_id: str):
         am = get_artifact_manager(document_id, db)
         
         canonical_doc = am.download_json(am.canonical_key())
-        entities = am.download_json(am.knowledge_key("entities")).get("entities", [])
+        if isinstance(canonical_doc, str):
+            import json
+            canonical_doc = json.loads(canonical_doc)
+            
+        entities_data = am.download_json(am.knowledge_key("entities"))
+        if isinstance(entities_data, str):
+            import json
+            entities_data = json.loads(entities_data)
+        entities = entities_data.get("entities", []) if isinstance(entities_data, dict) else []
         
         from src.services.ingestion.extraction.relation_extractor import RelationExtractor
         from src.services.ingestion.canonical.ast_schema import CanonicalDocument
@@ -359,8 +367,21 @@ def build_chunks_task(self, document_id: str):
         am = get_artifact_manager(document_id, db)
         
         canonical_doc = am.download_json(am.canonical_key())
-        entities = am.download_json(am.knowledge_key("entities")).get("entities", [])
-        formulas = am.download_json(am.knowledge_key("formulas")).get("formulas", [])
+        if isinstance(canonical_doc, str):
+            import json
+            canonical_doc = json.loads(canonical_doc)
+            
+        entities_data = am.download_json(am.knowledge_key("entities"))
+        if isinstance(entities_data, str):
+            import json
+            entities_data = json.loads(entities_data)
+        entities = entities_data.get("entities", []) if isinstance(entities_data, dict) else []
+        
+        formulas_data = am.download_json(am.knowledge_key("formulas"))
+        if isinstance(formulas_data, str):
+            import json
+            formulas_data = json.loads(formulas_data)
+        formulas = formulas_data.get("formulas", []) if isinstance(formulas_data, dict) else []
         
         from src.services.ingestion.chunking.ast_chunker import ASTChunker
         from src.services.ingestion.canonical.ast_schema import CanonicalDocument
@@ -392,7 +413,11 @@ def index_qdrant_task(self, document_id: str):
         set_job_running(db, document_id, stage)
         am = get_artifact_manager(document_id, db)
         
-        chunks = am.download_json(am.chunks_key()).get("chunks", [])
+        chunks_data = am.download_json(am.chunks_key())
+        if isinstance(chunks_data, str):
+            import json
+            chunks_data = json.loads(chunks_data)
+        chunks = chunks_data.get("chunks", []) if isinstance(chunks_data, dict) else []
         if not chunks:
             set_job_completed(db, document_id, stage, None)
             check_indexing_completion_task.delay(document_id)

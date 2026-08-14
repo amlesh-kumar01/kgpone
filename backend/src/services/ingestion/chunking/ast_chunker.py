@@ -17,6 +17,9 @@ class ASTChunker:
         # Build maps for quick lookup by node_id
         node_to_concepts = {}
         for ent in entities:
+            if not isinstance(ent, dict):
+                logger.warning(f"Invalid entity type: {type(ent)}, value: {ent}")
+                continue
             concept_id = ent.get("canonical_name")
             for node_id in ent.get("source_node_ids", []):
                 if node_id not in node_to_concepts:
@@ -25,6 +28,9 @@ class ASTChunker:
                 
         node_to_formulas = {}
         for form in formulas:
+            if not isinstance(form, dict):
+                logger.warning(f"Invalid formula type: {type(form)}, value: {form}")
+                continue
             f_id = form.get("id")
             node_id = form.get("source_node_id")
             if node_id:
