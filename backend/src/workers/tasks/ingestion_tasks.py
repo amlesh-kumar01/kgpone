@@ -427,7 +427,7 @@ def index_qdrant_task(self, document_id: str):
         
         from src.services.ingestion.embedding.llm_embedding import LLMEmbedder
         embedder = LLMEmbedder()
-        embeddings = asyncio.run(embedder.embed_documents(texts))
+        embeddings = asyncio.run(embedder.embed(texts))
         
         from src.repositories.qdrant.vector_repository import QdrantRepository
         repo = QdrantRepository()

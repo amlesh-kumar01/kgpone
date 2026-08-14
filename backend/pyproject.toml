@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "KnowledgeOS Backend powered by FastAPI, LangGraph and FastMCP"
 readme = "README.md"
 requires-python = ">=3.11"
+
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn>=0.30.6",
@@ -42,7 +43,7 @@ dependencies = [
     "gliner>=0.2.27",
     "spacy>=3.8.14",
     "rapidfuzz>=3.14.5",
-    "torch>=2.2.0",
+    "torch>=2.8.0",
     "sentence-transformers>=3.0.0",
     "en-core-web-sm",
     "docling>=2.119.0",
@@ -53,7 +54,7 @@ dependencies = [
 include = ["src", "alembic"]
 extraPaths = ["."]
 executionEnvironments = [
-  { root = "." }
+    { root = "." }
 ]
 
 [tool.pytest.ini_options]
@@ -62,3 +63,12 @@ asyncio_mode = "auto"
 
 [tool.uv.sources]
 en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
+
+torch = [
+    { index = "pytorch-cu128" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
