@@ -65,32 +65,35 @@ def get_ingestion_jobs(
         
     jobs = db.query(IngestionJob).filter(IngestionJob.document_id == document_id).all()
     
-    # We want to return all possible stages even if they haven't started yet, so the UI can show the full pipeline
     all_stages = [
-        IngestionStage.PARSE,
-        IngestionStage.AST,
-        IngestionStage.FORMULA,
-        IngestionStage.QUESTION,
-        IngestionStage.ENTITY,
-        IngestionStage.RELATION,
-        IngestionStage.CHUNK,
-        IngestionStage.EMBED,
-        IngestionStage.GRAPH,
-        IngestionStage.MANIFEST
+        IngestionStage.PARSE, IngestionStage.AST, IngestionStage.FORMULA,
+        IngestionStage.QUESTION, IngestionStage.ENTITY, IngestionStage.RELATION,
+        IngestionStage.CHUNK, IngestionStage.EMBED, IngestionStage.GRAPH, IngestionStage.MANIFEST
     ]
     
     job_map = {job.stage: job for job in jobs}
+    from src.repositories.s3.storage_repository import S3Storage
+    s3 = S3Storage()
     
     pipeline = []
     for stage in all_stages:
         job = job_map.get(stage)
+        output_url = None
+        if job and job.output_s3_key:
+            try:
+                output_url = s3.generate_presigned_url(job.output_s3_key, action="get_object")["url"]
+            except Exception:
+                pass
+                
         pipeline.append({
             "stage": stage.value,
             "status": job.status.value if job else "PENDING",
             "error_message": job.error_message if job else None,
             "started_at": job.started_at if job else None,
             "completed_at": job.completed_at if job else None,
-            "updated_at": job.updated_at if job else None
+            "updated_at": job.updated_at if job else None,
+            "output_s3_key": job.output_s3_key if job else None,
+            "output_url": output_url
         })
         
     return StandardResponse(status="success", message="Jobs retrieved", data=pipeline)
@@ -112,16 +115,21 @@ def retry_ingestion_job(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid stage: {stage}")
         
-    # Set job status to PENDING
-    job = db.query(IngestionJob).filter_by(document_id=document_id, stage=stage_enum).first()
-    if job:
-        job.status = IngestionJobStatus.PENDING
-        job.error_message = None
-        job.started_at = None
-        job.completed_at = None
-        db.commit()
-        
-    # Queue the task
+    def reset_job(stg):
+        j = db.query(IngestionJob).filter_by(document_id=document_id, stage=stg).first()
+        if j:
+            j.status = IngestionJobStatus.PENDING
+            j.error_message = None
+            
+    # Reset this job
+    reset_job(stage_enum)
+    
+    # Cascade resets
+    if stage_enum in [IngestionStage.PARSE, IngestionStage.AST]:
+        for s in [IngestionStage.FORMULA, IngestionStage.QUESTION, IngestionStage.ENTITY, IngestionStage.RELATION, IngestionStage.CHUNK, IngestionStage.EMBED, IngestionStage.GRAPH, IngestionStage.MANIFEST]:
+            reset_job(s)
+            
+    db.commit()
     dispatch_stage_task(stage_enum, str(document_id))
     
     return StandardResponse(status="success", message=f"Stage {stage} queued for retry", data="")

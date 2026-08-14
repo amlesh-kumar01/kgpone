@@ -16,6 +16,7 @@ import AcademicLayout from './layouts/AcademicLayout';
 
 import AcademicManagement from './pages/AcademicManagement';
 import Documents from './pages/Documents';
+import DocumentPipeline from './pages/DocumentPipeline';
 import ComingSoon from './pages/ComingSoon';
 import Chat from './pages/Chat';
 import SharedChat from './pages/SharedChat';
@@ -57,6 +58,7 @@ const AppRoutes = () => {
         <Route element={<AcademicLayout />}>
           <Route path="/academic-management" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><AcademicManagement /></ProtectedRoute>} />
           <Route path="/documents" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><Documents /></ProtectedRoute>} />
+          <Route path="/documents/:documentId/pipeline" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><DocumentPipeline /></ProtectedRoute>} />
           <Route path="/analyze/:documentId" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><AnalysisStudio /></ProtectedRoute>} />
           <Route path="/study-units/:study_unitId/analyze" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER', 'STUDENT']}><StudyUnitAnalysisStudio /></ProtectedRoute>} />
         </Route>

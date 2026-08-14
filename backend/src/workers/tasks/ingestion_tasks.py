@@ -92,7 +92,7 @@ def parse_document_task(self, document_id: str):
         os.remove(temp_path)
         set_job_completed(db, document_id, stage, parser_key)
         
-        build_canonical_ast_task.delay(document_id)
+        # STOP auto-chaining. Wait for user to trigger AST.
         
     except Exception as e:
         db.rollback()
@@ -130,9 +130,7 @@ def build_canonical_ast_task(self, document_id: str):
         
         set_job_completed(db, document_id, stage, am.canonical_key())
         
-        extract_formulas_task.delay(document_id)
-        extract_questions_task.delay(document_id)
-        extract_entities_task.delay(document_id)
+        # STOP auto-chaining. Wait for user to trigger EXTRACTIONS.
         
     except Exception as e:
         db.rollback()
@@ -436,13 +434,13 @@ def index_qdrant_task(self, document_id: str):
         repo.delete_by_filter("documents", {"document_id": document_id})
         
         doc = db.query(Document).filter(Document.id == document_id).first()
-        course = doc.course_offering.course
+        study_unit = doc.study_unit
         
         metadatas = []
         for c in chunks:
             meta = {
                 "document_id": document_id,
-                "study_unit_code": course.code,
+                "study_unit_code": study_unit.code,
                 "document_type": doc.doc_type,
                 "chunk_id": c["chunk_id"],
                 "text": c["text"],
