@@ -559,13 +559,13 @@ const StudyUnitAnalysisStudio = () => {
   }, [study_unitId]);
 
   useEffect(() => {
-    if (!selectedOffering) { setDocuments([]); return; }
+    if (!study_unitId) { setDocuments([]); return; }
     setLoadingDocs(true);
-    api.get(`/api/v1/documents/offering/${selectedOffering}`)
+    api.get(`/api/v1/documents/study-unit/${study_unitId}`)
       .then(res => setDocuments(res.data.data || []))
       .catch(() => setDocuments([]))
       .finally(() => setLoadingDocs(false));
-  }, [selectedOffering]);
+  }, [study_unitId]);
 
   const docIds = documents.filter(d => d.status === 'COMPLETED').map(d => d.id);
   const hasDocuments = docIds.length > 0;

@@ -27,8 +27,7 @@ const Documents = () => {
   
   // Cascading Selection State (Global for the page)
   const [selectedDeptId, setSelectedDeptId] = useState(() => localStorage.getItem('kgpone_docs_dept_id') || '');
-  const [selectedStudyUnitId, setSelectedStudyUnitId] = useState(() => localStorage.getItem('kgpone_docs_offering_id') || '');
-  const [selectedOfferingId, setSelectedOfferingId] = useState(() => localStorage.getItem('kgpone_docs_offering_id') || '');
+  const [selectedStudyUnitId, setSelectedStudyUnitId] = useState(() => localStorage.getItem('kgpone_docs_study_unit_id') || '');
 
   // Persist selections to localStorage
   useEffect(() => {
@@ -36,12 +35,8 @@ const Documents = () => {
   }, [selectedDeptId]);
 
   useEffect(() => {
-    localStorage.setItem('kgpone_docs_offering_id', selectedStudyUnitId);
+    localStorage.setItem('kgpone_docs_study_unit_id', selectedStudyUnitId);
   }, [selectedStudyUnitId]);
-
-  useEffect(() => {
-    localStorage.setItem('kgpone_docs_offering_id', selectedOfferingId);
-  }, [selectedOfferingId]);
   
   const [formData, setFormData] = useState({ 
     title: '', 
@@ -74,11 +69,11 @@ const Documents = () => {
     }
   }, [selectedStudyUnitId]);
 
-  // Fetch documents when a study_unit offering is fully selected
+  // Fetch documents when a study_unit is selected
   useEffect(() => {
-    if (selectedOfferingId) {
+    if (selectedStudyUnitId) {
       setLoading(true);
-      api.get(`/api/v1/documents/offering/${selectedOfferingId}`)
+      api.get(`/api/v1/documents/study-unit/${selectedStudyUnitId}`)
         .then(res => setDocuments(res.data.data || []))
         .catch(err => {
           console.error("Failed to load documents", err);
@@ -88,7 +83,7 @@ const Documents = () => {
     } else {
       setDocuments([]);
     }
-  }, [selectedOfferingId]);
+  }, [selectedStudyUnitId]);
 
   const handleDelete = async (docId, e) => {
     e.stopPropagation();
@@ -134,8 +129,8 @@ const Documents = () => {
       toast({ variant: "destructive", title: "Please select a file" });
       return;
     }
-    if (!selectedOfferingId) {
-      toast({ variant: "destructive", title: "Please select a StudyUnit Offering first" });
+    if (!selectedStudyUnitId) {
+      toast({ variant: "destructive", title: "Please select a StudyUnit first" });
       return;
     }
     
@@ -143,7 +138,7 @@ const Documents = () => {
     try {
       // 1. Get presigned URL
       const presignedRes = await api.post('/api/v1/documents/presigned-url', {
-        study_unit_id: selectedOfferingId,
+        study_unit_id: selectedStudyUnitId,
         filename: formData.file.name,
         content_type: formData.file.type || 'application/pdf'
       });
@@ -162,7 +157,7 @@ const Documents = () => {
       // 3. Register document in backend
       const format = formData.file.name.split('.').pop().toUpperCase();
       await api.post('/api/v1/documents/', {
-        study_unit_id: selectedOfferingId,
+        study_unit_id: selectedStudyUnitId,
         title: formData.title,
         description: formData.description,
         parsing_instructions: formData.parsing_instructions,
@@ -180,9 +175,9 @@ const Documents = () => {
         parsing_instructions: '', doc_type: 'NOTES', file: null 
       });
       
-      // Reload documents for current offering
+      // Reload documents for current study unit
       setLoading(true);
-      const docsRes = await api.get(`/api/v1/documents/offering/${selectedOfferingId}`);
+      const docsRes = await api.get(`/api/v1/documents/study-unit/${selectedStudyUnitId}`);
       setDocuments(docsRes.data.data || []);
       setLoading(false);
       
@@ -219,11 +214,11 @@ const Documents = () => {
           <DialogTrigger asChild>
             <Button 
               className="px-6 py-3 bg-accent text-accent-foreground font-medium rounded-lg hover:bg-opacity-90 transition-colors flex items-center gap-2"
-              disabled={!selectedOfferingId}
+              disabled={!selectedStudyUnitId}
               onClick={(e) => {
-                if (!selectedOfferingId) {
+                if (!selectedStudyUnitId) {
                   e.preventDefault();
-                  toast({ variant: "destructive", title: "Select a StudyUnit Offering first" });
+                  toast({ variant: "destructive", title: "Select a StudyUnit first" });
                 }
               }}
             >
@@ -233,7 +228,7 @@ const Documents = () => {
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto bg-card border border-border p-8 rounded-xl shadow-xl">
             <DialogHeader className="mb-6">
               <DialogTitle className="text-2xl font-serif font-bold text-foreground">Upload Document</DialogTitle>
-              <p className="text-muted-foreground mt-2">Uploading to selected study_unit offering.</p>
+              <p className="text-muted-foreground mt-2">Uploading to selected study_unit.</p>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
@@ -315,11 +310,10 @@ const Documents = () => {
           <div className="flex items-center gap-2 text-muted-foreground font-medium mr-2">
             <Filter size={18} /> Filters
           </div>
-          <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-2 gap-4">
             <Select value={selectedDeptId} onValueChange={(val) => {
               setSelectedDeptId(val === 'all' ? '' : val);
               setSelectedStudyUnitId('');
-              setSelectedOfferingId('');
             }}>
               <SelectTrigger>
                 <SelectValue placeholder="1. Any OrgUnit" />
@@ -332,7 +326,6 @@ const Documents = () => {
 
             <Select value={selectedStudyUnitId} onValueChange={(val) => {
               setSelectedStudyUnitId(val === 'all' ? '' : val);
-              setSelectedOfferingId('');
             }} disabled={!selectedDeptId}>
               <SelectTrigger>
                 <SelectValue placeholder="2. Any StudyUnit" />
@@ -340,16 +333,6 @@ const Documents = () => {
               <SelectContent>
                 <SelectItem value="all">Any StudyUnit</SelectItem>
                 {filteredStudyUnits.map(c => <SelectItem key={c.id} value={c.id}>{c.code}</SelectItem>)}
-              </SelectContent>
-            </Select>
-
-            <Select value={selectedOfferingId} onValueChange={(val) => setSelectedOfferingId(val === 'all' ? '' : val)} disabled={!selectedStudyUnitId || offerings.length === 0}>
-              <SelectTrigger>
-                <SelectValue placeholder={offerings.length === 0 && selectedStudyUnitId ? "No offerings available" : "3. Any Offering"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Any Offering</SelectItem>
-                {offerings.map(o => <SelectItem key={o.id} value={o.id}>{o.semester} {o.year}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -360,9 +343,9 @@ const Documents = () => {
         <CardHeader className="bg-muted/30 border-b border-border/50 pb-4 pt-6 px-6">
           <CardTitle className="font-serif text-xl">Processed Knowledge Base</CardTitle>
           <CardDescription>
-            {selectedOfferingId 
+            {selectedStudyUnitId 
               ? "Showing documents linked to the selected academic path."
-              : "Select a org_unit, study_unit, and offering above to view related documents."}
+              : "Select a org_unit and study_unit above to view related documents."}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -377,7 +360,7 @@ const Documents = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading && selectedOfferingId ? (
+              {loading && selectedStudyUnitId ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-16 text-muted-foreground">
                     <Loader2 className="h-8 w-8 animate-spin mx-auto text-accent" />
@@ -392,7 +375,7 @@ const Documents = () => {
                       </div>
                       <p className="text-lg font-medium text-foreground">No Knowledge Found</p>
                       <p className="text-muted-foreground mt-1 max-w-sm text-center">
-                        {selectedOfferingId ? "Upload documents to populate the semantic graph for this path." : "Select a complete academic path to view documents."}
+                        {selectedStudyUnitId ? "Upload documents to populate the semantic graph for this path." : "Select a complete academic path to view documents."}
                       </p>
                     </div>
                   </TableCell>

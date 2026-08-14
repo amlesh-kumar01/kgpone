@@ -42,9 +42,9 @@ def upload_document(doc_in: DocumentCreate, service: DocumentService = Depends(g
     data = service.upload_document(doc_in)
     return StandardResponse(status="success", message="Document metadata saved successfully", data=data)
 
-@router.get("/offering/{offering_id}", response_model=StandardResponse[list[DocumentRead]])
-def list_documents_for_offering(offering_id: UUID, service: DocumentService = Depends(get_document_service), user: User = Depends(get_current_user)):
-    data = service.get_documents_for_offering(offering_id)
+@router.get("/study-unit/{study_unit_id}", response_model=StandardResponse[list[DocumentRead]])
+def list_documents_for_study_unit(study_unit_id: UUID, service: DocumentService = Depends(get_document_service), user: User = Depends(get_current_user)):
+    data = service.get_documents_for_study_unit(study_unit_id)
     return StandardResponse(status="success", message="Documents retrieved successfully", data=data)
 
 @router.get("/{document_id}", response_model=StandardResponse[DocumentRead])
