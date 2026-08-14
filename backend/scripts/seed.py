@@ -29,22 +29,23 @@ def seed_data():
     db = SessionLocal()
     try:
         # Check if Admin already exists
-        admin = db.query(User).filter(User.email == "admin@kgpone.edu").first()
+        admin = db.query(User).filter(User.email == "aman@kgpone.edu").first()
         if not admin:
-            logger.info("Creating default Admin user (admin@kgpone.edu / admin123)...")
+            logger.info("Creating default Admin user (aman@kgpone.edu / aman123)...")
             admin = User(
-                email="admin@kgpone.edu",
-                hashed_password=get_password_hash("admin123"),
-                full_name="System Administrator",
+                email="aman@kgpone.edu",
+                hashed_password=get_password_hash("aman123"),
+                full_name="Aman",
                 role=UserRole.ADMIN,
-                is_active=True
+                is_active=True,
+                is_verified=True
             )
             db.add(admin)
             db.commit()
         else:
             logger.info("Force-updating default Admin user password...")
-            admin.hashed_password = get_password_hash("admin123")
-            admin.full_name = "System Administrator"
+            admin.hashed_password = get_password_hash("aman123")
+            admin.full_name = "Aman"
             db.commit()
 
         # Check if Student already exists
@@ -172,5 +173,5 @@ def seed_data():
         db.close()
 
 if __name__ == "__main__":
-    init_db()
+    # init_db() # DANGEROUS: Do not use this when Alembic is active!
     seed_data()
