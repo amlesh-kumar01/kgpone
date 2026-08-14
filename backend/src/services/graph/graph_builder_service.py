@@ -2,7 +2,7 @@ import logging
 from typing import Dict, Any, List
 from src.repositories.neo4j.graph_repository import Neo4jRepo
 from sqlalchemy.orm import Session
-from src.models.academic_model import Department, Course, CourseOffering, FacultyInfo
+from src.models.academic_model import OrganizationalUnit, StudyUnit, Offering, FacultyInfo
 from src.models.document_model import Document
 
 logger = logging.getLogger("graph_builder_service")
@@ -15,38 +15,38 @@ class GraphBuilderService:
         """Syncs structural data from PostgreSQL to Neo4j."""
         logger.info("Starting sync of academic data to Neo4j...")
         
-        # Sync Departments
-        departments = db.query(Department).all()
-        for dept in departments:
-            self.neo4j.merge_department(dept.code, {"name": dept.name})
+        # Sync OrganizationalUnits
+        org_units = db.query(OrganizationalUnit).all()
+        for dept in org_units:
+            self.neo4j.merge_org_unit(dept.code, {"name": dept.name})
             
-        # Sync Courses
-        courses = db.query(Course).all()
+        # Sync StudyUnits
+        courses = db.query(StudyUnit).all()
         for course in courses:
             self.neo4j.merge_course(course.code, {
                 "title": course.title,
                 "credits": course.credits
             })
-            if course.department:
-                self.neo4j.merge_relationship("Department", "code", course.department.code, 
-                                            "Course", "code", course.code, "OFFERS")
+            if course.org_unit:
+                self.neo4j.merge_relationship("OrganizationalUnit", "code", course.org_unit.code, 
+                                            "StudyUnit", "code", course.code, "OFFERS")
                                             
             # Sync Prerequisites
             for prereq in course.prerequisites:
-                self.neo4j.merge_relationship("Course", "code", prereq.code,
-                                            "Course", "code", course.code, "PREREQUISITE")
+                self.neo4j.merge_relationship("StudyUnit", "code", prereq.code,
+                                            "StudyUnit", "code", course.code, "PREREQUISITE")
                                             
         # Sync Offerings
-        offerings = db.query(CourseOffering).all()
+        offerings = db.query(Offering).all()
         for offering in offerings:
             offering_id_str = str(offering.id)
             self.neo4j.merge_course_offering(offering_id_str, {
                 "year": offering.year,
                 "semester": offering.semester.value,
-                "course_code": offering.course.code
+                "study_unit_code": offering.course.code
             })
-            self.neo4j.merge_relationship("Course", "code", offering.course.code,
-                                        "CourseOffering", "offering_id", offering_id_str, "HAS_OFFERING")
+            self.neo4j.merge_relationship("StudyUnit", "code", offering.course.code,
+                                        "Offering", "offering_id", offering_id_str, "HAS_OFFERING")
                                         
             # Sync Faculty
             for faculty in offering.faculty:
@@ -54,7 +54,7 @@ class GraphBuilderService:
                     "email": faculty.email or "",
                     "role": faculty.role or ""
                 })
-                self.neo4j.merge_relationship("CourseOffering", "offering_id", offering_id_str,
+                self.neo4j.merge_relationship("Offering", "offering_id", offering_id_str,
                                             "Faculty", "name", faculty.name, "TAUGHT_BY")
                                             
         logger.info("Academic data sync complete.")
@@ -64,15 +64,15 @@ class GraphBuilderService:
         return self.neo4j.build_document_skeleton(doc_id, document_dom)
 
     def add_document_to_graph(self, document: Document):
-        """Creates Document node and links to CourseOffering."""
+        """Creates Document node and links to Offering."""
         doc_id = str(document.id)
         self.neo4j.merge_document(doc_id, {
             "title": document.title,
             "doc_type": document.doc_type,
-            "course_code": document.course_offering.course.code,
+            "study_unit_code": document.course_offering.course.code,
             "s3_key": document.s3_key
         })
-        self.neo4j.merge_relationship("CourseOffering", "offering_id", str(document.course_offering_id),
+        self.neo4j.merge_relationship("Offering", "offering_id", str(document.study_unit_id),
                                     "Document", "doc_id", doc_id, "HAS_DOCUMENT")
 
     def add_extracted_entities(self, doc_id: str, entities: Dict[str, Any]):
@@ -167,12 +167,12 @@ class GraphBuilderService:
         logger.info(f"Finished adding entities for document {doc_id}.")
 
     # --- Legacy fallbacks for compatibility during refactor ---
-    def add_course_node(self, course_code: str, title: str, academic_year: str):
-        return self.neo4j.merge_course(course_code, {"title": title, "academic_year": academic_year})
+    def add_course_node(self, study_unit_code: str, title: str, academic_year: str):
+        return self.neo4j.merge_course(study_unit_code, {"title": title, "academic_year": academic_year})
 
-    def add_concept_node(self, name: str, course_code: str, description: str = ""):
-        self.neo4j.merge_concept(name.lower(), {"description": description, "course_code": course_code})
-        return self.neo4j.merge_relationship("Course", "code", course_code, "Concept", "name", name.lower(), "BELONGS_TO")
+    def add_concept_node(self, name: str, study_unit_code: str, description: str = ""):
+        self.neo4j.merge_concept(name.lower(), {"description": description, "study_unit_code": study_unit_code})
+        return self.neo4j.merge_relationship("StudyUnit", "code", study_unit_code, "Concept", "name", name.lower(), "BELONGS_TO")
 
     def link_prerequisite(self, concept_name: str, prerequisite_concept_name: str):
         return self.neo4j.merge_relationship("Concept", "name", concept_name.lower(), "Concept", "name", prerequisite_concept_name.lower(), "HAS_PREREQUISITE")

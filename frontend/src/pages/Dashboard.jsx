@@ -7,42 +7,42 @@ import api from '../lib/api';
 import { motion } from 'framer-motion';
 
 import MarketplaceSearch from '../components/marketplace/MarketplaceSearch';
-import DepartmentSidebar from '../components/marketplace/DepartmentSidebar';
-import CourseCard from '../components/marketplace/CourseCard';
+import OrgUnitSidebar from '../components/marketplace/OrgUnitSidebar';
+import StudyUnitCard from '../components/marketplace/StudyUnitCard';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   
   const [stats, setStats] = useState({
-    departments: 0,
-    courses: 0,
+    orgUnits: 0,
+    studyUnits: 0,
     documents: 0,
     students: 0
   });
 
-  const [departments, setDepartments] = useState([]);
-  const [allCourses, setAllCourses] = useState([]);
+  const [orgUnits, setOrgUnits] = useState([]);
+  const [allStudyUnits, setAllStudyUnits] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Search results state
   const [selectedDeptId, setSelectedDeptId] = useState(null);
   const [selectedYear, setSelectedYear] = useState(null);
-  const [displayedCourses, setDisplayedCourses] = useState([]);
+  const [displayedStudyUnits, setDisplayedStudyUnits] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [deptRes, coursesRes] = await Promise.all([
-          api.get('/api/v1/academic/departments'),
-          api.get('/api/v1/academic/') // fetch all courses for global search
+        const [deptRes, studyUnitsRes] = await Promise.all([
+          api.get('/api/v1/academic/orgUnits'),
+          api.get('/api/v1/academic/') // fetch all studyUnits for global search
         ]);
         
         const fetchedDepts = deptRes.data.data || [];
-        const fetchedCourses = coursesRes.data.data || [];
+        const fetchedStudyUnits = studyUnitsRes.data.data || [];
         
-        setDepartments(fetchedDepts);
-        setAllCourses(fetchedCourses);
+        setOrgUnits(fetchedDepts);
+        setAllStudyUnits(fetchedStudyUnits);
         
         let studentCount = 0;
         let docCount = 0;
@@ -67,8 +67,8 @@ const Dashboard = () => {
         
         setStats(prev => ({ 
           ...prev, 
-          departments: fetchedDepts.length,
-          courses: fetchedCourses.length,
+          orgUnits: fetchedDepts.length,
+          studyUnits: fetchedStudyUnits.length,
           documents: docCount,
           students: studentCount
         }));
@@ -81,35 +81,35 @@ const Dashboard = () => {
     fetchData();
   }, []);
 
-  // Update displayed courses when a department and year are selected
+  // Update displayed studyUnits when a org_unit and year are selected
   useEffect(() => {
     if (selectedDeptId && selectedYear) {
-      const filtered = allCourses.filter(course => {
-        if (String(course.department_id) !== String(selectedDeptId)) return false;
-        return course.offerings && course.offerings.some(offering => offering.year === parseInt(selectedYear));
+      const filtered = allStudyUnits.filter(study_unit => {
+        if (String(study_unit.org_unit_id) !== String(selectedDeptId)) return false;
+        return study_unit.offerings && study_unit.offerings.some(offering => offering.year === parseInt(selectedYear));
       });
-      setDisplayedCourses(filtered);
+      setDisplayedStudyUnits(filtered);
     } else if (selectedDeptId && !selectedYear) {
-      // If only department is selected
-      const filtered = allCourses.filter(course => String(course.department_id) === String(selectedDeptId));
-      setDisplayedCourses(filtered);
+      // If only org_unit is selected
+      const filtered = allStudyUnits.filter(study_unit => String(study_unit.org_unit_id) === String(selectedDeptId));
+      setDisplayedStudyUnits(filtered);
     } else {
-      setDisplayedCourses([]);
+      setDisplayedStudyUnits([]);
     }
-  }, [selectedDeptId, selectedYear, allCourses]);
+  }, [selectedDeptId, selectedYear, allStudyUnits]);
 
-  const handleDepartmentYearSelect = (deptId, yearVal) => {
+  const handleOrgUnitYearSelect = (deptId, yearVal) => {
     setSelectedDeptId(deptId);
     setSelectedYear(yearVal);
   };
 
-  const handleCourseSelect = (courseId) => {
-    // Placeholder route for course material
-    navigate(`/courses/${courseId}`);
+  const handleStudyUnitSelect = (study_unitId) => {
+    // Placeholder route for study_unit material
+    navigate(`/study-units/${study_unitId}`);
   };
 
   const getDeptName = (deptId) => {
-    return departments.find(d => String(d.id) === String(deptId))?.name || 'Unknown Department';
+    return orgUnits.find(d => String(d.id) === String(deptId))?.name || 'Unknown OrgUnit';
   };
 
   const containerVariants = {
@@ -143,10 +143,10 @@ const Dashboard = () => {
 
       <div className="w-full">
         <MarketplaceSearch 
-          departments={departments}
-          courses={allCourses}
-          onDepartmentYearSelect={handleDepartmentYearSelect}
-          onCourseSelect={handleCourseSelect}
+          orgUnits={orgUnits}
+          studyUnits={allStudyUnits}
+          onOrgUnitYearSelect={handleOrgUnitYearSelect}
+          onStudyUnitSelect={handleStudyUnitSelect}
         />
       </div>
 
@@ -158,11 +158,11 @@ const Dashboard = () => {
             <motion.div variants={itemVariants}>
               <Card className="rounded-lg bg-card border-border shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Departments</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total OrgUnits</CardTitle>
                   <Library className="h-4 w-4 text-primary" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold font-serif text-foreground">{stats.departments}</div>
+                  <div className="text-3xl font-bold font-serif text-foreground">{stats.orgUnits}</div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -170,11 +170,11 @@ const Dashboard = () => {
             <motion.div variants={itemVariants}>
               <Card className="rounded-lg bg-card border-border shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Courses</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total StudyUnits</CardTitle>
                   <BookOpen className="h-4 w-4 text-primary" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold font-serif text-foreground">{stats.courses}</div>
+                  <div className="text-3xl font-bold font-serif text-foreground">{stats.studyUnits}</div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -209,7 +209,7 @@ const Dashboard = () => {
             <motion.div variants={itemVariants} className="pt-6 border-t border-border">
               <div className="mb-6 flex items-center justify-between">
                 <h2 className="text-2xl font-serif font-bold text-foreground">
-                  {getDeptName(selectedDeptId)} {selectedYear ? `- Year ${selectedYear}` : 'Courses'}
+                  {getDeptName(selectedDeptId)} {selectedYear ? `- Year ${selectedYear}` : 'StudyUnits'}
                 </h2>
                 <button 
                   onClick={() => { setSelectedDeptId(null); setSelectedYear(null); }}
@@ -219,26 +219,26 @@ const Dashboard = () => {
                 </button>
               </div>
 
-              {displayedCourses.length === 0 ? (
+              {displayedStudyUnits.length === 0 ? (
                 <div className="bg-card border border-border rounded-lg p-16 text-center">
                   <div className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4 flex items-center justify-center">
                     <SearchX size={48} />
                   </div>
-                  <h3 className="text-xl font-serif font-semibold text-foreground mb-2">No courses found</h3>
-                  <p className="text-muted-foreground">There are no courses matching this selection.</p>
+                  <h3 className="text-xl font-serif font-semibold text-foreground mb-2">No studyUnits found</h3>
+                  <p className="text-muted-foreground">There are no studyUnits matching this selection.</p>
                 </div>
               ) : (
                 <div className="space-y-8">
                   {['AUTUMN', 'SPRING'].map((semesterName) => {
                     // If a year is selected, check offerings for that specific year and semester
                     // If no year selected, just group by semester
-                    const semesterCourses = displayedCourses.filter(course => 
-                      course.offerings && course.offerings.some(offering => 
+                    const semesterStudyUnits = displayedStudyUnits.filter(study_unit => 
+                      study_unit.offerings && study_unit.offerings.some(offering => 
                         offering.semester === semesterName && (!selectedYear || offering.year === parseInt(selectedYear))
                       )
                     );
 
-                    if (semesterCourses.length === 0) return null;
+                    if (semesterStudyUnits.length === 0) return null;
 
                     return (
                       <div key={semesterName} className="space-y-4">
@@ -246,11 +246,11 @@ const Dashboard = () => {
                           {semesterName.toLowerCase()} Semester
                         </h3>
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                          {semesterCourses.map((course) => (
-                            <CourseCard 
-                              key={course.id} 
-                              course={course} 
-                              departmentName={getDeptName(course.department_id)} 
+                          {semesterStudyUnits.map((study_unit) => (
+                            <StudyUnitCard 
+                              key={study_unit.id} 
+                              study_unit={study_unit} 
+                              org_unitName={getDeptName(study_unit.org_unit_id)} 
                             />
                           ))}
                         </div>
@@ -270,7 +270,7 @@ const Dashboard = () => {
                   <CardHeader>
                     <CardTitle className="font-serif text-xl">Recent Activity</CardTitle>
                     <CardDescription className="text-sm">
-                      A summary of recent document ingestions and course additions.
+                      A summary of recent document ingestions and study_unit additions.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex-1 flex flex-col justify-center">
@@ -292,11 +292,11 @@ const Dashboard = () => {
                   <CardContent className="space-y-4">
                     <div className="space-y-3">
                       <div className="p-4 bg-background rounded-lg border border-border text-sm flex justify-between items-center cursor-pointer hover:border-accent hover:shadow-sm transition-all group">
-                        <span className="font-medium text-foreground">Add New Department</span>
+                        <span className="font-medium text-foreground">Add New OrgUnit</span>
                         <ArrowRight className="w-4 h-4 text-accent group-hover:translate-x-1 transition-transform" />
                       </div>
                       <div className="p-4 bg-background rounded-lg border border-border text-sm flex justify-between items-center cursor-pointer hover:border-accent hover:shadow-sm transition-all group">
-                        <span className="font-medium text-foreground">Create Course Offering</span>
+                        <span className="font-medium text-foreground">Create StudyUnit Offering</span>
                         <ArrowRight className="w-4 h-4 text-accent group-hover:translate-x-1 transition-transform" />
                       </div>
                       <div className="p-4 bg-background rounded-lg border border-border text-sm flex justify-between items-center cursor-pointer hover:border-accent hover:shadow-sm transition-all group">
@@ -311,9 +311,9 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/* Right Sidebar: Departments */}
+        {/* Right Sidebar: OrgUnits */}
         <div className="w-full md:w-64 shrink-0">
-          <DepartmentSidebar departments={departments} />
+          <OrgUnitSidebar orgUnits={orgUnits} />
         </div>
       </div>
     </motion.div>

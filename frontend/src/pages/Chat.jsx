@@ -92,11 +92,11 @@ const CHUNK_TYPE_CONFIG = {
 /* ── Main Chat component ───────────────────────────────────────────────── */
 const Chat = () => {
   const navigate = useNavigate();
-  const { departments, courses: allCourses } = useAcademic();
+  const { orgUnits, studyUnits: allStudyUnits } = useAcademic();
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: 'Hello! I am the **KnowledgeOS Assistant**. Ask me about your curriculum, prerequisites, formulas, or any concept from your course materials.',
+      content: 'Hello! I am the **KnowledgeOS Assistant**. Ask me about your curriculum, prerequisites, formulas, or any concept from your study_unit materials.',
     }
   ]);
   const [input, setInput] = useState('');
@@ -107,7 +107,7 @@ const Chat = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const [selectedDeptId, setSelectedDeptId] = useState('');
-  const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [selectedStudyUnitId, setSelectedStudyUnitId] = useState('');
   const [selectedOfferingId, setSelectedOfferingId] = useState('');
 
   const [byokProvider, setByokProvider] = useState('');
@@ -127,12 +127,12 @@ const Chat = () => {
   const { toast } = useToast();
   const scrollRef = useRef(null);
 
-  const filteredCourses = selectedDeptId
-    ? allCourses.filter(c => c.department_id === selectedDeptId)
-    : allCourses;
+  const filteredStudyUnits = selectedDeptId
+    ? allStudyUnits.filter(c => c.org_unit_id === selectedDeptId)
+    : allStudyUnits;
 
-  const offerings = selectedCourseId
-    ? allCourses.find(c => c.id === selectedCourseId)?.offerings || []
+  const offerings = selectedStudyUnitId
+    ? allStudyUnits.find(c => c.id === selectedStudyUnitId)?.offerings || []
     : [];
 
   const fetchConversations = useCallback(async () => {
@@ -180,7 +180,7 @@ const Chat = () => {
   const createNewChat = () => {
     setMessages([{
       role: 'assistant',
-      content: 'Hello! I am the **KnowledgeOS Assistant**. Ask me about your curriculum, prerequisites, formulas, or any concept from your course materials.',
+      content: 'Hello! I am the **KnowledgeOS Assistant**. Ask me about your curriculum, prerequisites, formulas, or any concept from your study_unit materials.',
     }]);
     setActiveConversationId(null);
     setIsShared(false);
@@ -242,10 +242,10 @@ const Chat = () => {
     setStreamingIdx(null);
 
     try {
-      let courseCode = null;
-      if (selectedCourseId) {
-        const selectedCourse = allCourses.find(c => c.id === selectedCourseId);
-        courseCode = selectedCourse?.code ?? null;
+      let study_unitCode = null;
+      if (selectedStudyUnitId) {
+        const selectedStudyUnit = allStudyUnits.find(c => c.id === selectedStudyUnitId);
+        study_unitCode = selectedStudyUnit?.code ?? null;
       }
 
       const baseURL = api.defaults.baseURL || 'http://127.0.0.1:8000';
@@ -259,7 +259,7 @@ const Chat = () => {
         },
         body: JSON.stringify({
           query: userMessage,
-          course_code: courseCode,
+          study_unit_code: study_unitCode,
           use_citations: useCitations,
           mode: analysisMode,
           conversation_id: activeConversationId === 'temp' ? null : activeConversationId,
@@ -403,8 +403,8 @@ const Chat = () => {
       {/* ── Sidebar ──────────────────────────────────────────────────── */}
       <ChatSidebar
         navigate={navigate}
-        departments={departments}
-        filteredCourses={filteredCourses}
+        orgUnits={orgUnits}
+        filteredStudyUnits={filteredStudyUnits}
         offerings={offerings}
         setMemoriesOpen={setMemoriesOpen}
         clearMemories={clearMemories}
@@ -420,13 +420,13 @@ const Chat = () => {
       <ChatSettingsSheet
         open={isSettingsOpen}
         onOpenChange={setIsSettingsOpen}
-        departments={departments}
-        filteredCourses={filteredCourses}
+        orgUnits={orgUnits}
+        filteredStudyUnits={filteredStudyUnits}
         offerings={offerings}
         selectedDeptId={selectedDeptId}
         setSelectedDeptId={setSelectedDeptId}
-        selectedCourseId={selectedCourseId}
-        setSelectedCourseId={setSelectedCourseId}
+        selectedStudyUnitId={selectedStudyUnitId}
+        setSelectedStudyUnitId={setSelectedStudyUnitId}
         selectedOfferingId={selectedOfferingId}
         setSelectedOfferingId={setSelectedOfferingId}
         useCitations={useCitations}
@@ -511,7 +511,7 @@ const Chat = () => {
           setInput={setInput}
           handleSubmit={handleSubmit}
           isLoading={isLoading}
-          selectedCourseId={selectedCourseId}
+          selectedStudyUnitId={selectedStudyUnitId}
           analysisMode={analysisMode}
           byokKey={byokKey}
         />

@@ -5,6 +5,8 @@ from src.services.analysis.base import BaseAnalysisJob, AnalysisInput, AnalysisR
 from src.repositories.s3.storage_repository import S3Storage
 from src.infrastructure.llm_factory import LLMFactory
 from src.services.ingestion.artifact_manager import ArtifactManager
+from src.infrastructure.database import SessionLocal
+from src.models.document_model import Document
 import logging
 
 logger = logging.getLogger("quiz_generator")
@@ -23,20 +25,23 @@ class QuizGenerator(BaseAnalysisJob):
         all_questions = []
         source_nodes = []
         
-        for doc_id in input_data.documents:
-            # We assume artifact_manager.read_json can get questions.json
-            try:
-                # The artifact manager is designed for canonical.json, chunks.json, entities.json
-                # We can construct the S3 key directly if needed or use artifact manager
-                key = f"documents/{doc_id}/artifacts/questions.json"
-                questions_data = self.s3.read_json(key)
-                if questions_data and isinstance(questions_data, list):
-                    all_questions.extend(questions_data)
-                    for q in questions_data:
-                        if "section_id" in q:
-                            source_nodes.append(q["section_id"])
-            except Exception as e:
-                logger.warning(f"Failed to load questions.json for {doc_id}: {e}")
+        with SessionLocal() as db:
+            for doc_id in input_data.documents:
+                # We assume artifact_manager.read_json can get questions.json
+                try:
+                    doc = db.query(Document).filter(Document.id == doc_id).first()
+                    s3_prefix = doc.s3_prefix if doc and doc.s3_prefix else f"documents/UNKNOWN/{doc_id}"
+                    # The artifact manager is designed for canonical.json, chunks.json, entities.json
+                    # We can construct the S3 key directly if needed or use artifact manager
+                    key = f"{s3_prefix}/artifacts/questions.json"
+                    questions_data = self.s3.read_json(key)
+                    if questions_data and isinstance(questions_data, list):
+                        all_questions.extend(questions_data)
+                        for q in questions_data:
+                            if "section_id" in q:
+                                source_nodes.append(q["section_id"])
+                except Exception as e:
+                    logger.warning(f"Failed to load questions.json for {doc_id}: {e}")
                 
         if not all_questions:
             quiz_json = {"title": "Generated Quiz", "questions": []}

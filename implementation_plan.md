@@ -1,923 +1,562 @@
-# KnowledgeOS — Refined 10-Phase Architecture Plan
+# KGPOne — Core Education + AI Engine
+## Architecture Proposal
 
-## Core Principle
-
-> Parse once. Understand once. Enrich once.
-> Every downstream feature (summary, quiz, comparison, formula revision)
-> reuses the same knowledge package — never re-parses the PDF.
+> **Framing:** KGPOne is not a generic SaaS management platform. It is a **reusable education + AI engine** that powers different institutional builds. The engine is shared. Institution-specific workflows, terminology, and UI are custom code built on top of the engine \u2014 not configuration flags.
 
 ---
 
-## Three-Layer Contract (Non-Negotiable Rules)
+## 1. The Four-Layer Academic Model
+
+Every educational institution — regardless of type — organises its academic content into exactly **four layers** below the institution itself. The layers are universal; only the terminology changes.
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  S3 = Artifact Store                                    │
-│  • Original PDF, page images, figures                   │
-│  • Parser outputs (Docling JSON, LlamaParse JSON)       │
-│  • Canonical AST JSON, Hierarchy JSON                   │
-│  • Entities, Concepts, Relations, Formulas, Questions   │
-│  • Chunks JSON                                          │
-│  • Summaries, Quizzes, Comparisons (JSON + Markdown)    │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│  PostgreSQL = Control + Index Layer                     │
-│  • Document metadata (title, type, course, status)      │
-│  • S3 object keys (never signed URLs)                   │
-│  • Processing state (ingestion_jobs per stage)          │
-│  • Analysis job metadata (analysis_jobs)                │
-│  • Lightweight entity/formula/question indexes          │
-│  • Course relationships, permissions, versions          │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│  Canonical JSON = Source of Truth for Document Structure│
-│  • canonical.json is the authoritative AST              │
-│  • Qdrant/Neo4j are derived indexes, not sources        │
-│  • If Qdrant is wiped, rebuild from canonical.json      │
-│  • If Neo4j is wiped, rebuild from relations.json       │
-└─────────────────────────────────────────────────────────┘
+Institution
+  └── Layer 1: OrganizationalUnit   ← the top-level grouping within the institution
+        └── Layer 2: Offering         ← the time-bound or cohort-bound container
+              └── Layer 3: StudyUnit   ← the subject / module being taught
+                    └── Layer 4: LearningResource  ← the actual material
 ```
 
-**PostgreSQL does NOT store large JSON artifacts.**
-**Signed URLs are generated on-demand, never stored.**
-**The canonical JSON is never derived from Qdrant or Neo4j.**
+### Mapping Across Institution Types
+
+| Layer | Generic Name | Coaching Institute | College / University | EdTech Platform | School |
+|---|---|---|---|---|---|
+| **1** | OrganizationalUnit | Division (JEE / NEET / UPSC) | Department (CSE / EC) | Exam / Class type | Grade / Class |
+| **2** | Offering | Batch (2025 Batch, Dropper Batch) | Year Batch (2022–23) | Timeline Class | Section or Timeline |
+| **3** | StudyUnit | Subject (Physics / Chemistry) | Subject (DBMS / OS) | Subject | Subject |
+| **4** | LearningResource | DPP, Test Paper, Video | Notes, PYQ, Slides | Lesson, Quiz | Worksheet, Textbook chapter |
+
+The structure is **identical**. What differs across institution types is the label for each layer and the workflows built on top.
+
+### The Central Insight: Rename Tables to Match the Four Layers
+
+To make the engine truly generic and decouple it from IIT KGP's specific history, we will **rename the core database tables** to match this universal four-layer model. 
+
+The renaming strategy:
+```
+departments        →  organizational_units
+course_offerings   →  offerings
+courses            →  study_units
+documents          →  learning_resources
+```
+
+> **Note on ordering:** In the current IIT KGP schema, `course_offerings` is a child of `courses` (a course is offered in a semester). In the generic 4-layer model, Offering (Layer 2) sits *above* StudyUnit (Layer 3) — a batch *contains* subjects, not the other way around. For IIT KGP this distinction is subtle (a CourseOffering IS a subject in a semester), so the existing FK is fine as-is. For coaching and school builds, `course_offerings` should be read as "the batch/section this subject belongs to."
+
+**Coaching example:**
+- `departments` → Division (JEE Advanced)
+- `course_offerings` → Batch (Target 2026 — JEE Advanced)
+- `courses` → Subject (Physics)
+- `documents` → DPP Set 12, Mock Test 4, Inorganic Chemistry Notes
+
+**School example:**
+- `departments` → Grade (Class 10)
+- `course_offerings` → Section (Class 10 — Section A, 2024–25)
+- `courses` → Subject (Mathematics)
+- `documents` → Chapter 3 worksheet, Board exam paper 2023
+
+**College example:**
+- `departments` → Department (CSE)
+- `course_offerings` → Year Batch cohort (2022 batch) or Semester offering
+- `courses` → Subject (DBMS, Operating Systems)
+- `documents` → Lecture notes, PYQ, Assignment
+
+The structure maps perfectly. What differs is only the label for each layer and the workflows built on top.
+
+### What This Means for the Plan
+
+The most powerful realization is that **we don't need terminology configuration at all.** 
+
+If a user names an `organizational_unit` "Class 10" or "JEE Division", the frontend simply displays that name on a card. The UI doesn't need to inject the word "Grade:" or "Division:" in front of it. By keeping the schema generic, the engine becomes completely independent of the organization type.
+
+The right approach is to clean up the schema so it is undeniably generic:
+
+1. Add **one new table**: `institutions` (minimal — slug + feature flags)
+2. **Rename** the four core tables to `organizational_units`, `offerings`, `study_units`, and `learning_resources`.
+3. Add **`institution_id` FK** to all these tables.
+4. **Remove terminology config entirely.** The UI is built around generic containers and simply renders the names the users provide.
+5. Institution-specific workflows (like a Rank Predictor for coaching) live in custom route handlers built on the shared engine, checking the institution's feature flags.
 
 ---
 
-## Provenance Chain (Must be traceable end-to-end)
+## 2. What KGPOne Actually Is: An Engine, Not a Platform
 
 ```
-Generated Question
-       ↓ concept_ids
-Canonical Concept
-       ↓ source_node_ids
-AST Node (ASTNode.id)
-       ↓ section_id
-Section (canonical.json)
-       ↓ source.page_start
-Page number
-       ↓ document_id
-Original PDF (s3_key)
+┌──────────────────────────────────────────────────────────────────────┐
+│                         KGPOne Core Engine                          │
+│                                                                      │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────┐  │
+│  │  Knowledge      │  │  RAG + Query     │  │  Academic          │  │
+│  │  Ingestion      │  │  Engine          │  │  Structure         │  │
+│  │  Pipeline       │  │                  │  │  (generic tables)  │  │
+│  │                 │  │  Plan → Retrieve │  │                    │  │
+│  │  Parse → AST    │  │  → Rerank        │  │  org_units         │  │
+│  │  → Extract      │  │  → Generate      │  │  study_units       │  │
+│  │  → Chunk        │  │  → Stream        │  │  offerings         │  │
+│  │  → Embed        │  │                  │  │  learning_resources│  │
+│  │  → Index        │  │  Semantic cache  │  │  users             │  │
+│  └─────────────────┘  └──────────────────┘  └────────────────────┘  │
+│                                                                      │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────┐  │
+│  │  Assessment     │  │  Chat + Memory   │  │  Infrastructure    │  │
+│  │  Primitives     │  │  Engine          │  │  Adapters          │  │
+│  │                 │  │                  │  │                    │  │
+│  │  SUMMARIZE      │  │  Conversations   │  │  Qdrant / Neo4j    │  │
+│  │  QUIZ           │  │  User memory     │  │  S3 / Redis        │  │
+│  │  QUESTION_GEN   │  │  MCP server      │  │  LLMFactory        │  │
+│  └─────────────────┘  └──────────────────┘  └────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+         │                        │                        │
+         ▼                        ▼                        ▼
+  ┌─────────────┐         ┌──────────────┐        ┌──────────────┐
+  │  IIT KGP    │         │  JEE Coaching│        │  School      │
+  │  Build      │         │  Build       │        │  Build       │
+  │             │         │              │        │              │
+  │  PYQ routes │         │  Batch routes│        │  Grade routes│
+  │  Semester UI│         │  Target exam │        │  Section UI  │
+  │  Faculty UI │         │  DPP upload  │        │  Teacher UI  │
+  │  Credits    │         │  Rank pred.  │        │  Curriculum  │
+  └─────────────┘         └──────────────┘        └──────────────┘
 ```
 
-Every artifact — entity, formula, question, summary, quiz question — must be
-traceable to the source page in the source PDF.
+The **engine** is shared, deployed once (or per institution for isolation). The **institutional build** is custom FastAPI routes + React frontend that calls the engine APIs using the institution's own terminology and workflows. The database schema is the same across all builds.
 
 ---
 
-## S3 Ownership Model
+## 3. The Minimal Database Changes Required
 
+Only two actual schema changes are needed. Everything else stays the same.
+
+### Change 1: Add `institutions` table
+
+```sql
+CREATE TABLE institutions (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug             VARCHAR(50) UNIQUE NOT NULL,  -- 'iit-kgp', 'allen-kota', 'dps-delhi'
+  display_name     VARCHAR(255) NOT NULL,
+  
+  -- Feature package: which engine capabilities are enabled
+  features         JSONB NOT NULL DEFAULT '{}',
+  -- {"package": "university", "formula_extraction": true, "graph_enabled": true,
+  --  "analysis_types": ["SUMMARIZE", "QUIZ", "PYQ_MAPPING"]}
+  
+  -- AI config: provider and model preferences + system prompt override
+  ai_config    JSONB NOT NULL DEFAULT '{}',
+  -- {"llm_provider": "gemini", "llm_model": "gemini-2.5-flash",
+  --  "system_prompt": null}  <- null means use platform default
+  
+  -- Infrastructure routing (operator-only)
+  infra_config JSONB NOT NULL DEFAULT '{}',
+  -- {"qdrant_collection": "iit_kgp_docs", "s3_prefix": "institutions/iit-kgp",
+  --  "redis_prefix": "iit_kgp", "neo4j_db": "iit_kgp"}
+  
+  tier         VARCHAR(20) NOT NULL DEFAULT 'shared',
+  is_active    BOOLEAN NOT NULL DEFAULT true,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 ```
-                      KnowledgeOS S3 Bucket
-                               │
-              ┌────────────────┴──────────────────┐
-              │                                    │
-        documents/                           analyses/
-              │                                    │
-   {dept}/{course}/{offering}/             {analysis_id}/
-              │                                    │
-          {doc_id}/                         manifest.json
-              │                             input.json
-    ┌─────────┼──────────┐                  result.json
-    │         │          │                  result.md
-  PDF       AST       Knowledge
+
+### Change 2: Rename Tables, Standardize Identifiers, and Add `institution_id` FK
+
+A single Alembic migration will handle renaming the tables, standardizing the identity columns (`name` and `code` for every layer), updating foreign keys, and injecting the tenant ID:
+
+```sql
+-- 1. Rename tables to generic names
+ALTER TABLE departments RENAME TO organizational_units;
+ALTER TABLE courses RENAME TO study_units;
+ALTER TABLE course_offerings RENAME TO offerings;
+ALTER TABLE documents RENAME TO learning_resources;
+
+-- 2. Standardize 'name' and 'code' across all layers
+-- organizational_units already has 'name' and 'code'
+ALTER TABLE study_units RENAME COLUMN title TO name;
+-- offerings previously only had 'year' and 'semester'
+ALTER TABLE offerings ADD COLUMN name VARCHAR(255);
+ALTER TABLE offerings ADD COLUMN code VARCHAR(50);
+-- (Data migration step: set offering name to "Semester {semester} {year}")
+
+-- 3. Rename foreign key columns to match
+ALTER TABLE study_units RENAME COLUMN department_id TO org_unit_id;
+ALTER TABLE offerings RENAME COLUMN course_id TO study_unit_id;
+ALTER TABLE learning_resources RENAME COLUMN course_offering_id TO offering_id;
+ALTER TABLE faculty_info RENAME COLUMN course_offering_id TO offering_id;
+
+-- 4. Add nullable institution_id to all tables
+ALTER TABLE organizational_units ADD COLUMN institution_id UUID REFERENCES institutions(id);
+ALTER TABLE study_units          ADD COLUMN institution_id UUID REFERENCES institutions(id);
+ALTER TABLE offerings            ADD COLUMN institution_id UUID REFERENCES institutions(id);
+ALTER TABLE learning_resources   ADD COLUMN institution_id UUID REFERENCES institutions(id);
+ALTER TABLE users                ADD COLUMN institution_id UUID REFERENCES institutions(id);
+ALTER TABLE conversations        ADD COLUMN institution_id UUID REFERENCES institutions(id);
+
+-- 5. Backfill: seed the IIT KGP institution record first, then update all rows
+UPDATE organizational_units SET institution_id = (SELECT id FROM institutions WHERE slug = 'iit-kgp');
+UPDATE study_units          SET institution_id = (SELECT id FROM institutions WHERE slug = 'iit-kgp');
+UPDATE offerings            SET institution_id = (SELECT id FROM institutions WHERE slug = 'iit-kgp');
+UPDATE learning_resources   SET institution_id = (SELECT id FROM institutions WHERE slug = 'iit-kgp');
+UPDATE users                SET institution_id = (SELECT id FROM institutions WHERE slug = 'iit-kgp');
+UPDATE conversations        SET institution_id = (SELECT id FROM institutions WHERE slug = 'iit-kgp');
+
+-- 6. After backfill, make NOT NULL
+ALTER TABLE organizational_units ALTER COLUMN institution_id SET NOT NULL;
+-- ... (same for others)
 ```
 
-**Rule:** `documents/{dept}/{course}/{offering}/{doc_id}/` owns **everything**
-belonging to that document. Nothing document-specific lives outside this prefix.
+### Change 3: User membership (optional, only if multi-institution users needed)
 
-**Rule:** `analyses/{analysis_id}/` owns everything for **multi-document**
-or **user-selected** analyses. These are never nested under a single document.
+```sql
+-- Only needed if a user can belong to multiple institutions (e.g., faculty at two)
+-- For most deployments, institution_id on users is sufficient
+CREATE TABLE user_institution_memberships (
+  user_id        UUID REFERENCES users(id),
+  institution_id UUID REFERENCES institutions(id),
+  role           VARCHAR(20) NOT NULL,  -- ADMIN | PUBLISHER | STUDENT
+  is_active      BOOLEAN NOT NULL DEFAULT true,
+  PRIMARY KEY (user_id, institution_id)
+);
+```
+
+**That is the complete database change.** No table renames. No new entity models. No schema redesign.
 
 ---
 
-## S3 Tree
+## 4. Engine Layer Boundaries
+
+The engine exposes clean internal service APIs. Institutional builds call these services directly. The engine does not know about institutional terminology or workflows.
+
+### 4.1 Knowledge Ingestion Engine
+**What it does:** Takes any document and produces a queryable knowledge artifact.
+**What it does NOT know:** Whether the document is a "PYQ" or a "DPP" or a "Worksheet" \u2014 that's metadata stored on `documents.doc_type` and interpreted by the institutional build.
 
 ```
-s3://bucket/
-  documents/
-    {dept}/
-      {course_code}/
-        {year}_{semester}/
-          {doc_id}/
-            original/
-              document.pdf          ← uploaded file (replaces scattered key)
+Engine Input:  file_path + document_id + offering_id + parsing_instructions
+Engine Output: vectors in Qdrant + nodes in Neo4j + artifacts in S3 + metadata in Postgres
 
-            pages/
-              001.png               ← per-page renders (Phase 2)
-              002.png
-
-            assets/
-              figure_001.png        ← extracted figures
-              table_001.png         ← extracted table images
-              eq_001.png            ← equation renders (optional)
-
-            parsers/
-              docling.json          ← raw Docling structured output
-              llamaparse.json       ← raw LlamaParse output (only when triggered)
-
-            canonical/
-              canonical.json        ← CanonicalDocument AST (source of truth)
-              hierarchy.json        ← hierarchy confidence report
-
-            knowledge/
-              entities.json         ← typed entities with provenance
-              concepts.json         ← resolved canonical concepts
-              relations.json        ← relationships with confidence + method
-              formulas.json         ← formulas with LaTeX + variables
-              questions.json        ← extracted/classified questions
-
-            retrieval/
-              chunks.json           ← all chunks with rich metadata
-
-            analysis/
-              summary/
-                {analysis_id}.json
-                {analysis_id}.md
-              quizzes/
-                {analysis_id}.json
-                {analysis_id}.md
-              formula_revision/
-                {analysis_id}.json
-                {analysis_id}.md
-              pyq_mapping/
-                {analysis_id}.json
-
-            manifest.json           ← master artifact index (at root of doc prefix)
-            ingestion_log.json      ← per-stage status, timing, errors
-
-  analyses/
-    {analysis_id}/                  ← multi-document / course-level analyses
-      manifest.json
-      input.json
-      result.json
-      result.md
+Engine is ignorant of:
+  - What "offering_id" represents (semester offering / batch / section)
+  - What "doc_type" means to the institution
+  - What language the institution uses for any of this
 ```
 
-> **Why `{dept}/{course}/{offering}/{doc_id}/`?**
-> It preserves the existing organizational hierarchy (already used for the
-> old file key), while adding `{doc_id}/` as the unified namespace root.
-> The `{doc_id}/` folder boundary is the important invariant — everything
-> inside belongs to exactly one document.
+### 4.2 RAG Query Engine
+**What it does:** Takes a query and a scope (optional offering_id), retrieves context, generates a grounded answer.
+**What it does NOT know:** Whether it's answering a JEE student or an IIT professor.
+
+```
+Engine Input:  query + offering_id? + document_ids? + ai_config
+Engine Output: streamed answer + citations + sources + intent
+
+Engine is ignorant of:
+  - Institution type
+  - What "course_code" means to the caller
+  - Whether PYQ mode or formula mode or general mode is "special"
+    (those are just intent variants handled by the planner)
+```
+
+### 4.3 Assessment Engine
+**What it does:** Generates structured assessments from indexed documents.
+**What it does NOT know:** Whether it's generating "quiz questions" or "test papers" or "DPP problems."
+
+```
+Engine Input:  document_id + assessment_type + parameters
+Engine Output: structured question set (JSON) + explanation + answer key
+```
+
+### 4.4 Academic Structure Engine
+**What it does:** CRUD over `organizational_units`, `study_units`, `offerings`, `learning_resources`. 
+Every unit across all 3 structural layers now has a standard **`name`** and **`code`** column. This standardizes search and indexing across thousands of generic units.
+**What it exposes to builds:** Generic endpoints that can be called with institution-appropriate payloads. The engine validates the data model but doesn't interpret what the records mean.
 
 ---
 
-## PostgreSQL Entity Map
+## 5. How Institutional Builds Work
 
-```
-documents
-  ├── id (PK)                       ← document_id
-  ├── s3_prefix                  ← NEW: full prefix up to doc_id/
-  │                                     "documents/{dept}/{course}/{offering}/{doc_id}"
-  ├── original_s3_key            ← NEW: "…/{doc_id}/original/document.pdf"
-  ├── manifest_s3_key            ← NEW: "…/{doc_id}/manifest.json"
-  ├── parser_used                ← NEW: "docling" | "llamaparse"
-  ├── parser_version             ← NEW
-  ├── quality_score              ← NEW: 0.0–1.0
-  ├── processing_version         ← NEW: "2.0"
-  ├── [all existing columns unchanged]
-  └── s3_key (existing)          ← deprecated but kept for old records
+Each institutional build is a thin layer of custom code on top of the engine. It can be:
+- **Same codebase, different routes mounted conditionally** (for rapid development)
+- **Separate FastAPI app that imports engine services** (for full isolation)
+- **Same codebase, institution-aware feature flags** (simplest)
 
-ingestion_jobs                   ← NEW
-  ├── id (PK)
-  ├── document_id (FK → documents)
-  ├── stage        ← PARSE|QUALITY|AST|FORMULA|QUESTION|ENTITY|RELATION|CHUNK|EMBED|GRAPH|MANIFEST
-  ├── status       ← PENDING|RUNNING|COMPLETED|FAILED|SKIPPED
-  ├── input_s3_key               ← S3 key of stage input artifact
-  ├── output_s3_key              ← S3 key of stage output artifact
-  ├── model_version              ← "docling-2.0", "gliner-medium-v2.1"
-  ├── error_message
-  ├── started_at
-  └── completed_at
+### Example: IIT KGP Build (current)
 
-analysis_jobs                    ← NEW
-  ├── id (PK)                    ← analysis_id
-  ├── analysis_type              ← "summarize"|"quiz"|"compare"|"formula_revision"|"pyq_mapping"
-  ├── status
-  ├── source_document_ids        ← JSON array
-  ├── source_node_ids            ← JSON array
-  ├── source_concept_ids         ← JSON array
-  ├── options                    ← JSONB
-  ├── result_s3_key
-  ├── result_md_s3_key
-  ├── model_version
-  ├── prompt_version
-  ├── created_at
-  └── completed_at
+The existing `academic_routes.py`, `document_routes.py`, `query_routes.py` ARE the IIT KGP build. They're already there. No changes needed for this institution.
 
-extracted_entities               ← NEW (lightweight index, full data in S3)
-  ├── id, document_id (FK), canonical_name, entity_type, confidence, source_page
+The IIT KGP build:
+- Uses `SemesterType.AUTUMN/SPRING/SUMMER` for offerings
+- Calls documents "Lecture Slides", "PYQs", "Notes", "Syllabus"
+- Has a `PYQ_MAPPING` analysis type
+- Uses "Faculty" and "TA" terminology
+- Shows credits on course cards
 
-extracted_formulas               ← NEW
-  ├── id, document_id (FK), latex, equation_label, source_page
+All of this is already implemented and continues working unchanged.
 
-extracted_questions              ← NEW
-  ├── id, document_id (FK), question_type, marks, year, exam, source_page
+### Example: JEE Coaching Build (what you'd add)
 
-cleanup_jobs                     ← existing (unchanged, but cleanup logic updated)
-```
+A new `coaching_routes.py` that:
+- Uses the generic API to fetch `organizational_units` (which happen to be named "JEE Advanced", "NEET" by the admin).
+- Uses the generic API to fetch `offerings` (named "Target 2025" or "Morning Batch").
+- Adds `/api/v1/coaching/batches/{id}/rank-prediction` (custom endpoint)
+- Adds `/api/v1/coaching/test-analysis` (custom workflow using assessment engine)
+- Has its own frontend that shows "Target Exam", "Days Left", "Rank Estimate"
+- Uses the exact same underlying generic tables.
+
+The JEE coaching build shares 100% of the engine (ingestion, RAG, assessment, chat). It adds ~5 custom route files and a custom frontend. Zero DB schema changes beyond the initial rename.
+
+### Example: School Build
+
+A new `school_routes.py` that:
+- Calls `organizational_units` → "Grades"
+- Calls `study_units` → "Subjects"
+- Calls `offerings` → "Sections"
+- Has curriculum mapping features (custom service using engine + custom tables if needed)
+- Has parent-teacher communication (custom, built alongside)
+- Has simple quiz feature (uses assessment engine primitives)
+
+Same engine. Custom build on top.
 
 ---
 
-## Deletion Lifecycle
+## 6. Institution Configuration (Minimal & Practical)
+
+Because we have embraced a purely generic schema, we **do not need any terminology mapping**. 
+
+The UI does not need to know whether to call a container a "Grade", a "Department", or a "Division". It simply displays the user-provided name (e.g., a card titled "Class 10"). This completely eliminates the need for the platform to know what *type* of institution it is serving.
+
+The only configuration an institution needs is which engine capabilities are enabled (`institutions.features`):
+
+```json
+{
+  "package": "standard",
+  "rag_enabled": true,
+  "chat_enabled": true,
+  "assessment_enabled": true,
+  "formula_extraction": false,
+  "graph_enabled": false,
+  "pdf_annotator": false,
+  "byok_enabled": false,
+  "mcp_enabled": false,
+  "analysis_types": ["SUMMARIZE", "QUIZ"]
+}
+```
+
+### Feature Packages (sensible defaults)
+
+| Package | Who it's for | What's on |
+|---|---|---|
+| `basic` | Simple document library | Ingestion, search, document viewer |
+| `standard` | Most institutions **(default)** | Basic + RAG Q&A, chat, quiz gen, summarize |
+| `test_prep` | Coaching / competitive exam | Standard + PYQ mapping, test analysis, formula extraction |
+| `university` | Universities / IITs | test_prep + graph RAG, PDF annotator, BYOK, MCP, cross-doc analysis |
+| `custom` | Operator-defined | Any flags directly |
+
+### System Prompt (Default + Override)
+
+Default system prompt used when `ai_config.system_prompt` is null:
 
 ```
-DELETE /documents/{document_id}
-         │
-         ▼
-1. Soft-delete: is_deleted=True, deletion_status=PENDING
-2. Create CleanupJob
-3. Dispatch cleanup_document_task.delay()
-         │
-         ▼  (idempotent — safe to retry any step)
-4. Cancel RUNNING ingestion_jobs for this document
-5. s3.list_and_delete_prefix(f"{doc.s3_prefix}/")   ← ONE call, deletes everything
-6. Qdrant: delete_by_filter({document_id: doc_id})
-7. Neo4j: delete_document_entities(doc_id)
-8. PostgreSQL: delete extracted_entities, extracted_formulas, extracted_questions
-9. PostgreSQL: delete ingestion_jobs
-10. Hard-delete Document record
-11. CleanupJob → COMPLETED
+You are an intelligent academic assistant for {institution_name}.
+You help students understand course material and answer questions
+grounded in the documents uploaded to this platform.
+
+Rules:
+- Ground your answers in the provided document context.
+- Cite sources with [CIT-N] notation when context is used.
+- If the answer is not in the context, say so clearly.
+- Be concise for factual questions; thorough for conceptual ones.
+- Use clear notation for mathematical or technical content.
 ```
+
+`{institution_name}` is substituted at runtime using `request.state.institution.display_name`.
 
 ---
 
-## Service Layout (Target)
+## 7. Infrastructure Isolation Per Institution
 
-```
-src/
-  services/
-    ingestion/
-      artifact_manager.py         ← NEW (Phase 1 foundation)
-      pipeline.py                 ← MODIFY (staged v2 + keep old as fallback)
-      metadata_builder.py         ← existing (minor extension)
+Different institutions need different levels of isolation depending on data sensitivity and performance requirements.
 
-      parser/
-        base.py                   ← MODIFY: return CanonicalDocument
-        docling_parser.py         ← NEW
-        llama_parser.py           ← MODIFY: add to_canonical() adapter
+### Isolation via Naming Conventions (No Architecture Change)
 
-      quality/
-        quality_evaluator.py      ← NEW
-
-      canonical/
-        ast_schema.py             ← NEW Pydantic models
-        ast_builder.py            ← NEW
-
-      hierarchy/
-        hierarchy_engine.py       ← NEW
-
-      extraction/
-        base.py                   ← existing
-        gliner_extractor.py       ← MODIFY: 30 labels + provenance
-        entity_resolver.py        ← MODIFY: provenance-aware
-        formula_extractor.py      ← NEW
-        question_extractor.py     ← NEW
-        relation_extractor.py     ← NEW (replaces spacy_relation_extractor.py)
-        llm_extractor.py          ← existing (LLM fallback, untouched)
-
-      chunking/
-        base.py                   ← existing
-        dom_chunker.py            ← existing (fallback)
-        ast_chunker.py            ← NEW
-
-      embedding/
-        base.py                   ← existing
-        llm_embedding.py          ← existing (untouched)
-
-      upload_manager/
-        document_service.py       ← MODIFY: new S3 prefix convention
-
-    analysis/                     ← NEW
-      base.py                     ← AnalysisInput / AnalysisResult / BaseAnalysisJob
-      summarization/
-        document_summarizer.py
-        section_summarizer.py
-        course_summarizer.py
-      quiz/
-        quiz_generator.py
-      formula_revision/
-        formula_revision.py
-      pyq_mapping/
-        pyq_mapper.py
-      comparison/
-        document_comparator.py
-
-    retrieval/                    ← NEW (Phase 5 — before analysis)
-      unified_retriever.py
-      qdrant_retriever.py
-      neo4j_retriever.py
-
-    inspection/                   ← NEW (Phase 4 — early)
-      document_inspector.py
-
-  repositories/
-    s3/
-      storage_repository.py       ← MODIFY: upload_json, upload_text, download_json, exists
-    qdrant/
-      vector_repository.py        ← MODIFY: richer payload indexes
-    neo4j/
-      graph_repository.py         ← MODIFY: Section/Formula/Question nodes
-
-  models/
-    document_model.py             ← MODIFY
-    ingestion_job_model.py        ← NEW
-    analysis_job_model.py         ← NEW
-    extracted_entity_model.py     ← NEW
-    extracted_formula_model.py    ← NEW
-    extracted_question_model.py   ← NEW
-    system_model.py               ← existing
-
-  workers/tasks/
-    ingestion_tasks.py            ← MODIFY: decompose into per-stage tasks
-    analysis_tasks.py             ← NEW
-    cleanup_tasks.py              ← MODIFY: single-prefix deletion
-
-  api/routes/
-    document_routes.py            ← MODIFY
-    analysis_routes.py            ← NEW
-    inspection_routes.py          ← NEW
-```
-
----
-
----
-
-# PHASE 1 — S3 Namespace + ArtifactManager + Manifest
-**"Build the document's S3 home. Everything else is built on this."**
-
-### Goal
-
-Every document gets an isolated S3 prefix. Every artifact generated from
-that document lives under that prefix. Deletion is a single S3 prefix wipe.
-
-### Files changed
-
-#### [NEW] `src/services/ingestion/artifact_manager.py`
+All infrastructure isolation uses **naming conventions**, not separate instances, for the shared tier:
 
 ```python
-class ArtifactManager:
+# From institution infra_config
+qdrant_collection = infra_config.get("qdrant_collection", f"{slug}_documents")
+s3_prefix        = infra_config.get("s3_prefix", f"institutions/{slug}")
+redis_prefix     = infra_config.get("redis_prefix", slug)
+neo4j_db         = infra_config.get("neo4j_db", f"{slug}_graph")
+```
+
+**Qdrant:** Each institution gets its own named collection (`iit_kgp_documents`, `allen_kota_documents`). Cross-institution vector search is architecturally impossible.
+
+**S3:** Each institution's files live under `institutions/{slug}/documents/{doc_id}/`. Presigned URL generation validates the key prefix before signing.
+
+**Redis:** All cache keys prefixed with institution slug: `iit_kgp:cache:...`, `allen_kota:cache:...`
+
+**Neo4j:** Each institution uses its own named database (`iit_kgp`, `allen_kota`). The `InfrastructureRegistry` routes the session accordingly.
+
+**PostgreSQL:** `institution_id` FK on all tables means every query is automatically scoped. The engine's service layer always includes `institution_id` in WHERE clauses.
+
+### Celery Worker Isolation
+
+```
+shared-tier queue:    "ingestion.shared"   ← all shared institutions
+dedicated-tier queue: "ingestion.iit_kgp"  ← dedicated institution workers
+```
+
+Workers are configured by which queues they consume.
+
+---
+
+## 8. Tenant Resolution (Minimal Middleware)
+
+A single lightweight middleware resolves the institution before every request:
+
+```python
+class InstitutionMiddleware:
     """
-    Single source of truth for all S3 key conventions for one document.
-    Injected into every pipeline stage. Never hard-code S3 paths elsewhere.
+    Resolves institution from:
+      1. Subdomain: iit-kgp.yourdomain.com → slug "iit-kgp"
+      2. JWT claim: token.institution_id
+      3. Header: X-Institution-Slug (for machine clients / dev)
+    
+    Injects request.state.institution (InstitutionContext dataclass).
+    Caches institution config in Redis for 5 minutes.
     """
-    def __init__(self, document_id: str, s3_prefix: str, s3: S3Storage): ...
-
-    # Key conventions — all derived from s3_prefix
-    def original_key(self, filename: str) -> str
-    def parser_key(self, parser_name: str) -> str  # parsers/docling.json
-    def canonical_key(self) -> str                 # canonical/canonical.json
-    def hierarchy_key(self) -> str                 # canonical/hierarchy.json
-    def knowledge_key(self, artifact: str) -> str  # knowledge/{artifact}.json
-    def chunks_key(self) -> str                    # retrieval/chunks.json
-    def asset_key(self, filename: str) -> str      # assets/{filename}
-    def page_key(self, page_num: int) -> str       # pages/001.png
-    def analysis_key(self, type: str, analysis_id: str, ext: str) -> str
-    def manifest_key(self) -> str                  # manifest.json
-    def log_key(self) -> str                       # ingestion_log.json
-
-    # S3 helpers — no raw boto3 calls outside this class
-    def upload_json(self, key: str, data: dict) -> str
-    def upload_text(self, key: str, text: str) -> str
-    def download_json(self, key: str) -> dict
-    def exists(self, key: str) -> bool
-    def prefix(self) -> str                        # full prefix for deletion
-
-    # Manifest management
-    def read_manifest(self) -> dict
-    def update_manifest(self, updates: dict) -> None
-    def init_manifest(self, doc_metadata: dict) -> None
 ```
 
-#### [MODIFY] `src/models/document_model.py`
+The `InstitutionContext` is a lightweight dataclass \u2014 not a database session, not a connection pool. It's resolved once per request and contains the slug, display_name, features, ai_config, and infra_config.
 
-Add nullable columns (backward compatible — existing records get `None`):
-```python
-s3_prefix: str | None        # "documents/CS/CS101/2025_ODD/{doc_id}"
-original_s3_key: str | None  # "…/original/document.pdf"
-manifest_s3_key: str | None  # "…/manifest.json"
-parser_used: str | None
-parser_version: str | None
-quality_score: float | None
-processing_version: str | None
-```
-
-#### [NEW] `src/models/ingestion_job_model.py`
-
-```python
-class IngestionStage(str, Enum):
-    PARSE = "PARSE"
-    QUALITY = "QUALITY"
-    AST = "AST"
-    FORMULA = "FORMULA"
-    QUESTION = "QUESTION"
-    ENTITY = "ENTITY"
-    RELATION = "RELATION"
-    CHUNK = "CHUNK"
-    EMBED = "EMBED"
-    GRAPH = "GRAPH"
-    MANIFEST = "MANIFEST"
-
-class IngestionJob(Base):
-    __tablename__ = "ingestion_jobs"
-    id, document_id (FK), stage, status,
-    input_s3_key, output_s3_key,
-    model_version, error_message,
-    started_at, completed_at
-```
-
-#### [MODIFY] `src/services/ingestion/upload_manager/document_service.py`
-
-`generate_upload_url()` flow changes:
-1. Create `Document` record **first** (get `doc_id`)
-2. Compute `s3_prefix = documents/{dept}/{course}/{offering}/{doc_id}`
-3. `original_s3_key = s3_prefix/original/{filename}`
-4. Generate presigned URL for `original_s3_key`
-5. Store `s3_prefix` + `original_s3_key` in DB
-6. Return presigned URL + `document_id`
-
-Old: `documents/{dept}/{course}/{offering}/{uuid}_file.pdf` (no doc_id folder)
-New: `documents/{dept}/{course}/{offering}/{doc_id}/original/document.pdf`
-
-#### [MODIFY] `src/repositories/s3/storage_repository.py`
-
-Add:
-```python
-def upload_json(self, key: str, data: dict) -> str
-def upload_text(self, key: str, text: str) -> str
-def download_json(self, key: str) -> dict
-def exists(self, key: str) -> bool
-```
-
-#### [MODIFY] `src/workers/tasks/cleanup_tasks.py`
-
-```python
-# Step 5 — replaces two separate calls
-s3.list_and_delete_prefix(doc.s3_prefix + "/")
-```
-
-### Acceptance Criteria
-
-- ✅ Upload PDF → `documents/{dept}/{course}/{offering}/{doc_id}/original/document.pdf`
-- ✅ `manifest.json` created at `…/{doc_id}/manifest.json` and readable via API
-- ✅ Delete document → entire prefix wiped in one S3 call
-- ✅ Old documents (with legacy `s3_key`) still delete correctly
-- ✅ Existing ingestion flow still works end-to-end (no regressions)
-- ✅ Alembic migration runs cleanly
+The JWT token gets one additional claim: `institution_id`. Login now scopes the user to their institution.
 
 ---
 
-# PHASE 2 — Canonical AST + DoclingParser + Quality Routing
-**"Replace LlamaParse as primary. Make parsing output a persisted, inspectable artifact."**
+## 9. What Must NOT Change
 
-### Goal
-Document parsing produces a typed, provenance-rich `CanonicalDocument` AST
-that is saved to S3 and becomes the input for all downstream stages.
+These parts of the engine are correct and should be left entirely alone:
 
-### Step-by-Step Implementation Plan
-
-#### Step 2A: Dependency and Schema Update
-**Objective:** Add `docling` dependency and create the `ast_schema.py` models.
-1. Modify `pyproject.toml` to add `docling>=2.0.0`. Run `uv sync` or install dependencies.
-2. Create `src/services/ingestion/canonical/ast_schema.py`.
-3. Define `NodeType` (Enum).
-4. Define `NodeSource`, `ASTNode`, `ParserProvenance`, and `CanonicalDocument` Pydantic models.
-5. Note: Ensure `source.bbox` and other provenance fields are correctly typed. Keep old `dom_schema.py` intact for backward compatibility.
-
-#### Step 2B: DoclingParser Implementation
-**Objective:** Implement the new Docling parser.
-1. Modify `src/infrastructure/model_factory.py` to add a singleton `get_docling()` (or equivalent initialization for Docling models if needed).
-2. Create `src/services/ingestion/parser/docling_parser.py`.
-3. Implement `DoclingParser` which parses PDF, maps `DoclingDocument` to `CanonicalDocument` nodes.
-4. Save raw Docling output to `…/parsers/docling.json` (using ArtifactManager).
-5. Extract page images and embedded figures and save them to `…/pages/` and `…/assets/`.
-
-#### Step 2C: LlamaParse Adapter
-**Objective:** Keep LlamaParse as a fallback by adding an adapter.
-1. Modify `src/services/ingestion/parser/llama_parser.py`.
-2. Add a `to_canonical(dom: DocumentDOM) -> CanonicalDocument` adapter function.
-3. Keep the existing LlamaParse logic unchanged, just map the output.
-
-#### Step 2D: Quality Evaluator
-**Objective:** Build the logic to score parsing quality and route between parsers.
-1. Create `src/services/ingestion/quality/quality_evaluator.py`.
-2. Implement scoring logic based on text density, heading detection, garbled text, table extraction, etc.
-3. Return `QualityReport(score, needs_fallback, fallback_reason)`.
-
-#### Step 2E: AST Builder & Hierarchy Engine
-**Objective:** Select the winner, build the final AST, and reconstruct hierarchy.
-1. Create `src/services/ingestion/canonical/ast_builder.py`.
-2. Implement logic: Try Docling -> Evaluate Quality -> If score < 0.5 or 0.75, try LlamaParse -> Pick winner -> Build `CanonicalDocument`.
-3. Create `src/services/ingestion/hierarchy/hierarchy_engine.py`.
-4. Implement multi-signal hierarchy reconstruction (section numbers, fonts, etc.).
-5. Save `canonical.json` and `hierarchy.json` via ArtifactManager.
-
-#### Step 2F: Pipeline Integration
-**Objective:** Wire Phase 2 into `pipeline.py` and `ingestion_tasks.py`.
-1. Modify `pipeline.py` to use `ast_builder` instead of just `parser.parse()`.
-2. Ensure the `quality_score` is updated on the `Document` database record.
-3. Ensure `manifest.json` is updated with `parsers` + `canonical` keys.
-
-### Acceptance Criteria
-- ✅ `…/parsers/docling.json` is valid JSON with Docling native output
-- ✅ `…/canonical/canonical.json` has typed AST nodes with `source.bbox`
-- ✅ `documents.quality_score` updated after parsing
-- ✅ If Docling score < 0.5 → `…/parsers/llamaparse.json` also exists
-- ✅ `manifest.json` updated with `parsers` + `canonical` artifact keys
+| Component | Why It's Already Right |
+|---|---|
+| Celery task pipeline (PARSE → EMBED → INDEX) | Correct architecture for async document processing |
+| AST canonical format (`ast_schema.py`) | Good universal document representation |
+| `LLMFactory` provider dispatch | Already provider-agnostic, just needs `ai_config` param |
+| `BaseRetriever / BaseReranker / BaseAnswerGenerator` | Clean abstractions, keep them |
+| `ArtifactManager` S3 key convention | Just update the prefix calculation |
+| Alembic migration system | The right tool, keep using it |
+| `StandardResponse` schema | Good API contract |
+| JWT auth system | Correct, just add `institution_id` claim |
+| `IVectorRepo / ILLMFactory` interfaces | Good decoupling, preserve |
 
 ---
 
-# PHASE 3 — Knowledge Extraction
-**"Build the knowledge package from the canonical AST."**
+## 10. Migration Plan (4 Phases, Minimal Risk)
 
-### Goal
-Extract entities, formulas, questions, and relationships from the canonical AST.
-Save as structured JSON artifacts. Insert lightweight indexes into PostgreSQL.
-
-### Step-by-Step Implementation Plan
-
-#### Step 3A: Database Models for Extractions
-**Objective:** Create lightweight index rows in PostgreSQL pointing to S3 artifacts.
-1. Modify `src/models/academic_model.py` (or create a new model file like `knowledge_model.py`) to add `ExtractedEntity`, `ExtractedFormula`, `ExtractedQuestion` tables.
-2. Link them to `Document` via `document_id`.
-3. Generate and run Alembic migrations.
-
-#### Step 3B: Entity Extraction & Resolution
-**Objective:** Upgrade GLiNER and EntityResolver to use Canonical AST.
-1. Modify `src/services/ingestion/extraction/gliner_extractor.py`.
-2. Change input from raw text to `List[ASTNode]`.
-3. Preserve `source_node_id` and `source_page` in output.
-4. Modify `src/services/ingestion/extraction/entity_resolver.py` to aggregate `surface_forms` and `source_node_ids`.
-5. Save extracted entities to `…/knowledge/entities.json`.
-
-#### Step 3C: Formula Extraction
-**Objective:** Extract standalone and inline equations.
-1. Create `src/services/ingestion/extraction/formula_extractor.py`.
-2. Extract all `EQUATION`/`FORMULA` AST nodes natively from Docling.
-3. Parse inline LaTeX (e.g. `$E=mc^2$`) from `PARAGRAPH` nodes using regex.
-4. Attempt variable extraction from surrounding 200-char context.
-5. Save to `…/knowledge/formulas.json`.
-
-#### Step 3D: Question Extraction
-**Objective:** Extract practice questions and past year questions (PYQs).
-1. Create `src/services/ingestion/extraction/question_extractor.py`.
-2. Extract all `QUESTION` AST nodes from Docling.
-3. Use regex (numbered lists, `?`, MCQ patterns A/B/C/D) on paragraphs.
-4. Inject PYQ metadata from document context (year, exam).
-5. Save to `…/knowledge/questions.json`.
-
-#### Step 3E: Relation Extraction
-**Objective:** Extract relationships between entities/concepts.
-1. Create `src/services/ingestion/extraction/relation_extractor.py` (replacing/upgrading `spacy_relation_extractor.py`).
-2. Use structural rules (high confidence) from AST hierarchy (e.g., Section Header -> Concepts in body).
-3. Use spaCy dependency parsing (medium confidence) for sentence-level relations.
-4. Save to `…/knowledge/relations.json`.
-
-#### Step 3F: Neo4j Graph Builder Integration
-**Objective:** Push the new ontology into the knowledge graph.
-1. Modify `src/repositories/neo4j/graph_repository.py`.
-2. Add methods to upsert `:Section`, `:Formula`, `:Question` nodes.
-3. Add methods for new relationships: `(Document)-[:CONTAINS]->(Section)`, `(Section)-[:EXPLAINS]->(Concept)`, `(Concept)-[:HAS_FORMULA]->(Formula)`, `(Question)-[:TESTS]->(Concept)`.
-
-### Acceptance Criteria
-- ✅ `…/knowledge/entities.json` — typed entities with source_page
-- ✅ `…/knowledge/formulas.json` — formulas with LaTeX + variables
-- ✅ `…/knowledge/questions.json` — classified questions with source_page
-- ✅ `…/knowledge/relations.json` — relations with confidence + method
-- ✅ Neo4j has Section/Formula/Question nodes linked to Document
+IIT KGP remains fully functional throughout. Each phase is independently reversible.
 
 ---
 
-# PHASE 4 — Inspection Layer
-**"Make every artifact visible before building analysis on top."**
-
-> Inspection is prioritized early because you cannot trust what you cannot see.
-> Getting this right before building analysis features saves enormous debugging time.
-
-### Goal
-A developer or admin can open any document and see every artifact — canonical AST, entities, formulas, questions, chunks — linked back to source pages.
-
-### Step-by-Step Implementation Plan
-
-#### Step 4A: Core Inspector Service
-**Objective:** Build `DocumentInspector` to aggregate all S3/Postgres/Qdrant/Neo4j data.
-1. Create `src/services/inspection/document_inspector.py`.
-2. Define `InspectionReport` Pydantic model (with canonical/knowledge/qdrant/neo4j summaries).
-3. Implement `inspect(document_id)` which:
-   - Uses `ArtifactManager` to check if keys exist in S3.
-   - Queries `documents` and `ingestion_jobs` tables.
-   - Queries Neo4j for node/relationship counts.
-
-#### Step 4B: Inspection API Routes
-**Objective:** Expose the inspection functionality via FastAPI.
-1. Create `src/api/routes/inspection_routes.py`.
-2. Implement endpoints:
-   - `GET /api/v1/inspect/{doc_id}` (full report)
-   - `GET /api/v1/inspect/{doc_id}/manifest`
-   - `GET /api/v1/inspect/{doc_id}/canonical`
-   - `GET /api/v1/inspect/{doc_id}/knowledge/{type}` (entities, formulas, questions, relations)
-   - `GET /api/v1/inspect/{doc_id}/stages`
-3. Wire the router into `src/api/main.py`.
-
-#### Step 4C: Vanilla JS Debug Dashboard
-**Objective:** Build a simple frontend to visualize the pipeline.
-1. Create a `debug/` folder in the project root.
-2. Build an `index.html` (vanilla JS + Tailwind via CDN or plain CSS).
-3. Fetch list of documents -> click to view `InspectionReport` -> browse artifacts.
-4. (Optional) Run a simple Python HTTP server to serve the page, or serve via FastAPI static files.
-
-### Acceptance Criteria
-
-- ✅ `GET /inspect/{doc_id}` returns full report in < 2 seconds
-- ✅ Every artifact key in the report is either `exists: true` or `exists: false`
-- ✅ `/debug` page renders document list and artifact tree
-- ✅ A broken ingestion (failed stage) is visible with error message
+### Phase 0 \u2014 Stability (Now → Week 1)
+Fix active bugs. No architectural changes.
+- [x] Fix `build_chunks_task` `AttributeError` (done)
+- [ ] Fix type guards in `ast_chunker.py`
+- [ ] Fix `allow_origins=["*"]` CORS in production
+- [ ] Clean up `debug_s3.py` and other dev artifacts from repo
 
 ---
 
-# PHASE 5 — AST-Aware Chunking + Staged Celery Pipeline
-**"Rich retrieval chunks. Each ingestion stage independently retryable."**
+### Phase 1 \u2014 Institution Foundation (Week 1\u20133)
+**Zero breaking changes. Purely additive.**
 
-### Goal
-Chunks carry full knowledge context (heading path, concept IDs, formula IDs).
-The monolithic Celery task is decomposed into per-stage tasks that read/write S3 artifacts and track state in `ingestion_jobs`.
+- [ ] Add `institutions` table (Alembic migration)
+- [ ] Rename existing core tables to generic names (`organizational_units`, `study_units`, `offerings`, `learning_resources`) and update FK columns
+- [ ] Seed IIT KGP institution record with slug `iit-kgp`
+- [ ] Add `institution_id` nullable FK to all core tables
+- [ ] Backfill all existing rows with the IIT KGP institution ID
+- [ ] Make `institution_id` NOT NULL after backfill
+- [ ] Add `InstitutionMiddleware` (sets `request.state.institution` but does NOT yet enforce it)
+- [ ] Add `institution_id` to JWT claims at login
+- [ ] Cache institution config in Redis
 
-### Step-by-Step Implementation Plan
-
-#### Step 5A: AST Chunker
-**Objective:** Create a chunking strategy that respects hierarchy and injects metadata.
-1. Create `src/services/ingestion/chunking/ast_chunker.py`.
-2. Traverse the `CanonicalDocument` tree. Keep `EQUATION`, `TABLE`, and `IMAGE` as separate chunks. Group `PARAGRAPH` and `LIST` into larger text chunks based on token limits.
-3. For each chunk, compute the `heading_path` (by walking up the parent tree to `SECTION` nodes).
-4. Inject `concept_ids` and `formula_ids` by cross-referencing node IDs with extracted knowledge in `entities.json` and `formulas.json`.
-5. Save outputs to `…/retrieval/chunks.json`.
-
-#### Step 5B: Qdrant Indexing Updates
-**Objective:** Store chunks with rich payloads.
-1. Modify `src/repositories/qdrant/vector_repository.py`.
-2. Ensure the payload schemas support `section_id` (keyword), `heading_path` (text), `concept_ids` (keyword[]), `formula_ids` (keyword[]).
-3. Ensure backwards compatibility with existing simple text payloads if necessary.
-
-#### Step 5C: Celery Task Decomposition
-**Objective:** Refactor the pipeline into chained background tasks.
-1. Modify `src/workers/tasks/ingestion_tasks.py`.
-2. Remove `process_document_task`.
-3. Create individual tasks:
-   - `parse_document_task`
-   - `build_canonical_ast_task`
-   - `extract_formulas_task`
-   - `extract_questions_task`
-   - `extract_entities_task`
-   - `extract_relations_task`
-   - `build_chunks_task`
-   - `index_qdrant_task`
-   - `build_neo4j_task`
-   - `finalize_manifest_task`
-4. Each task reads its state from `ingestion_jobs` (set to RUNNING), reads the S3 input artifact, executes the code, uploads the S3 output artifact, and updates `ingestion_jobs` to COMPLETED, then dispatches the next task using Celery `chain` or direct `.delay()`.
-
-#### Step 5D: Stage Retry API
-**Objective:** Allow restarting ingestion from a specific failed stage.
-1. Modify `src/api/routes/document_routes.py`.
-2. Add `POST /documents/{doc_id}/retry-stage`.
-3. Logic: Mark the failed `ingestion_job` as PENDING and `.delay()` its specific task.
-
-### Acceptance Criteria
-- ✅ Uploading a document creates 10+ sequential `ingestion_jobs` rows.
-- ✅ `chunks.json` artifacts have `heading_path` arrays.
-- ✅ Qdrant points have rich metadata.
-- ✅ API allows retrying an isolated stage without re-triggering Docling parsing.
+**Validation:** IIT KGP works exactly as before. No route changes, no service changes.
 
 ---
 
-# PHASE 6 — Analysis Framework + Document Summarization
-**"Consume the knowledge package. Never re-parse the PDF."**
+### Phase 2 \u2014 Enforce Scoping in Engine Queries (Week 3\u20136)
+**Adds data isolation. Low risk if tested carefully.**
 
-### Goal
-    provenance: AnalysisProvenance
+- [ ] All service-layer queries add `institution_id == request.state.institution.id` filter
+- [ ] Presigned S3 URLs validate institution key prefix before signing
+- [ ] Qdrant search routes to institution-specific collection (create `iit_kgp_documents`, re-embed if needed or migrate)
+- [ ] Redis cache keys prefixed with institution slug
+- [ ] Neo4j session uses institution-specific database
+- [ ] `LLMFactory.get_llm()` accepts `InstitutionAIConfig` from `request.state.institution`
+- [ ] System prompt filled from institution `ai_config.system_prompt` (with default fallback)
+- [ ] Celery tasks receive and validate `institution_id` in payload
 
-class BaseAnalysisJob(ABC):
-    @abstractmethod
-    async def run(self, input: AnalysisInput, analysis_id: str) -> AnalysisResult: ...
-```
-
-#### [NEW] `src/services/analysis/summarization/document_summarizer.py`
-
-1. Load `canonical.json` → chapter/section hierarchy
-2. Load `knowledge/entities.json` → key concepts
-3. Load `retrieval/chunks.json` → source text per section
-4. Hierarchical LLM calls: section → chapter → document
-5. Every summary section has `source_nodes: [node_id, …]`
-6. Save `…/analysis/summary/{analysis_id}.json` + `.md`
-
-#### [NEW] `src/models/analysis_job_model.py`
-
-#### [NEW] `src/workers/tasks/analysis_tasks.py`
-
-```python
-@shared_task
-def summarize_document_task(document_id, analysis_id, options): ...
-```
-
-#### [NEW] `src/api/routes/analysis_routes.py`
-
-```
-POST /analysis/summarize       → creates analysis_job, returns analysis_id
-GET  /analysis/{analysis_id}   → status + metadata
-GET  /analysis/{analysis_id}/download  → presigned URL for JSON + MD
-```
-
-### Acceptance Criteria
-
-- ✅ `POST /analysis/summarize` → Celery task runs → JSON + MD saved to S3
-- ✅ Summary JSON has `source_nodes` on every section
-- ✅ **PDF is never loaded during analysis** (all reads from S3 JSON artifacts)
-- ✅ Running the same summarize request twice creates two different `analysis_id` entries
+**Validation:** Create a test institution (`slug: "test-school"`), verify its queries don't return IIT KGP data, and vice versa.
 
 ---
 
-# PHASE 7 — Retrieval Layer
-**"Analysis pipelines never query Qdrant or Neo4j directly."**
+### Phase 3 \u2014 Second Institution Build (Week 6\u201312)
+**Proves the engine architecture works for a different use case.**
 
-### Goal
-All analysis services go through a `UnifiedRetriever`. This decouples analysis logic from storage implementation and makes it easier to add hybrid retrieval, reranking, or graph expansion later.
+- [ ] Build `coaching_routes.py` on top of the engine for a JEE/NEET coaching use case
+- [ ] Institution onboarding CLI: `python -m kgpone.admin provision --slug allen-kota --config allen.json`
+  - Creates institution record
+  - Creates Qdrant collection
+  - Creates Neo4j database
+  - Seeds admin user
+- [ ] Institution admin UI: configure terminology, features, system prompt
+- [ ] Validate isolation between `iit-kgp` and the new institution
 
-### Step-by-Step Implementation Plan
-
-#### Step 7A: Retrieval Models and Service Stub
-**Objective:** Define schemas for retrieval results.
-1. Create `src/services/retrieval/unified_retriever.py`.
-2. Define `RetrievalResult`, `SourceRef`, and `UnifiedRetriever` class stub.
-
-#### Step 7B: Qdrant and Neo4j Integration
-**Objective:** Implement the retrieval logic.
-1. Implement `retrieve()` to:
-   - Perform semantic search via `QdrantRepository.search()`.
-   - Query `Neo4jRepository` for related graph concepts (prerequisites).
-   - Merge Qdrant text chunks with Neo4j context.
-
-#### Step 7C: Refactor RAG Chat
-**Objective:** Replace direct Qdrant calls in RAG endpoints with `UnifiedRetriever`.
-1. Modify `src/services/rag/retrieval/qdrant_retriever.py` or the Chat service (`answer_service.py`) to use `UnifiedRetriever` instead of calling Qdrant and Neo4j separately.
-2. Ensure source citations correctly map back to the unified provenance.
-
-### Acceptance Criteria
-- ✅ RAG chat works through `UnifiedRetriever`.
-- ✅ Analysis services use `UnifiedRetriever` (no direct Qdrant calls).
-- ✅ Graph context (prerequisites, related concepts) is appended to retrieval results.
+**This is the proof of concept.** If a second institution can be onboarded in under an hour using different terminology and workflows without touching the engine, the architecture is correct.
 
 ---
 
-# PHASE 8 — Educational Analysis (Quiz, Formula Revision, PYQ Mapping)
-**"Build the educational intelligence layer."**
-
-### Goal
-Implement specialized educational analysis tools that utilize the extracted artifacts (questions, formulas, entities) to produce study materials.
-
-### Step-by-Step Implementation Plan
-
-#### Step 8A: Quiz Generator Service
-**Objective:** Automatically generate a study quiz.
-1. Create `src/services/analysis/quiz/quiz_generator.py` implementing `BaseAnalysisJob`.
-2. Logic:
-   - Load `questions.json` (extracted during ingestion) for seeded questions.
-   - Use `litellm` to augment/reformat them into a structured quiz format.
-   - Ensure every question retains `sources` mapped to the original AST node/chunk.
-3. Save output to `analysis/quiz/{analysis_id}.json` & `.md`.
-
-#### Step 8B: Formula Revision Sheet Service
-**Objective:** Generate a formula sheet with definitions and related concepts.
-1. Create `src/services/analysis/formula_revision/formula_revision.py` implementing `BaseAnalysisJob`.
-2. Logic:
-   - Load `formulas.json`.
-   - Query Neo4j (via `UnifiedRetriever` graph context or directly via Graph Repo) for related concepts for each formula.
-   - Format into a revision sheet.
-3. Save output to `analysis/formula_revision/{analysis_id}.json` & `.md`.
-
-#### Step 8C: API Endpoints & Tasks
-**Objective:** Expose the services to the frontend.
-1. Add `generate_quiz_task` and `generate_formula_revision_task` to `src/workers/tasks/analysis_tasks.py`.
-2. Add `POST /api/v1/analysis/quiz` and `POST /api/v1/analysis/formula-revision` to `src/api/routes/analysis_routes.py`.
-
-### Acceptance Criteria
-- ✅ Quiz service returns JSON where every question has `sources: [{document_id, node_id, page}]`.
-- ✅ Formula revision service returns formulas with extracted variables and related concept connections.
-- ✅ New endpoints correctly queue the celery tasks and return the analysis IDs.
+### Phase 4 \u2014 Hardening (Week 12\u201316)
+- [ ] Rate limiting per institution
+- [ ] Structured logging with `institution_id` field
+- [ ] Backup strategy per institution
+- [ ] OpenTelemetry traces
+- [ ] Load test: 3+ institutions with concurrent ingestion + queries
 
 ---
 
-# PHASE 9 — Multi-Document Analysis + Comparison
-**"Course-level intelligence. No PDF merging."**
+## 11. Answering: What Changed vs. Previous Plan?
 
-### Goal
-Perform analysis across multiple documents simultaneously. Instead of merging PDFs, the services will iterate over the individual JSON artifacts of each document in S3 and aggregate the insights.
-
-### Step-by-Step Implementation Plan
-
-#### Step 9A: Course Summarizer Service
-**Objective:** Aggregate summaries across multiple documents.
-1. Create `src/services/analysis/summarization/course_summarizer.py` implementing `BaseAnalysisJob`.
-2. Logic:
-   - Load `canonical.json` or `chunks.json` from multiple documents simultaneously.
-   - Use `litellm` (map-reduce style) to aggregate and synthesize a holistic course summary.
-   - Track provenance by mapping final summary sections to source document IDs.
-3. Save to `analysis/course_summary/{analysis_id}.json` & `.md`.
-
-#### Step 9B: Document Comparator Service
-**Objective:** Compare concepts and formulas between two or more documents.
-1. Create `src/services/analysis/comparison/document_comparator.py` implementing `BaseAnalysisJob`.
-2. Logic:
-   - Load `entities.json` and `formulas.json` from multiple documents.
-   - Find intersection (common concepts) and symmetric differences (unique to Document A, unique to Document B).
-   - Format a comprehensive diff report.
-3. Save to `analysis/comparison/{analysis_id}.json` & `.md`.
-
-#### Step 9C: API Endpoints & Tasks
-**Objective:** Wire the multi-document analysis tools to the API.
-1. Add `course_summary_task` and `document_comparison_task` to `src/workers/tasks/analysis_tasks.py`.
-2. Add `POST /api/v1/analysis/course-summary` and `POST /api/v1/analysis/compare` to `src/api/routes/analysis_routes.py`, both accepting arrays of `document_ids`.
-
-### Acceptance Criteria
-- ✅ `POST /analysis/compare` with `documents: [A, B]` successfully returns an `analysis_id`.
-- ✅ Comparison lists: concepts in A not in B, common concepts, formula differences.
-- ✅ Multi-doc results correctly handle provenance for each separate source document.
-
----
-
-# PHASE 10 — Evaluation Benchmark
-**"Measure everything before claiming improvement."**
-
-### Goal
-Establish an automated evaluation harness to measure the precision, recall, and overall quality of our extraction pipeline (Docling vs others) against a known gold standard.
-
-### Step-by-Step Implementation Plan
-
-#### Step 10A: Ground Truth Schema and Data
-**Objective:** Define the structure for our gold standard data.
-1. Create `backend/tests/benchmarks/data/gold_standard.json`.
-2. Define expected outcomes for a dummy test document (e.g. expected number of formulas, specific entities that must be found, heading hierarchy).
-
-#### Step 10B: Implement Evaluator Metrics
-**Objective:** Write Python scripts to calculate F1, Precision, and Recall.
-1. Create `backend/tests/benchmarks/evaluator.py`.
-2. Implement functions to compare an ingestion job's final S3 artifacts (`entities.json`, `formulas.json`, `canonical.json`) against the gold standard JSON.
-3. Calculate:
-   - Entity Precision/Recall/F1
-   - Formula Extraction % (Recall)
-   - Hierarchy Depth Match
-
-#### Step 10C: Benchmark Runner
-**Objective:** Provide a CLI tool to run the benchmark end-to-end.
-1. Create `backend/tests/benchmarks/run_eval.py`.
-2. The script should:
-   - Trigger a full ingestion pipeline for the test PDF.
-   - Wait for completion.
-   - Run the `evaluator.py` logic over the resulting artifacts.
-   - Output a beautiful Markdown table of the results.
-
-### Acceptance Criteria
-- ✅ Benchmark runs without human intervention via `python -m tests.benchmarks.run_eval`.
-- ✅ Evaluator produces quantifiable metrics (P/R/F1) for extraction accuracy.
-- ✅ Results answer definitively how well the system performs on complex academic PDFs.
-
----
-
-## Phase Dependency Summary
-
-```
-Phase 1 (S3 Namespace)
-    ↓
-Phase 2 (Canonical AST + Docling)
-    ↓
-Phase 3 (Knowledge Extraction)
-    ↓
-Phase 4 (Inspection) ←── inspect as you build; don't wait until the end
-    ↓
-Phase 5 (Chunking + Staged Celery)
-    ↓
-Phase 6 (Analysis Framework + Summarization)
-    ↓
-Phase 7 (Unified Retriever)
-    ↓
-Phase 8 (Quiz / Formulas / PYQ)
-    ↓
-Phase 9 (Multi-doc / Comparison)
-    ↓
-Phase 10 (Evaluation)
-```
-
-## Files Changed Per Phase
-
-| Phase | New Files | Modified Files | Migration |
+| Decision | Previous Plan | This Plan | Reason |
 |---|---|---|---|
-| 1 | `artifact_manager.py`, `ingestion_job_model.py` | `document_model.py`, `document_service.py`, `cleanup_tasks.py`, `storage_repository.py` | ✅ |
-| 2 | `docling_parser.py`, `quality_evaluator.py`, `ast_schema.py`, `ast_builder.py`, `hierarchy_engine.py` | `llama_parser.py`, `model_factory.py`, `pipeline.py`, `pyproject.toml` | ✅ |
-| 3 | `formula_extractor.py`, `question_extractor.py`, `relation_extractor.py`, 3 `extracted_*_model.py` | `gliner_extractor.py`, `entity_resolver.py`, `graph_repository.py` | ✅ |
-| 4 | `document_inspector.py`, `inspection_routes.py`, `debug.html` | `main.py` | ❌ |
-| 5 | `ast_chunker.py` | `ingestion_tasks.py`, `vector_repository.py`, `pipeline.py` | ❌ |
-| 6 | `analysis/base.py`, `analysis_job_model.py`, `document_summarizer.py`, `analysis_tasks.py`, `analysis_routes.py` | — | ✅ |
-| 7 | `unified_retriever.py`, `qdrant_retriever.py`, `neo4j_retriever.py` | `query_routes.py` | ❌ |
-| 8 | `quiz_generator.py`, `formula_revision.py`, `pyq_mapper.py` | `analysis_tasks.py`, `analysis_routes.py` | ❌ |
-| 9 | `course_summarizer.py`, `document_comparator.py` | `analysis_tasks.py`, `analysis_routes.py` | ❌ |
-| 10 | `tests/benchmarks/` (full suite) | — | ❌ |
+| Table names | Keep existing names | **Rename them** | A generic engine should have a generic schema, removing IIT KGP bias. |
+| Domain abstraction | New generic entity hierarchy | **Existing hierarchy IS the generic hierarchy** | The current parent-child structure captures the universal pattern perfectly. |
+| DB migrations | Minimal (FK only) | **Table renames + `institutions` table + `institution_id` FK** | A clean, one-time structural alignment. |
+| Terminology Config | Hardcoded Enum / JSON mapping | **Removed Entirely** | The UI simply renders the names the admin typed (e.g. "Math Dept" or "Class 10"). Completely decouples the engine from organization types. |
+
+---
+
+## 12. Summary: What KGPOne Becomes
+
+```
+KGPOne Core Engine
+├── Knowledge Ingestion Pipeline  (shared, institution-agnostic)
+├── RAG + Query Engine            (shared, parameterized by ai_config)
+├── Assessment Primitives         (shared, institution-agnostic)
+├── Chat + Memory Engine          (shared, scoped by institution_id)
+├── Academic Structure API        (shared, generic tables)
+└── Infrastructure Adapters       (shared, routed by infra_config)
+
+IIT KGP Build (current codebase, unchanged)
+├── PYQ workflows
+├── Semester-based offering UI
+├── Formula revision analysis
+└── Faculty + credits UI
+
+JEE Coaching Build (to be added)
+├── Batch management routes
+├── Target exam + rank analytics
+├── DPP upload + test analysis
+└── Custom frontend
+
+School Build (future)
+├── Grade/Section management
+├── Curriculum mapping
+└── Parent communication
+```
+
+The engine is one codebase. Each build is a thin layer on top. Deployments are isolated by `institution_id` in data and by naming convention in infrastructure. Database tables don't change. The IIT KGP deployment keeps working exactly as-is.

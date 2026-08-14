@@ -32,7 +32,7 @@ class IngestionPipeline:
     async def process_document(self, file_path: str, metadata_base: dict, parsing_instructions: str | None = None):
         """
         Executes the full pipeline: Parse -> DOM -> Chunk -> Extract -> Resolve -> Embed -> Store.
-        `metadata_base` should contain things like course_offering_id, document_id, title, etc.
+        `metadata_base` should contain things like study_unit_id, document_id, title, etc.
         """
         logger.info(f"Starting ingestion pipeline for {file_path}")
         
@@ -47,7 +47,7 @@ class IngestionPipeline:
         """
         # Merge base metadata into the DOM for inheritance
         document_dom.metadata.document_id = metadata_base.get("document_id")
-        document_dom.metadata.course_offering_id = metadata_base.get("course_offering_id")
+        document_dom.metadata.study_unit_id = metadata_base.get("study_unit_id")
         if metadata_base.get("title"):
             document_dom.title = metadata_base.get("title")
         

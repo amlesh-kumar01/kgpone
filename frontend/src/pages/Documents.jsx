@@ -12,10 +12,10 @@ import { useAcademic } from '../context/AcademicContext';
 import IngestionPipelineViewer from '../components/IngestionPipelineViewer';
 
 const Documents = () => {
-  const { departments, courses: allCourses } = useAcademic();
+  const { orgUnits, studyUnits: allStudyUnits } = useAcademic();
   const navigate = useNavigate();
   const [documents, setDocuments] = useState([]);
-  const [filteredCourses, setFilteredCourses] = useState([]);
+  const [filteredStudyUnits, setFilteredStudyUnits] = useState([]);
   const [offerings, setOfferings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -27,7 +27,7 @@ const Documents = () => {
   
   // Cascading Selection State (Global for the page)
   const [selectedDeptId, setSelectedDeptId] = useState(() => localStorage.getItem('kgpone_docs_dept_id') || '');
-  const [selectedCourseId, setSelectedCourseId] = useState(() => localStorage.getItem('kgpone_docs_course_id') || '');
+  const [selectedStudyUnitId, setSelectedStudyUnitId] = useState(() => localStorage.getItem('kgpone_docs_offering_id') || '');
   const [selectedOfferingId, setSelectedOfferingId] = useState(() => localStorage.getItem('kgpone_docs_offering_id') || '');
 
   // Persist selections to localStorage
@@ -36,8 +36,8 @@ const Documents = () => {
   }, [selectedDeptId]);
 
   useEffect(() => {
-    localStorage.setItem('kgpone_docs_course_id', selectedCourseId);
-  }, [selectedCourseId]);
+    localStorage.setItem('kgpone_docs_offering_id', selectedStudyUnitId);
+  }, [selectedStudyUnitId]);
 
   useEffect(() => {
     localStorage.setItem('kgpone_docs_offering_id', selectedOfferingId);
@@ -54,27 +54,27 @@ const Documents = () => {
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
-  // Filter courses when department changes
+  // Filter studyUnits when org_unit changes
   useEffect(() => {
     if (selectedDeptId) {
-      setFilteredCourses(allCourses.filter(c => String(c.department_id) === String(selectedDeptId)));
+      setFilteredStudyUnits(allStudyUnits.filter(c => String(c.org_unit_id) === String(selectedDeptId)));
     } else {
-      setFilteredCourses([]);
+      setFilteredStudyUnits([]);
     }
-  }, [selectedDeptId, allCourses]);
+  }, [selectedDeptId, allStudyUnits]);
 
-  // Fetch offerings when course changes
+  // Fetch offerings when study_unit changes
   useEffect(() => {
-    if (selectedCourseId) {
-      api.get(`/api/v1/academic/${selectedCourseId}/offerings`)
+    if (selectedStudyUnitId) {
+      api.get(`/api/v1/academic/${selectedStudyUnitId}/offerings`)
         .then(res => setOfferings(res.data.data || []))
         .catch(err => console.error("Failed to fetch offerings", err));
     } else {
       setOfferings([]);
     }
-  }, [selectedCourseId]);
+  }, [selectedStudyUnitId]);
 
-  // Fetch documents when a course offering is fully selected
+  // Fetch documents when a study_unit offering is fully selected
   useEffect(() => {
     if (selectedOfferingId) {
       setLoading(true);
@@ -135,7 +135,7 @@ const Documents = () => {
       return;
     }
     if (!selectedOfferingId) {
-      toast({ variant: "destructive", title: "Please select a Course Offering first" });
+      toast({ variant: "destructive", title: "Please select a StudyUnit Offering first" });
       return;
     }
     
@@ -143,7 +143,7 @@ const Documents = () => {
     try {
       // 1. Get presigned URL
       const presignedRes = await api.post('/api/v1/documents/presigned-url', {
-        course_offering_id: selectedOfferingId,
+        study_unit_id: selectedOfferingId,
         filename: formData.file.name,
         content_type: formData.file.type || 'application/pdf'
       });
@@ -162,7 +162,7 @@ const Documents = () => {
       // 3. Register document in backend
       const format = formData.file.name.split('.').pop().toUpperCase();
       await api.post('/api/v1/documents/', {
-        course_offering_id: selectedOfferingId,
+        study_unit_id: selectedOfferingId,
         title: formData.title,
         description: formData.description,
         parsing_instructions: formData.parsing_instructions,
@@ -223,7 +223,7 @@ const Documents = () => {
               onClick={(e) => {
                 if (!selectedOfferingId) {
                   e.preventDefault();
-                  toast({ variant: "destructive", title: "Select a Course Offering first" });
+                  toast({ variant: "destructive", title: "Select a StudyUnit Offering first" });
                 }
               }}
             >
@@ -233,7 +233,7 @@ const Documents = () => {
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto bg-card border border-border p-8 rounded-xl shadow-xl">
             <DialogHeader className="mb-6">
               <DialogTitle className="text-2xl font-serif font-bold text-foreground">Upload Document</DialogTitle>
-              <p className="text-muted-foreground mt-2">Uploading to selected course offering.</p>
+              <p className="text-muted-foreground mt-2">Uploading to selected study_unit offering.</p>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
@@ -318,34 +318,34 @@ const Documents = () => {
           <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select value={selectedDeptId} onValueChange={(val) => {
               setSelectedDeptId(val === 'all' ? '' : val);
-              setSelectedCourseId('');
+              setSelectedStudyUnitId('');
               setSelectedOfferingId('');
             }}>
               <SelectTrigger>
-                <SelectValue placeholder="1. Any Department" />
+                <SelectValue placeholder="1. Any OrgUnit" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Any Department</SelectItem>
-                {departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                <SelectItem value="all">Any OrgUnit</SelectItem>
+                {orgUnits.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
               </SelectContent>
             </Select>
 
-            <Select value={selectedCourseId} onValueChange={(val) => {
-              setSelectedCourseId(val === 'all' ? '' : val);
+            <Select value={selectedStudyUnitId} onValueChange={(val) => {
+              setSelectedStudyUnitId(val === 'all' ? '' : val);
               setSelectedOfferingId('');
             }} disabled={!selectedDeptId}>
               <SelectTrigger>
-                <SelectValue placeholder="2. Any Course" />
+                <SelectValue placeholder="2. Any StudyUnit" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Any Course</SelectItem>
-                {filteredCourses.map(c => <SelectItem key={c.id} value={c.id}>{c.code}</SelectItem>)}
+                <SelectItem value="all">Any StudyUnit</SelectItem>
+                {filteredStudyUnits.map(c => <SelectItem key={c.id} value={c.id}>{c.code}</SelectItem>)}
               </SelectContent>
             </Select>
 
-            <Select value={selectedOfferingId} onValueChange={(val) => setSelectedOfferingId(val === 'all' ? '' : val)} disabled={!selectedCourseId || offerings.length === 0}>
+            <Select value={selectedOfferingId} onValueChange={(val) => setSelectedOfferingId(val === 'all' ? '' : val)} disabled={!selectedStudyUnitId || offerings.length === 0}>
               <SelectTrigger>
-                <SelectValue placeholder={offerings.length === 0 && selectedCourseId ? "No offerings available" : "3. Any Offering"} />
+                <SelectValue placeholder={offerings.length === 0 && selectedStudyUnitId ? "No offerings available" : "3. Any Offering"} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Any Offering</SelectItem>
@@ -362,7 +362,7 @@ const Documents = () => {
           <CardDescription>
             {selectedOfferingId 
               ? "Showing documents linked to the selected academic path."
-              : "Select a department, course, and offering above to view related documents."}
+              : "Select a org_unit, study_unit, and offering above to view related documents."}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">

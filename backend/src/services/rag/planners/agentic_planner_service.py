@@ -101,7 +101,7 @@ class AgenticPlannerService:
 
         user_content = query
         if context_course:
-            user_content = f"[Course context: {context_course}]\n\n{query}"
+            user_content = f"[StudyUnit context: {context_course}]\n\n{query}"
 
         messages = [
             SystemMessage(content=_SYSTEM_PROMPT),
@@ -176,7 +176,7 @@ class AgenticPlannerService:
                                         "formatted_text": item.get("text_snippet", ""),
                                         "document_id": item.get("document_id"),
                                         "document_title": item.get("document_title"),
-                                        "course_code": item.get("course_code"),
+                                        "study_unit_code": item.get("study_unit_code"),
                                         "document_type": item.get("doc_type"),
                                         "page_number": item.get("page"),
                                     },
@@ -204,8 +204,8 @@ class AgenticPlannerService:
             # Fall back to a safe generic plan so the basic pipeline can still respond
             return QueryPlan(
                 intent="semantic_search",
-                course_code=context_course,
-                course_offering_id=context_offering,
+                study_unit_code=context_course,
+                study_unit_id=context_offering,
                 entities_mentioned=[],
                 backends_needed=["qdrant", "neo4j"],
                 confidence_score=0.5,
@@ -214,8 +214,8 @@ class AgenticPlannerService:
         # Build the QueryPlan; attach agent_chunks as a private attribute
         plan = QueryPlan(
             intent=intent,
-            course_code=context_course,
-            course_offering_id=context_offering,
+            study_unit_code=context_course,
+            study_unit_id=context_offering,
             entities_mentioned=entities,
             backends_needed=["qdrant", "neo4j"],
             confidence_score=0.95,

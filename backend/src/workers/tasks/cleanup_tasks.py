@@ -3,7 +3,7 @@ from uuid import UUID
 from celery import shared_task
 from src.infrastructure.database import SessionLocal
 from src.models.document_model import Document
-from src.models.academic_model import Course
+from src.models.academic_model import StudyUnit
 from src.models.system_model import CleanupJob, DeletionStatus
 from src.repositories.s3.storage_repository import S3Storage
 from src.repositories.qdrant.vector_repository import QdrantRepository
@@ -80,8 +80,8 @@ def cleanup_document_task(self, document_id: str, job_id: str):
 
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_backoff_max=600, max_retries=5)
-def cleanup_course_task(self, course_id: str, job_id: str):
-    logger.info(f"Starting cleanup for Course {course_id}")
+def cleanup_study_unit_task(self, study_unit_id: str, job_id: str):
+    logger.info(f"Starting cleanup for StudyUnit {study_unit_id}")
     db = SessionLocal()
     s3_storage = S3Storage()
     qdrant_repo = QdrantRepository()
@@ -96,17 +96,15 @@ def cleanup_course_task(self, course_id: str, job_id: str):
         job.status = DeletionStatus.PENDING
         db.commit()
 
-        # 1. Fetch course to verify it exists
-        course = db.get(Course, UUID(course_id))
-        if not course:
+        # 1. Fetch study unit to verify it exists
+        study_unit = db.get(StudyUnit, UUID(study_unit_id))
+        if not study_unit:
             job.status = DeletionStatus.COMPLETED
             db.commit()
             return
             
-        # 2. Fetch all documents related to this course
-        # A bit tricky: Document -> CourseOffering -> Course
-        from src.models.academic_model import CourseOffering
-        docs = db.query(Document).join(CourseOffering, Document.course_offering_id == CourseOffering.id).join(Course, CourseOffering.course_id == Course.id).filter(Course.id == UUID(course_id)).all()
+        # 2. Fetch all documents related to this study unit
+        docs = db.query(Document).filter(Document.study_unit_id == UUID(study_unit_id)).all()
         
         # 3. S3 Cleanup for all docs
         for doc in docs:
@@ -118,24 +116,86 @@ def cleanup_course_task(self, course_id: str, job_id: str):
             except Exception as s3_e:
                 logger.warning(f"Failed to delete file from S3 (continuing DB cleanup): {s3_e}")
         
-        # 4. Qdrant Cleanup (We indexed course_id? Wait, we indexed course_code and course_offering_id)
-        # Wait, the Qdrant payload contains course_code, but not course_id?
-        # Let's delete by document_id for each document to be safe, or by course_code.
+        # 4. Qdrant Cleanup
         for doc in docs:
             qdrant_repo.delete_by_filter("documents", {"document_id": str(doc.id)})
             
         # 5. Graph Cleanup
         from src.repositories.neo4j.graph_repository import Neo4jRepo
         graph_repo = Neo4jRepo()
-        graph_repo.delete_course_subgraph(course.code)        
-        # 6. Hard Delete the course (cascades to offerings and documents)
+        graph_repo.delete_course_subgraph(study_unit.code)
+        
+        # 6. Hard Delete the study unit (cascades to documents)
         job.status = DeletionStatus.COMPLETED
-        db.delete(course)
+        db.delete(study_unit)
         db.commit()
-        logger.info(f"Cleanup completed for Course {course_id}")
+        logger.info(f"Cleanup completed for StudyUnit {study_unit_id}")
 
     except Exception as e:
-        logger.error(f"Failed to cleanup course {course_id}: {e}")
+        logger.error(f"Failed to cleanup study unit {study_unit_id}: {e}")
+        db.rollback()
+        if job:
+            job.error_message = str(e)
+            job.status = DeletionStatus.FAILED
+            db.commit()
+        raise e
+    finally:
+        db.close()
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_backoff_max=600, max_retries=5)
+def cleanup_org_unit_task(self, org_unit_id: str, job_id: str):
+    from src.models.academic_model import OrganizationalUnit
+    logger.info(f"Starting cleanup for OrgUnit {org_unit_id}")
+    db = SessionLocal()
+    s3_storage = S3Storage()
+    qdrant_repo = QdrantRepository()
+    job = None
+    
+    try:
+        job = db.get(CleanupJob, UUID(job_id))
+        if not job:
+            return
+
+        job.attempt_count += 1
+        job.status = DeletionStatus.PENDING
+        db.commit()
+
+        # 1. Fetch org unit
+        org_unit = db.get(OrganizationalUnit, UUID(org_unit_id))
+        if not org_unit:
+            job.status = DeletionStatus.COMPLETED
+            db.commit()
+            return
+            
+        # 2. Find ALL Study Units inside this Org Unit
+        study_units = db.query(StudyUnit).filter(StudyUnit.org_unit_id == UUID(org_unit_id)).all()
+        
+        for study_unit in study_units:
+            # Delete their documents
+            docs = db.query(Document).filter(Document.study_unit_id == study_unit.id).all()
+            for doc in docs:
+                try:
+                    if doc.s3_prefix:
+                        s3_storage.list_and_delete_prefix(doc.s3_prefix + "/")
+                    else:
+                        s3_storage.delete_file(doc.s3_key)
+                except Exception as s3_e:
+                    logger.warning(f"Failed to delete file from S3: {s3_e}")
+                qdrant_repo.delete_by_filter("documents", {"document_id": str(doc.id)})
+            
+            # Delete graph
+            from src.repositories.neo4j.graph_repository import Neo4jRepo
+            graph_repo = Neo4jRepo()
+            graph_repo.delete_course_subgraph(study_unit.code)
+            
+        # 3. Hard Delete Org Unit (cascades to offerings, study units, and docs)
+        job.status = DeletionStatus.COMPLETED
+        db.delete(org_unit)
+        db.commit()
+        logger.info(f"Cleanup completed for OrgUnit {org_unit_id}")
+
+    except Exception as e:
+        logger.error(f"Failed to cleanup org unit {org_unit_id}: {e}")
         db.rollback()
         if job:
             job.error_message = str(e)

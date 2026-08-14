@@ -29,25 +29,25 @@ from src.services.rag.tools.agent_tools import (
 def register_tools(mcp: FastMCP):
     """Register all KgpOne tools on the MCP server."""
 
-    # ─── 1. Departments ───────────────────────────────────────────────────────
+    # ─── 1. OrganizationalUnits ───────────────────────────────────────────────────────
 
     @mcp.tool()
-    def list_departments() -> list[dict]:
-        """List all academic departments available on the platform."""
+    def list_org_units() -> list[dict]:
+        """List all academic org_units available on the platform."""
         db = SessionLocal()
         try:
             repo = AcademicRepository(db)
-            depts = repo.get_departments()
+            depts = repo.get_org_units()
             return [{"id": str(d.id), "code": d.code, "name": d.name} for d in depts]
         finally:
             db.close()
 
-    # ─── 2. Course Search ─────────────────────────────────────────────────────
+    # ─── 2. StudyUnit Search ─────────────────────────────────────────────────────
 
     @mcp.tool()
-    def search_courses(query: str = "", department_code: Optional[str] = None) -> list[dict]:
+    def search_courses(query: str = "", org_unit_code: Optional[str] = None) -> list[dict]:
         """
-        Search for courses by keyword or filter by department code.
+        Search for courses by keyword or filter by org_unit code.
         Returns course codes, titles, and credit counts.
         """
         db = SessionLocal()
@@ -66,8 +66,8 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     def semantic_search(
         query: str,
-        course_code: Optional[str] = None,
-        course_offering_id: Optional[str] = None,
+        study_unit_code: Optional[str] = None,
+        study_unit_id: Optional[str] = None,
         top_k: int = 5,
     ) -> list[dict]:
         """
@@ -78,8 +78,8 @@ def register_tools(mcp: FastMCP):
         return asyncio.run(
             vector_semantic_search.ainvoke({
                 "query": query,
-                "course_code": course_code,
-                "course_offering_id": course_offering_id,
+                "study_unit_code": study_unit_code,
+                "study_unit_id": study_unit_id,
                 "top_k": top_k,
             })
         )
@@ -90,26 +90,26 @@ def register_tools(mcp: FastMCP):
     def find_documents(
         query: str,
         doc_type: Optional[str] = None,
-        course_code: Optional[str] = None,
+        study_unit_code: Optional[str] = None,
     ) -> list[dict]:
         """
         Search for documents by title or description across the entire catalog.
-        Optionally filter by doc_type (NOTES, SLIDES, PYQ, SYLLABUS) or course_code.
+        Optionally filter by doc_type (NOTES, SLIDES, PYQ, SYLLABUS) or study_unit_code.
         Returns document metadata including IDs that can be used for other tools.
         """
         return asyncio.run(
             search_document_catalog.ainvoke({
                 "query": query,
                 "doc_type": doc_type,
-                "course_code": course_code,
+                "study_unit_code": study_unit_code,
             })
         )
 
-    # ─── 5. List Course Documents ─────────────────────────────────────────────
+    # ─── 5. List StudyUnit Documents ─────────────────────────────────────────────
 
     @mcp.tool()
     def get_course_documents(
-        course_code: str,
+        study_unit_code: str,
         doc_type: Optional[str] = None,
     ) -> list[dict]:
         """
@@ -119,7 +119,7 @@ def register_tools(mcp: FastMCP):
         """
         return asyncio.run(
             list_course_documents.ainvoke({
-                "course_code": course_code,
+                "study_unit_code": study_unit_code,
                 "doc_type": doc_type,
             })
         )
@@ -152,32 +152,32 @@ def register_tools(mcp: FastMCP):
     # ─── 8. Faculty Info ──────────────────────────────────────────────────────
 
     @mcp.tool()
-    def get_course_faculty(course_code: str) -> list[dict]:
+    def get_course_faculty(study_unit_code: str) -> list[dict]:
         """
         Get the professors, TAs, and coordinators for a given course.
         Returns name, role, email, and office hours for each faculty member.
         """
         return asyncio.run(
-            get_faculty_info.ainvoke({"course_code": course_code})
+            get_faculty_info.ainvoke({"study_unit_code": study_unit_code})
         )
 
     # ─── 9. Prerequisites ─────────────────────────────────────────────────────
 
     @mcp.tool()
-    def get_prerequisites(course_code: str) -> dict:
+    def get_prerequisites(study_unit_code: str) -> dict:
         """
         Get the official prerequisite courses for a given course.
         Returns the course details plus a list of all prerequisite courses
         with their titles, credits, and descriptions.
         """
         return asyncio.run(
-            get_course_prerequisites.ainvoke({"course_code": course_code})
+            get_course_prerequisites.ainvoke({"study_unit_code": study_unit_code})
         )
 
     # ─── 10. Graph Entity Lookup ──────────────────────────────────────────────
 
     @mcp.tool()
-    def lookup_knowledge_graph(entity: str, course_code: Optional[str] = None) -> list[dict]:
+    def lookup_knowledge_graph(entity: str, study_unit_code: Optional[str] = None) -> list[dict]:
         """
         Query the academic knowledge graph for a concept or entity.
         Returns (source, relation, target) triples showing how concepts connect.
@@ -186,14 +186,14 @@ def register_tools(mcp: FastMCP):
         return asyncio.run(
             graph_entity_lookup.ainvoke({
                 "entity": entity,
-                "course_code": course_code,
+                "study_unit_code": study_unit_code,
             })
         )
 
     # ─── 11. Full RAG Answer (convenience tool) ───────────────────────────────
 
     @mcp.tool()
-    def answer_question(question: str, course_code: Optional[str] = None) -> dict:
+    def answer_question(question: str, study_unit_code: Optional[str] = None) -> dict:
         """
         Full Hybrid RAG: answers a student's academic question using semantic search
         + knowledge graph context. Returns a grounded answer with source citations.
@@ -216,7 +216,7 @@ def register_tools(mcp: FastMCP):
             citation_service = CitationService()
             answer_gen = AnswerService()
 
-            plan = await planner.detect_intent(question, course_code)
+            plan = await planner.detect_intent(question, study_unit_code)
             context = await retriever.retrieve_context(question, plan)
             reranked = await reranker.rerank_chunks(question, context["retrieved_chunks"], top_n=5)
             citations = citation_service.format_citations(reranked)

@@ -2,158 +2,182 @@ from uuid import UUID
 from fastapi import HTTPException
 from src.repositories.postgres.academic_repository import AcademicRepository
 from src.schemas.academic_schema import (
-    DepartmentCreate, CourseCreate, CourseOfferingCreate,
+    OrganizationalUnitCreate, OfferingCreate, StudyUnitCreate,
     FacultyInfoCreate
 )
-from src.models.academic_model import Department, Course, CourseOffering, FacultyInfo
+from src.models.academic_model import OrganizationalUnit, Offering, StudyUnit, FacultyInfo
 from src.models.system_model import CleanupJob, DeletionStatus
-from src.workers.tasks.cleanup_tasks import cleanup_course_task
+from src.workers.tasks.cleanup_tasks import cleanup_study_unit_task, cleanup_org_unit_task
 from src.repositories.redis.cache_repository import CacheRepository
-from src.schemas.academic_schema import DepartmentRead, CourseRead, CourseOfferingRead
+from src.schemas.academic_schema import OrganizationalUnitRead, OfferingRead, StudyUnitRead
 
 class AcademicService:
     def __init__(self, repository: AcademicRepository, cache_repo: CacheRepository):
         self.repository = repository
         self.cache_repo = cache_repo
 
-    def create_department(self, dept_in: DepartmentCreate) -> Department:
-        dept = self.repository.create_department(dept_in)
-        
-        # Real-time sync to Neo4j
-        import logging
-        logger = logging.getLogger("academic_service")
-        try:
-            from src.repositories.neo4j.graph_repository import Neo4jRepo
-            neo4j = Neo4jRepo()
-            neo4j.merge_department(dept.code, {"name": dept.name})
-            logger.info(f"Synced department {dept.code} to Neo4j")
-        except Exception as e:
-            logger.warning(f"Failed to sync department to Neo4j: {e}")
-            
-        self.cache_repo.delete("academic:departments:v1")
-        return dept
+    # --- Organizational Units ---
+    def create_org_unit(self, org_unit_in: OrganizationalUnitCreate) -> OrganizationalUnit:
+        org_unit = self.repository.create_org_unit(org_unit_in)
+        self.cache_repo.delete("academic:org_units:v1")
+        return org_unit
 
-    def get_departments(self):
-        cache_key = "academic:departments:v1"
+    def get_org_units(self):
+        cache_key = "academic:org_units:v1"
         cached = self.cache_repo.get(cache_key)
         if cached is not None:
             return cached
 
-        depts = self.repository.get_departments()
-        serialized = [DepartmentRead.model_validate(d).model_dump(mode="json") for d in depts]
+        org_units = self.repository.get_org_units()
+        # filter out soft-deleted
+        org_units = [ou for ou in org_units if not ou.is_deleted]
+        serialized = [OrganizationalUnitRead.model_validate(o).model_dump(mode="json") for o in org_units]
         self.cache_repo.set(cache_key, serialized, ttl=3600)
-        return depts
+        return org_units
 
-    def get_department(self, dept_id: UUID) -> Department:
-        dept = self.repository.get_department(dept_id)
-        if not dept:
-            raise HTTPException(status_code=404, detail="Department not found")
-        return dept
+    def get_org_unit(self, org_unit_id: UUID) -> OrganizationalUnit:
+        org_unit = self.repository.get_org_unit(org_unit_id)
+        if not org_unit or org_unit.is_deleted:
+            raise HTTPException(status_code=404, detail="Organizational Unit not found")
+        return org_unit
 
-    def create_course(self, course_in: CourseCreate) -> Course:
-        dept = self.repository.get_department(course_in.department_id)
-        if not dept:
-            raise HTTPException(status_code=404, detail="Department not found")
-        course = self.repository.create_course(course_in)
-        self.cache_repo.delete("academic:courses:v1")
-        return course
-
-    def get_courses(self, department_id: UUID | None = None):
-        # We cache the main list. If filtered by department, we can construct a specific key or just let it fall through.
-        cache_key = f"academic:courses:v1:dept:{department_id}" if department_id else "academic:courses:v1:all"
-        cached = self.cache_repo.get(cache_key)
-        if cached is not None:
-            return cached
-
-        courses = self.repository.get_courses(department_id)
-        serialized = [CourseRead.model_validate(c).model_dump(mode="json") for c in courses]
-        self.cache_repo.set(cache_key, serialized, ttl=3600)
-        return courses
-
-    def get_course(self, course_id: UUID) -> Course:
-        course = self.repository.get_course(course_id)
-        if not course or course.is_deleted:
-            raise HTTPException(status_code=404, detail="Course not found")
-        return course
-
-    def delete_course(self, course_id: UUID):
-        course = self.repository.get_course(course_id)
-        if not course or course.is_deleted:
-            raise HTTPException(status_code=404, detail="Course not found")
+    def delete_org_unit(self, org_unit_id: UUID):
+        org_unit = self.repository.get_org_unit(org_unit_id)
+        if not org_unit or org_unit.is_deleted:
+            raise HTTPException(status_code=404, detail="Organizational Unit not found")
             
-        # Soft delete
-        course.is_deleted = True
-        course.deletion_status = DeletionStatus.PENDING
+        org_unit.is_deleted = True
+        org_unit.deletion_status = DeletionStatus.PENDING
         self.repository.session.commit()
         
-        # Create cleanup job
-        job = CleanupJob(resource_type="COURSE", resource_id=course_id)
+        job = CleanupJob(resource_type="ORG_UNIT", resource_id=org_unit_id)
         self.repository.session.add(job)
         self.repository.session.commit()
         self.repository.session.refresh(job)
         
-        # Dispatch Celery Task
-        cleanup_course_task.delay(str(course_id), str(job.id))
+        cleanup_org_unit_task.delay(str(org_unit_id), str(job.id))
         
-        self.cache_repo.delete("academic:courses:v1:all")
-        self.cache_repo.delete(f"academic:courses:v1:dept:{course.department_id}")
-        self.cache_repo.delete(f"academic:offerings:v1:course:{course_id}")
+        self.cache_repo.delete("academic:org_units:v1")
+        self.cache_repo.delete_pattern(f"academic:offerings:v1:org_unit:{org_unit_id}:*")
+        self.cache_repo.delete_pattern(f"academic:study_units:v1:org_unit:{org_unit_id}:*")
         
-        return course
+        return org_unit
 
-    def add_prerequisite(self, course_id: UUID, prerequisite_id: UUID) -> Course:
-        course = self.get_course(course_id)
-        prereq = self.get_course(prerequisite_id)
-        if not course or not prereq:
-            raise HTTPException(status_code=404, detail="Course or prerequisite not found")
-        return self.repository.add_prerequisite(course_id, prerequisite_id)
-
-    def remove_prerequisite(self, course_id: UUID, prerequisite_id: UUID) -> Course:
-        course = self.get_course(course_id)
-        if not course:
-            raise HTTPException(status_code=404, detail="Course not found")
-        return self.repository.remove_prerequisite(course_id, prerequisite_id)
-
-    def create_offering(self, offering_in: CourseOfferingCreate) -> CourseOffering:
-        course = self.repository.get_course(offering_in.course_id)
-        if not course:
-            raise HTTPException(status_code=404, detail="Course not found")
+    # --- Offerings ---
+    def create_offering(self, offering_in: OfferingCreate) -> Offering:
+        org_unit = self.repository.get_org_unit(offering_in.org_unit_id)
+        if not org_unit or org_unit.is_deleted:
+            raise HTTPException(status_code=404, detail="Organizational Unit not found")
         offering = self.repository.create_offering(offering_in)
-        self.cache_repo.delete(f"academic:offerings:v1:course:{offering_in.course_id}")
+        self.cache_repo.delete(f"academic:offerings:v1:org_unit:{offering_in.org_unit_id}")
         return offering
 
-    def get_offerings(self, course_id: UUID):
-        cache_key = f"academic:offerings:v1:course:{course_id}"
+    def get_offerings(self, org_unit_id: UUID | None = None):
+        cache_key = f"academic:offerings:v1:org_unit:{org_unit_id}" if org_unit_id else "academic:offerings:v1:all"
         cached = self.cache_repo.get(cache_key)
         if cached is not None:
             return cached
 
-        offerings = self.repository.get_offerings(course_id)
-        serialized = [CourseOfferingRead.model_validate(o).model_dump(mode="json") for o in offerings]
+        offerings = self.repository.get_offerings(org_unit_id)
+        serialized = [OfferingRead.model_validate(o).model_dump(mode="json") for o in offerings]
         self.cache_repo.set(cache_key, serialized, ttl=3600)
         return offerings
 
-    def get_offering(self, offering_id: UUID) -> CourseOffering:
+    def get_offering(self, offering_id: UUID) -> Offering:
         offering = self.repository.get_offering(offering_id)
         if not offering:
-            raise HTTPException(status_code=404, detail="Course Offering not found")
+            raise HTTPException(status_code=404, detail="Offering not found")
         return offering
 
     def delete_offering(self, offering_id: UUID):
         offering = self.repository.get_offering(offering_id)
         if not offering:
-            raise HTTPException(status_code=404, detail="Course Offering not found")
+            raise HTTPException(status_code=404, detail="Offering not found")
         self.repository.session.delete(offering)
         self.repository.session.commit()
-        self.cache_repo.delete(f"academic:offerings:v1:course:{offering.course_id}")
+        self.cache_repo.delete(f"academic:offerings:v1:org_unit:{offering.org_unit_id}")
         return offering
 
+    # --- Study Units ---
+    def create_study_unit(self, study_unit_in: StudyUnitCreate) -> StudyUnit:
+        org_unit = self.repository.get_org_unit(study_unit_in.org_unit_id)
+        if not org_unit or org_unit.is_deleted:
+            raise HTTPException(status_code=404, detail="Organizational Unit not found")
+        study_unit = self.repository.create_study_unit(study_unit_in)
+        self.cache_repo.delete_pattern(f"academic:study_units:v1:org_unit:{study_unit_in.org_unit_id}:*")
+        return study_unit
+
+    def get_study_units(self, org_unit_id: UUID | None = None, offering_id: UUID | None = None):
+        cache_key = f"academic:study_units:v1:org_unit:{org_unit_id}:offering:{offering_id}"
+        cached = self.cache_repo.get(cache_key)
+        if cached is not None:
+            return cached
+
+        study_units = self.repository.get_study_units(org_unit_id, offering_id)
+        study_units = [su for su in study_units if not su.is_deleted]
+        serialized = [StudyUnitRead.model_validate(c).model_dump(mode="json") for c in study_units]
+        self.cache_repo.set(cache_key, serialized, ttl=3600)
+        return study_units
+
+    def get_study_unit(self, study_unit_id: UUID) -> StudyUnit:
+        study_unit = self.repository.get_study_unit(study_unit_id)
+        if not study_unit or study_unit.is_deleted:
+            raise HTTPException(status_code=404, detail="Study Unit not found")
+        return study_unit
+
+    def delete_study_unit(self, study_unit_id: UUID):
+        study_unit = self.repository.get_study_unit(study_unit_id)
+        if not study_unit or study_unit.is_deleted:
+            raise HTTPException(status_code=404, detail="Study Unit not found")
+            
+        study_unit.is_deleted = True
+        study_unit.deletion_status = DeletionStatus.PENDING
+        self.repository.session.commit()
+        
+        job = CleanupJob(resource_type="STUDY_UNIT", resource_id=study_unit_id)
+        self.repository.session.add(job)
+        self.repository.session.commit()
+        self.repository.session.refresh(job)
+        
+        cleanup_study_unit_task.delay(str(study_unit_id), str(job.id))
+        
+        
+        self.cache_repo.delete_pattern("academic:study_units:v1:all:*")
+        self.cache_repo.delete_pattern(f"academic:study_units:v1:org_unit:{study_unit.org_unit_id}:*")
+        
+        return study_unit
+
+    def link_offering(self, study_unit_id: UUID, offering_id: UUID) -> StudyUnit:
+        study_unit = self.repository.link_offering(study_unit_id, offering_id)
+        self.cache_repo.delete_pattern(f"academic:study_units:v1:org_unit:{study_unit.org_unit_id}:*")
+        return study_unit
+
+    def unlink_offering(self, study_unit_id: UUID, offering_id: UUID) -> StudyUnit:
+        study_unit = self.repository.unlink_offering(study_unit_id, offering_id)
+        self.cache_repo.delete_pattern(f"academic:study_units:v1:org_unit:{study_unit.org_unit_id}:*")
+        return study_unit
+
+    def add_prerequisite(self, study_unit_id: UUID, prerequisite_id: UUID) -> StudyUnit:
+        study_unit = self.get_study_unit(study_unit_id)
+        prereq = self.get_study_unit(prerequisite_id)
+        if not study_unit or not prereq:
+            raise HTTPException(status_code=404, detail="Study Unit or prerequisite not found")
+        return self.repository.add_prerequisite(study_unit_id, prerequisite_id)
+
+    def remove_prerequisite(self, study_unit_id: UUID, prerequisite_id: UUID) -> StudyUnit:
+        study_unit = self.get_study_unit(study_unit_id)
+        if not study_unit:
+            raise HTTPException(status_code=404, detail="Study Unit not found")
+        return self.repository.remove_prerequisite(study_unit_id, prerequisite_id)
+
+
+    # --- Faculty ---
     def create_faculty(self, faculty_in: FacultyInfoCreate) -> FacultyInfo:
         return self.repository.create_faculty_info(faculty_in)
 
     def get_faculty_for_offering(self, offering_id: UUID) -> list[FacultyInfo]:
         from sqlalchemy import select
-        stmt = select(FacultyInfo).where(FacultyInfo.course_offering_id == offering_id)
+        stmt = select(FacultyInfo).where(FacultyInfo.offering_id == offering_id)
         return list(self.repository.session.scalars(stmt).all())
 
     def delete_faculty(self, faculty_id: UUID):
@@ -163,5 +187,3 @@ class AcademicService:
         self.repository.session.delete(faculty)
         self.repository.session.commit()
         return faculty
-
-

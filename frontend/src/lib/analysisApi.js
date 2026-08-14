@@ -11,8 +11,8 @@ export const triggerQuiz = (documentId) =>
 export const triggerFormulaRevision = (documentId) =>
   api.post('/api/v1/analysis/formula-revision', { document_id: documentId });
 
-export const triggerCourseSummary = (documentIds) =>
-  api.post('/api/v1/analysis/course-summary', { document_ids: documentIds });
+export const triggerStudyUnitSummary = (documentIds) =>
+  api.post('/api/v1/analysis/study_unit-summary', { document_ids: documentIds });
 
 export const triggerComparison = (documentIds) =>
   api.post('/api/v1/analysis/compare', { document_ids: documentIds });

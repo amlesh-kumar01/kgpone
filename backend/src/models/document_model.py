@@ -26,7 +26,7 @@ class Document(Base):
     __tablename__ = "documents"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    course_offering_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("course_offerings.id", ondelete="CASCADE"), nullable=False)
+    study_unit_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("study_units.id", ondelete="CASCADE"), nullable=False)
     uploader_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     
     title: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -59,10 +59,10 @@ class Document(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     # Relationships
-    course_offering: Mapped["CourseOffering"] = relationship(
-        "CourseOffering", 
+    study_unit: Mapped["StudyUnit"] = relationship(
+        "StudyUnit", 
         back_populates="documents",
-        primaryjoin="Document.course_offering_id == CourseOffering.id"
+        primaryjoin="Document.study_unit_id == StudyUnit.id"
     )
     uploader: Mapped["User"] = relationship("User", back_populates="documents")
     metadata_entries: Mapped[list["DocumentMetadata"]] = relationship("DocumentMetadata", back_populates="document", cascade="all, delete-orphan")

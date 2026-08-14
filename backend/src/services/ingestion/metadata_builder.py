@@ -13,9 +13,9 @@ class MetadataBuilder:
         metadata = {
             "document_id": str(document.id),
             "document_version": document.version,
-            "course_offering_id": str(course_offering.id),
-            "course_id": str(course.id),
-            "course_code": course.code,
+            "study_unit_id": str(course_offering.id),
+            "offering_id": str(course.id),
+            "study_unit_code": course.code,
             "course_name": course.title,
             "semester": course_offering.semester.value,
             "year": course_offering.year,

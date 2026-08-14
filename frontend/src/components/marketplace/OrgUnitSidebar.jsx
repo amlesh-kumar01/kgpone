@@ -2,13 +2,13 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Library } from 'lucide-react';
 
-const DepartmentSidebar = ({ departments }) => {
+const OrgUnitSidebar = ({ orgUnits }) => {
   return (
     <div className="w-full md:w-64 flex-shrink-0">
       <div className="bg-card border border-border rounded-lg p-4 shadow-sm sticky top-24">
         <h2 className="text-lg font-serif font-semibold text-foreground mb-4 flex items-center gap-2">
           <Library size={20} className="text-accent" />
-          Departments
+          OrgUnits
         </h2>
         <nav className="flex flex-col gap-1">
           <NavLink
@@ -22,12 +22,12 @@ const DepartmentSidebar = ({ departments }) => {
               }`
             }
           >
-            All Courses
+            All StudyUnits
           </NavLink>
-          {departments.map(dept => (
+          {orgUnits.map(dept => (
             <NavLink
               key={dept.id}
-              to={`/marketplace/departments/${dept.id}`}
+              to={`/marketplace/orgUnits/${dept.id}`}
               className={({ isActive }) =>
                 `px-3 py-2 rounded-md text-sm transition-colors ${
                   isActive 
@@ -45,4 +45,4 @@ const DepartmentSidebar = ({ departments }) => {
   );
 };
 
-export default DepartmentSidebar;
+export default OrgUnitSidebar;

@@ -18,7 +18,7 @@ def get_artifact_manager(document_id: str, db: Session) -> ArtifactManager:
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
         raise ValueError(f"Document {document_id} not found")
-    s3_prefix = doc.s3_prefix or f"documents/UNKNOWN/UNKNOWN/UNKNOWN/{document_id}"
+    s3_prefix = doc.s3_prefix or f"documents/UNKNOWN/{document_id}"
     return ArtifactManager(document_id, s3_prefix, S3Storage())
 
 def set_job_running(db: Session, document_id: str, stage: IngestionStage):
@@ -442,7 +442,7 @@ def index_qdrant_task(self, document_id: str):
         for c in chunks:
             meta = {
                 "document_id": document_id,
-                "course_code": course.code,
+                "study_unit_code": course.code,
                 "document_type": doc.doc_type,
                 "chunk_id": c["chunk_id"],
                 "text": c["text"],

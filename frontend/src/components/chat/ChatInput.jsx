@@ -8,7 +8,7 @@ export const ChatInput = ({
   setInput, 
   handleSubmit, 
   isLoading, 
-  selectedCourseId, 
+  selectedStudyUnitId, 
   analysisMode, 
   byokKey 
 }) => {
@@ -19,7 +19,7 @@ export const ChatInput = ({
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={selectedCourseId ? 'Ask about the selected course...' : 'Ask about a topic, prerequisites, formulas, or figures...'}
+            placeholder={selectedStudyUnitId ? 'Ask about the selected study_unit...' : 'Ask about a topic, prerequisites, formulas, or figures...'}
             className="py-4 px-6 h-auto min-h-[60px] text-[15px] bg-transparent border-none shadow-none focus-visible:ring-0 resize-none rounded-3xl"
             disabled={isLoading}
             onKeyDown={(e) => {

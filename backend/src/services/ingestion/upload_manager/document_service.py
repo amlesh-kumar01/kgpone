@@ -7,7 +7,7 @@ from src.models.system_model import CleanupJob, DeletionStatus
 from src.repositories.s3.storage_repository import S3Storage
 from src.workers.tasks.ingestion_tasks import process_document_task
 from src.workers.tasks.cleanup_tasks import cleanup_document_task
-from src.models.academic_model import CourseOffering
+from src.models.academic_model import Offering
 from src.repositories.redis.cache_repository import CacheRepository
 from src.schemas.document_schema import DocumentRead
 import uuid
@@ -18,17 +18,14 @@ class DocumentService:
         self.cache_repo = cache_repo
         self.s3_storage = s3_storage or S3Storage()
 
-    def generate_upload_url(self, user_id: UUID, filename: str, content_type: str, course_offering_id: UUID) -> PresignedUrlResponse:
-        offering = self.repository.session.get(CourseOffering, course_offering_id)
-        if not offering:
-            raise HTTPException(status_code=404, detail="Course offering not found")
-        
-        dept_code = offering.course.department.code
-        course_code = offering.course.code
-        offering_str = f"{offering.year}_{offering.semester.value}"
+    def generate_upload_url(self, user_id: UUID, filename: str, content_type: str, study_unit_id: UUID) -> PresignedUrlResponse:
+        from src.models.academic_model import StudyUnit
+        study_unit = self.repository.session.get(StudyUnit, study_unit_id)
+        if not study_unit:
+            raise HTTPException(status_code=404, detail="StudyUnit not found")
         
         doc_id = uuid.uuid4()
-        s3_prefix = f"documents/{dept_code}/{course_code}/{offering_str}/{doc_id}"
+        s3_prefix = f"documents/{study_unit_id}/{doc_id}"
         original_s3_key = f"{s3_prefix}/original/{filename}"
         
         presigned_data = self.s3_storage.generate_presigned_url(
@@ -62,8 +59,8 @@ class DocumentService:
         process_document_task.delay(str(doc.id))
         
         self.cache_repo.delete("documents:all:v1")
-        if doc.course_offering_id:
-            self.cache_repo.delete(f"documents:offering:{doc.course_offering_id}:v1")
+        if doc.study_unit_id:
+            self.cache_repo.delete(f"documents:study_unit:{doc.study_unit_id}:v1")
             
         return doc
 
@@ -104,18 +101,18 @@ class DocumentService:
         cleanup_document_task.delay(str(document_id), str(job.id))
         
         self.cache_repo.delete("documents:all:v1")
-        if doc.course_offering_id:
-            self.cache_repo.delete(f"documents:offering:{doc.course_offering_id}:v1")
+        if doc.study_unit_id:
+            self.cache_repo.delete(f"documents:study_unit:{doc.study_unit_id}:v1")
             
         return doc
 
-    def get_documents_for_offering(self, offering_id: UUID):
-        cache_key = f"documents:offering:{offering_id}:v1"
+    def get_documents_for_study_unit(self, study_unit_id: UUID):
+        cache_key = f"documents:study_unit:{study_unit_id}:v1"
         cached = self.cache_repo.get(cache_key)
         if cached is not None:
             return cached
             
-        docs = self.repository.get_documents_by_offering(offering_id)
+        docs = self.repository.get_documents_by_study_unit(study_unit_id)
         serialized = [DocumentRead.model_validate(d).model_dump(mode="json") for d in docs]
         self.cache_repo.set(cache_key, serialized, ttl=3600)
         return docs
@@ -124,8 +121,8 @@ class DocumentService:
         doc = self.get_document(document_id)
         updated_doc = self.repository.update_document(doc, doc_update)
         self.cache_repo.delete("documents:all:v1")
-        if updated_doc.course_offering_id:
-            self.cache_repo.delete(f"documents:offering:{updated_doc.course_offering_id}:v1")
+        if updated_doc.study_unit_id:
+            self.cache_repo.delete(f"documents:study_unit:{updated_doc.study_unit_id}:v1")
         return updated_doc
 
     def mark_processing_complete(self, document_id: UUID, qdrant_id: str) -> Document:
@@ -133,6 +130,6 @@ class DocumentService:
         if not doc:
             raise HTTPException(status_code=404, detail="Document not found")
         self.cache_repo.delete("documents:all:v1")
-        if doc.course_offering_id:
-            self.cache_repo.delete(f"documents:offering:{doc.course_offering_id}:v1")
+        if doc.study_unit_id:
+            self.cache_repo.delete(f"documents:study_unit:{doc.study_unit_id}:v1")
         return doc

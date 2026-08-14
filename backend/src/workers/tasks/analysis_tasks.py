@@ -8,7 +8,7 @@ from src.models.analysis_job_model import AnalysisJob, AnalysisJobStatus
 from src.services.analysis.summarization.document_summarizer import DocumentSummarizer
 from src.services.analysis.quiz.quiz_generator import QuizGenerator
 from src.services.analysis.formula_revision.formula_revision import FormulaRevisionGenerator
-from src.services.analysis.summarization.course_summarizer import CourseSummarizer
+from src.services.analysis.summarization.course_summarizer import StudyUnitSummarizer
 from src.services.analysis.comparison.document_comparator import DocumentComparator
 
 logger = logging.getLogger("analysis_tasks")
@@ -120,7 +120,7 @@ def course_summary_task(self, analysis_id: str, document_ids: list, user_id: str
         job.status = AnalysisJobStatus.RUNNING
         db.commit()
         
-        course_gen = CourseSummarizer()
+        course_gen = StudyUnitSummarizer()
         input_data = AnalysisInput(documents=document_ids)
         
         result = asyncio.run(course_gen.run(input_data, analysis_id))
@@ -131,7 +131,7 @@ def course_summary_task(self, analysis_id: str, document_ids: list, user_id: str
         db.commit()
         
     except Exception as e:
-        logger.error(f"Course summary generation failed: {str(e)}")
+        logger.error(f"StudyUnit summary generation failed: {str(e)}")
         job = db.query(AnalysisJob).filter(AnalysisJob.id == analysis_id).first()
         if job:
             job.status = AnalysisJobStatus.FAILED

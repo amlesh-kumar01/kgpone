@@ -33,8 +33,8 @@ logger = logging.getLogger("agent_tools")
 @tool
 async def vector_semantic_search(
     query: str,
-    course_code: Optional[str] = None,
-    course_offering_id: Optional[str] = None,
+    study_unit_code: Optional[str] = None,
+    study_unit_id: Optional[str] = None,
     top_k: int = 8,
 ) -> list[dict[str, Any]]:
     """
@@ -49,12 +49,12 @@ async def vector_semantic_search(
 
     retriever = UnifiedRetriever()
     
-    # We can pass course_code as a metadata filter
+    # We can pass study_unit_code as a metadata filter
     filters = {}
-    if course_code:
-        filters["course_code"] = course_code
-    if course_offering_id:
-        filters["course_offering_id"] = course_offering_id
+    if study_unit_code:
+        filters["study_unit_code"] = study_unit_code
+    if study_unit_id:
+        filters["study_unit_id"] = study_unit_id
 
     result = await retriever.retrieve(query=query, filters=filters, limit=top_k)
     chunks = result.chunks
@@ -64,7 +64,7 @@ async def vector_semantic_search(
         results.append({
             "document_id": chunk.get("document_id"),
             "document_title": chunk.get("document_title") or chunk.get("title"),
-            "course_code": chunk.get("course_code"),
+            "study_unit_code": chunk.get("study_unit_code"),
             "doc_type": chunk.get("document_type"),
             "page": chunk.get("page_number"),
             "text_snippet": chunk.get("text", "")[:500],
@@ -122,7 +122,7 @@ async def search_chat_history(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @tool
-async def graph_entity_lookup(entity: str, course_code: Optional[str] = None) -> list[dict[str, Any]]:
+async def graph_entity_lookup(entity: str, study_unit_code: Optional[str] = None) -> list[dict[str, Any]]:
     """
     Look up relationships, connections, and concept definitions for an entity
     (topic, concept, or term) in the academic knowledge graph (Neo4j).
@@ -162,12 +162,12 @@ async def graph_entity_lookup(entity: str, course_code: Optional[str] = None) ->
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. List Course Documents
+# 3. List StudyUnit Documents
 # ─────────────────────────────────────────────────────────────────────────────
 
 @tool
 async def list_course_documents(
-    course_code: str,
+    study_unit_code: str,
     doc_type: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     """
@@ -183,9 +183,9 @@ async def list_course_documents(
         try:
             academic_repo = AcademicRepository(db)
             all_courses = academic_repo.get_courses()
-            course = next((c for c in all_courses if c.code.upper() == course_code.upper()), None)
+            course = next((c for c in all_courses if c.code.upper() == study_unit_code.upper()), None)
             if not course:
-                return {"error": f"Course '{course_code}' not found."}
+                return {"error": f"StudyUnit '{study_unit_code}' not found."}
 
             documents = []
             for offering in course.offerings:
@@ -249,7 +249,7 @@ async def get_document_metadata(document_id: str) -> dict[str, Any]:
                 "version": doc.version,
                 "created_at": doc.created_at.isoformat() if doc.created_at else None,
                 "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
-                "course_offering_id": str(doc.course_offering_id),
+                "study_unit_id": str(doc.study_unit_id),
                 "uploader_id": str(doc.uploader_id) if doc.uploader_id else None,
                 "custom_metadata": custom_meta,
             }
@@ -306,7 +306,7 @@ async def get_document_download_url(document_id: str) -> dict[str, Any]:
 async def search_document_catalog(
     query: str,
     doc_type: Optional[str] = None,
-    course_code: Optional[str] = None,
+    study_unit_code: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     """
     Fuzzy search across all documents in the catalog by title and description.
@@ -321,19 +321,19 @@ async def search_document_catalog(
         try:
             from sqlalchemy import select, or_
             from src.models.document_model import Document
-            from src.models.academic_model import Course, CourseOffering
+            from src.models.academic_model import StudyUnit, Offering
 
             stmt = (
-                select(Document, CourseOffering, Course)
-                .join(CourseOffering, Document.course_offering_id == CourseOffering.id)
-                .join(Course, CourseOffering.course_id == Course.id)
+                select(Document, Offering, StudyUnit)
+                .join(Offering, Document.study_unit_id == Offering.id)
+                .join(StudyUnit, Offering.offering_id == StudyUnit.id)
                 .where(Document.is_deleted == False)
             )
 
             if doc_type:
                 stmt = stmt.where(Document.doc_type.ilike(doc_type))
-            if course_code:
-                stmt = stmt.where(Course.code.ilike(course_code))
+            if study_unit_code:
+                stmt = stmt.where(StudyUnit.code.ilike(study_unit_code))
 
             stmt = stmt.where(
                 or_(
@@ -351,7 +351,7 @@ async def search_document_catalog(
                     "description": doc.description,
                     "doc_type": doc.doc_type,
                     "format": doc.format.value if hasattr(doc.format, "value") else doc.format,
-                    "course_code": course.code,
+                    "study_unit_code": course.code,
                     "course_title": course.title,
                     "semester": offering.semester.value if hasattr(offering.semester, "value") else str(offering.semester),
                     "year": offering.year,
@@ -369,7 +369,7 @@ async def search_document_catalog(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @tool
-async def get_faculty_info(course_code: str) -> list[dict[str, Any]]:
+async def get_faculty_info(study_unit_code: str) -> list[dict[str, Any]]:
     """
     Retrieve professor, TA, and coordinator information for a given course.
     Use this when the user asks "Who teaches CS101?", "Who is the professor for this course?",
@@ -382,9 +382,9 @@ async def get_faculty_info(course_code: str) -> list[dict[str, Any]]:
         try:
             academic_repo = AcademicRepository(db)
             all_courses = academic_repo.get_courses()
-            course = next((c for c in all_courses if c.code.upper() == course_code.upper()), None)
+            course = next((c for c in all_courses if c.code.upper() == study_unit_code.upper()), None)
             if not course:
-                return {"error": f"Course '{course_code}' not found."}
+                return {"error": f"StudyUnit '{study_unit_code}' not found."}
 
             faculty_list = []
             for offering in course.offerings:
@@ -405,11 +405,11 @@ async def get_faculty_info(course_code: str) -> list[dict[str, Any]]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 8. Get Course Prerequisites
+# 8. Get StudyUnit Prerequisites
 # ─────────────────────────────────────────────────────────────────────────────
 
 @tool
-async def get_course_prerequisites(course_code: str) -> dict[str, Any]:
+async def get_course_prerequisites(study_unit_code: str) -> dict[str, Any]:
     """
     Retrieve the official prerequisite graph for a course from the academic database.
     Use this when the user asks "What do I need to know before taking CS101?",
@@ -422,9 +422,9 @@ async def get_course_prerequisites(course_code: str) -> dict[str, Any]:
         try:
             academic_repo = AcademicRepository(db)
             all_courses = academic_repo.get_courses()
-            course = next((c for c in all_courses if c.code.upper() == course_code.upper()), None)
+            course = next((c for c in all_courses if c.code.upper() == study_unit_code.upper()), None)
             if not course:
-                return {"error": f"Course '{course_code}' not found."}
+                return {"error": f"StudyUnit '{study_unit_code}' not found."}
 
             return {
                 "code": course.code,

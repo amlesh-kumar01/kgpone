@@ -82,7 +82,7 @@ class RetrievalService(BaseRetriever):
 
         return {
             "query": query,
-            "course_code": plan.course_code,
+            "study_unit_code": plan.study_unit_code,
             "retrieved_chunks": merged_chunks,
             "graph_visualization": {"nodes": [], "edges": []},
             "has_missing_prerequisites": plan.intent == "prerequisites",
@@ -97,10 +97,10 @@ class RetrievalService(BaseRetriever):
                 return chunks
 
             filters = {}
-            if plan.course_code:
-                filters["course_code"] = plan.course_code
-            if getattr(plan, "course_offering_id", None):
-                filters["course_offering_id"] = plan.course_offering_id
+            if plan.study_unit_code:
+                filters["study_unit_code"] = plan.study_unit_code
+            if getattr(plan, "study_unit_id", None):
+                filters["study_unit_id"] = plan.study_unit_id
 
             # For figure searches fetch more candidates so we don't miss image chunks
             is_figure_query = plan.intent == "figure_search"
@@ -185,8 +185,8 @@ class RetrievalService(BaseRetriever):
 
         chunks = []
         try:
-            if plan.intent == "prerequisites" and plan.course_code:
-                chunks.extend(await self._graph_prerequisites(plan.course_code))
+            if plan.intent == "prerequisites" and plan.study_unit_code:
+                chunks.extend(await self._graph_prerequisites(plan.study_unit_code))
 
             elif plan.intent in ["topic_explain", "compare", "relationship", "concept_search"]:
                 for entity in plan.entities_mentioned:
@@ -196,16 +196,16 @@ class RetrievalService(BaseRetriever):
 
         return chunks
 
-    async def _graph_prerequisites(self, course_code: str) -> List[Dict[str, Any]]:
+    async def _graph_prerequisites(self, study_unit_code: str) -> List[Dict[str, Any]]:
         """Fetches prerequisite chain from Neo4j."""
         cypher = """
-        MATCH (c:Course {code: $code})-[:PREREQUISITE*]->(prereq:Course)
+        MATCH (c:StudyUnit {code: $code})-[:PREREQUISITE*]->(prereq:StudyUnit)
         MATCH (prereq)-[:HAS_OFFERING]->(o)-[:HAS_DOCUMENT]->(d)-[:COVERS|:MENTIONS]->(concept)
         RETURN prereq.code as course, concept.name as concept, concept.description as desc
         LIMIT 5
         """
         results = await asyncio.to_thread(
-            self.graph_repo.execute_read_query, cypher, {"code": course_code}
+            self.graph_repo.execute_read_query, cypher, {"code": study_unit_code}
         )
 
         chunks = []
@@ -216,7 +216,7 @@ class RetrievalService(BaseRetriever):
                 "payload": {
                     "text": f"Prerequisite Concept ({r['course']}): {r['concept']} - {r.get('desc', '')}",
                     "document_id": "GRAPH",
-                    "course_code": r["course"],
+                    "study_unit_code": r["course"],
                     "is_prerequisite": True,
                     "prerequisite_concept": r["concept"],
                 },
@@ -274,9 +274,9 @@ class RetrievalService(BaseRetriever):
                 from src.repositories.postgres.document_repository import DocumentRepository
                 doc_repo = DocumentRepository(self.db)
 
-                if getattr(plan, "course_offering_id", None):
+                if getattr(plan, "study_unit_id", None):
                     docs = await asyncio.to_thread(
-                        doc_repo.get_documents_by_offering, plan.course_offering_id
+                        doc_repo.get_documents_by_offering, plan.study_unit_id
                     )
                     for doc in docs:
                         if doc.status == "COMPLETED":
@@ -287,7 +287,7 @@ class RetrievalService(BaseRetriever):
                                     "text": f"Document available: {doc.title} (Type: {doc.doc_type}, Description: {doc.description or 'N/A'})",
                                     "document_id": str(doc.id),
                                     "title": doc.title,
-                                    "course_code": plan.course_code or "Unknown",
+                                    "study_unit_code": plan.study_unit_code or "Unknown",
                                     "document_type": doc.doc_type,
                                     "s3_key": doc.s3_key,
                                 },

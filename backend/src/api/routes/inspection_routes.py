@@ -29,7 +29,7 @@ def get_artifact_manager(document_id: str, db: Session = Depends(get_db)) -> Art
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
         
-    s3_prefix = doc.s3_prefix or f"documents/UNKNOWN/UNKNOWN/UNKNOWN/{document_id}"
+    s3_prefix = doc.s3_prefix or f"documents/UNKNOWN/{document_id}"
     return ArtifactManager(document_id, s3_prefix, S3Storage())
 
 @router.get("/{document_id}", response_model=StandardResponse[InspectionReport])

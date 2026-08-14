@@ -61,7 +61,7 @@ class CitationService(BaseCitationFormatter):
                 "citation_id": f"CIT-{idx + 1}",
                 "document_id": payload.get("document_id"),
                 "source_title": source_title,
-                "course_code": payload.get("course_code", "GEN101"),
+                "study_unit_code": payload.get("study_unit_code", "GEN101"),
                 "academic_year": payload.get("academic_year", ""),
                 "page_number": payload.get("page_number"),
                 "section": section_breadcrumb,

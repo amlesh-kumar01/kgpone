@@ -1,9 +1,9 @@
 from uuid import UUID
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
-from src.models.academic_model import Department, Course, CourseOffering, FacultyInfo
+from src.models.academic_model import OrganizationalUnit, Offering, StudyUnit, FacultyInfo
 from src.schemas.academic_schema import (
-    DepartmentCreate, CourseCreate, CourseOfferingCreate,
+    OrganizationalUnitCreate, OfferingCreate, StudyUnitCreate,
     FacultyInfoCreate
 )
 
@@ -11,91 +11,111 @@ class AcademicRepository:
     def __init__(self, session: Session):
         self.session = session
 
-    # --- Department ---
-    def get_department(self, dept_id: UUID) -> Department | None:
-        return self.session.get(Department, dept_id)
+    # --- Organizational Unit ---
+    def get_org_unit(self, org_unit_id: UUID) -> OrganizationalUnit | None:
+        return self.session.get(OrganizationalUnit, org_unit_id)
 
-    def get_departments(self) -> list[Department]:
-        return list(self.session.scalars(select(Department)).all())
+    def get_org_units(self) -> list[OrganizationalUnit]:
+        return list(self.session.scalars(select(OrganizationalUnit)).all())
 
-    def create_department(self, dept_in: DepartmentCreate) -> Department:
-        dept = Department(code=dept_in.code, name=dept_in.name)
-        self.session.add(dept)
+    def create_org_unit(self, org_unit_in: OrganizationalUnitCreate) -> OrganizationalUnit:
+        org_unit = OrganizationalUnit(code=org_unit_in.code, name=org_unit_in.name)
+        self.session.add(org_unit)
         self.session.commit()
-        self.session.refresh(dept)
-        return dept
+        self.session.refresh(org_unit)
+        return org_unit
 
-    # --- Course ---
-    def get_course(self, course_id: UUID) -> Course | None:
-        return self.session.get(Course, course_id)
+    # --- Offering ---
+    def get_offering(self, offering_id: UUID) -> Offering | None:
+        return self.session.get(Offering, offering_id)
 
-    def get_courses(self, department_id: UUID | None = None) -> list[Course]:
-        stmt = select(Course).options(selectinload(Course.offerings))
-        if department_id:
-            stmt = stmt.where(Course.department_id == department_id)
+    def get_offerings(self, org_unit_id: UUID | None = None) -> list[Offering]:
+        stmt = select(Offering)
+        if org_unit_id:
+            stmt = stmt.where(Offering.org_unit_id == org_unit_id)
         return list(self.session.scalars(stmt).all())
 
-    def create_course(self, course_in: CourseCreate) -> Course:
-        course = Course(
-            department_id=course_in.department_id,
-            code=course_in.code,
-            title=course_in.title,
-            description=course_in.description,
-            credits=course_in.credits
-        )
-        self.session.add(course)
-        self.session.commit()
-        self.session.refresh(course)
-        return course
-
-    def add_prerequisite(self, course_id: UUID, prerequisite_id: UUID) -> Course:
-        from src.models.academic_model import CoursePrerequisite
-        # Check if course and prerequisite exist
-        course = self.get_course(course_id)
-        prerequisite = self.get_course(prerequisite_id)
-        if course and prerequisite:
-            link = CoursePrerequisite(course_id=course_id, prerequisite_id=prerequisite_id)
-            self.session.add(link)
-            self.session.commit()
-            self.session.refresh(course)
-        return course
-
-    def remove_prerequisite(self, course_id: UUID, prerequisite_id: UUID) -> Course:
-        from src.models.academic_model import CoursePrerequisite
-        link = self.session.scalar(select(CoursePrerequisite).where(
-            CoursePrerequisite.course_id == course_id,
-            CoursePrerequisite.prerequisite_id == prerequisite_id
-        ))
-        if link:
-            self.session.delete(link)
-            self.session.commit()
-        course = self.get_course(course_id)
-        return course
-
-
-    # --- CourseOffering ---
-    def get_offering(self, offering_id: UUID) -> CourseOffering | None:
-        return self.session.get(CourseOffering, offering_id)
-
-    def get_offerings(self, course_id: UUID) -> list[CourseOffering]:
-        stmt = select(CourseOffering).where(CourseOffering.course_id == course_id)
-        return list(self.session.scalars(stmt).all())
-
-    def create_offering(self, offering_in: CourseOfferingCreate) -> CourseOffering:
-        offering = CourseOffering(
-            course_id=offering_in.course_id,
-            year=offering_in.year,
-            semester=offering_in.semester
+    def create_offering(self, offering_in: OfferingCreate) -> Offering:
+        offering = Offering(
+            org_unit_id=offering_in.org_unit_id,
+            code=offering_in.code,
+            name=offering_in.name
         )
         self.session.add(offering)
         self.session.commit()
         self.session.refresh(offering)
         return offering
 
+    # --- Study Unit ---
+    def get_study_unit(self, study_unit_id: UUID) -> StudyUnit | None:
+        return self.session.get(StudyUnit, study_unit_id)
+
+    def get_study_units(self, org_unit_id: UUID | None = None, offering_id: UUID | None = None) -> list[StudyUnit]:
+        stmt = select(StudyUnit)
+        if org_unit_id:
+            stmt = stmt.where(StudyUnit.org_unit_id == org_unit_id)
+        if offering_id:
+            stmt = stmt.join(StudyUnit.offerings).where(Offering.id == offering_id)
+        return list(self.session.scalars(stmt).all())
+
+    def create_study_unit(self, study_unit_in: StudyUnitCreate) -> StudyUnit:
+        study_unit = StudyUnit(
+            org_unit_id=study_unit_in.org_unit_id,
+            code=study_unit_in.code,
+            name=study_unit_in.name,
+            description=study_unit_in.description,
+            credits=study_unit_in.credits
+        )
+        self.session.add(study_unit)
+        self.session.commit()
+        self.session.refresh(study_unit)
+        return study_unit
+
+    def link_offering(self, study_unit_id: UUID, offering_id: UUID) -> StudyUnit:
+        study_unit = self.get_study_unit(study_unit_id)
+        offering = self.get_offering(offering_id)
+        if study_unit and offering and offering not in study_unit.offerings:
+            study_unit.offerings.append(offering)
+            self.session.commit()
+            self.session.refresh(study_unit)
+        return study_unit
+
+    def unlink_offering(self, study_unit_id: UUID, offering_id: UUID) -> StudyUnit:
+        study_unit = self.get_study_unit(study_unit_id)
+        offering = self.get_offering(offering_id)
+        if study_unit and offering and offering in study_unit.offerings:
+            study_unit.offerings.remove(offering)
+            self.session.commit()
+            self.session.refresh(study_unit)
+        return study_unit
+
+    def add_prerequisite(self, study_unit_id: UUID, prerequisite_id: UUID) -> StudyUnit:
+        from src.models.academic_model import StudyUnitPrerequisite
+        study_unit = self.get_study_unit(study_unit_id)
+        prerequisite = self.get_study_unit(prerequisite_id)
+        if study_unit and prerequisite:
+            link = StudyUnitPrerequisite(study_unit_id=study_unit_id, prerequisite_id=prerequisite_id)
+            self.session.add(link)
+            self.session.commit()
+            self.session.refresh(study_unit)
+        return study_unit
+
+    def remove_prerequisite(self, study_unit_id: UUID, prerequisite_id: UUID) -> StudyUnit:
+        from src.models.academic_model import StudyUnitPrerequisite
+        link = self.session.scalar(select(StudyUnitPrerequisite).where(
+            StudyUnitPrerequisite.study_unit_id == study_unit_id,
+            StudyUnitPrerequisite.prerequisite_id == prerequisite_id
+        ))
+        if link:
+            self.session.delete(link)
+            self.session.commit()
+        study_unit = self.get_study_unit(study_unit_id)
+        return study_unit
+
     # --- FacultyInfo ---
     def create_faculty_info(self, faculty_in: FacultyInfoCreate) -> FacultyInfo:
         faculty = FacultyInfo(
-            course_offering_id=faculty_in.course_offering_id,
+            offering_id=faculty_in.offering_id,
             name=faculty_in.name,
             email=faculty_in.email,
             role=faculty_in.role,
@@ -105,4 +125,3 @@ class AcademicRepository:
         self.session.commit()
         self.session.refresh(faculty)
         return faculty
-

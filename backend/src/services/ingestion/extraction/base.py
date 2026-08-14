@@ -8,7 +8,7 @@ class BaseEntityExtractor(ABC):
         Extracts structured entities from document chunks.
         Args:
             chunks: List of text chunks from the document
-            context: Dictionary containing document context (title, course_code, etc)
+            context: Dictionary containing document context (title, study_unit_code, etc)
         Returns:
             A dictionary containing the extracted entities.
         """

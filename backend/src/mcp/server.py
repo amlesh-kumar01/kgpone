@@ -58,7 +58,7 @@ def resource_list_courses() -> str:
                 "code": c.code,
                 "title": c.title,
                 "credits": c.credits,
-                "department": c.department.name if c.department else None,
+                "org_unit": c.org_unit.name if c.org_unit else None,
             }
             for c in courses
         ]
@@ -94,8 +94,8 @@ def resource_document(document_id: str) -> str:
         db.close()
 
 
-@mcp.resource("kgpone://course/{course_code}/documents")
-def resource_course_documents(course_code: str) -> str:
+@mcp.resource("kgpone://course/{study_unit_code}/documents")
+def resource_course_documents(study_unit_code: str) -> str:
     """List all documents available for a given course code."""
     from src.infrastructure.database import SessionLocal
     from src.repositories.postgres.academic_repository import AcademicRepository
@@ -103,9 +103,9 @@ def resource_course_documents(course_code: str) -> str:
     try:
         repo = AcademicRepository(db)
         courses = repo.get_courses()
-        course = next((c for c in courses if c.code.upper() == course_code.upper()), None)
+        course = next((c for c in courses if c.code.upper() == study_unit_code.upper()), None)
         if not course:
-            return json.dumps({"error": f"Course '{course_code}' not found."})
+            return json.dumps({"error": f"StudyUnit '{study_unit_code}' not found."})
         documents = []
         for offering in course.offerings:
             for doc in offering.documents:
@@ -117,6 +117,6 @@ def resource_course_documents(course_code: str) -> str:
                         "format": doc.format.value if hasattr(doc.format, "value") else doc.format,
                         "created_at": doc.created_at.isoformat() if doc.created_at else None,
                     })
-        return json.dumps({"course": course_code, "documents": documents}, indent=2)
+        return json.dumps({"course": study_unit_code, "documents": documents}, indent=2)
     finally:
         db.close()

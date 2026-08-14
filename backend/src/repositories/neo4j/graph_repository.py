@@ -30,9 +30,9 @@ class Neo4jRepo:
             return
             
         queries = [
-            "CREATE CONSTRAINT dept_code IF NOT EXISTS FOR (d:Department) REQUIRE d.code IS UNIQUE",
-            "CREATE CONSTRAINT course_code IF NOT EXISTS FOR (c:Course) REQUIRE c.code IS UNIQUE",
-            "CREATE CONSTRAINT offering_id IF NOT EXISTS FOR (o:CourseOffering) REQUIRE o.offering_id IS UNIQUE",
+            "CREATE CONSTRAINT dept_code IF NOT EXISTS FOR (d:OrganizationalUnit) REQUIRE d.code IS UNIQUE",
+            "CREATE CONSTRAINT study_unit_code IF NOT EXISTS FOR (c:StudyUnit) REQUIRE c.code IS UNIQUE",
+            "CREATE CONSTRAINT offering_id IF NOT EXISTS FOR (o:Offering) REQUIRE o.offering_id IS UNIQUE",
             "CREATE CONSTRAINT doc_id IF NOT EXISTS FOR (d:Document) REQUIRE d.doc_id IS UNIQUE",
             "CREATE CONSTRAINT section_id IF NOT EXISTS FOR (s:Section) REQUIRE s.section_id IS UNIQUE",
             "CREATE CONSTRAINT formula_id IF NOT EXISTS FOR (f:Formula) REQUIRE f.formula_id IS UNIQUE",
@@ -92,14 +92,14 @@ class Neo4jRepo:
         """
         return self.execute_write_query(query, {"unique_value": unique_value, "properties": properties})
 
-    def merge_department(self, code: str, properties: dict):
-        return self.merge_node("Department", "code", code, properties)
+    def merge_org_unit(self, code: str, properties: dict):
+        return self.merge_node("OrganizationalUnit", "code", code, properties)
 
     def merge_course(self, code: str, properties: dict):
-        return self.merge_node("Course", "code", code, properties)
+        return self.merge_node("StudyUnit", "code", code, properties)
 
     def merge_course_offering(self, offering_id: str, properties: dict):
-        return self.merge_node("CourseOffering", "offering_id", offering_id, properties)
+        return self.merge_node("Offering", "offering_id", offering_id, properties)
 
     def merge_faculty(self, name: str, properties: dict):
         return self.merge_node("Faculty", "name", name, properties)
@@ -173,15 +173,15 @@ class Neo4jRepo:
         """
         return self.execute_write_query(query, {"doc_id": document_id})
         
-    def delete_course_subgraph(self, course_code: str) -> bool:
-        """Delete Course and cascading offerings and documents."""
+    def delete_course_subgraph(self, study_unit_code: str) -> bool:
+        """Delete StudyUnit and cascading offerings and documents."""
         query = """
-        MATCH (c:Course {code: $course_code})
-        OPTIONAL MATCH (c)-[:HAS_OFFERING]->(o:CourseOffering)
+        MATCH (c:StudyUnit {code: $study_unit_code})
+        OPTIONAL MATCH (c)-[:HAS_OFFERING]->(o:Offering)
         OPTIONAL MATCH (o)-[:HAS_DOCUMENT]->(d:Document)
         DETACH DELETE c, o, d
         """
-        return self.execute_write_query(query, {"course_code": course_code})
+        return self.execute_write_query(query, {"study_unit_code": study_unit_code})
 
     def build_document_skeleton(self, doc_id: str, document_dom: Any) -> bool:
         """Stores the structural skeleton (ToC, Tables) of a document in Neo4j without raw text."""
@@ -218,11 +218,11 @@ class Neo4jRepo:
         
     def upsert_node(self, label: str, node_id: str, properties: Dict[str, Any]) -> bool:
         # Fallback for previous code
-        unique_key = "id" if label in ["Course", "Concept"] else "name"
+        unique_key = "id" if label in ["StudyUnit", "Concept"] else "name"
         return self.merge_node(label, unique_key, node_id, properties)
 
     def create_relationship(self, from_label: str, from_id: str, to_label: str, to_id: str, rel_type: str) -> bool:
         # Fallback for previous code
-        from_key = "id" if from_label in ["Course", "Concept"] else "name"
-        to_key = "id" if to_label in ["Course", "Concept"] else "name"
+        from_key = "id" if from_label in ["StudyUnit", "Concept"] else "name"
+        to_key = "id" if to_label in ["StudyUnit", "Concept"] else "name"
         return self.merge_relationship(from_label, from_key, from_id, to_label, to_key, to_id, rel_type)

@@ -8,13 +8,13 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Calendar } from "lucide-react";
 import api from '../lib/api';
 
-const ManageOfferings = ({ course }) => {
+const ManageOfferings = ({ study_unit }) => {
   const [offerings, setOfferings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   const [formData, setFormData] = useState({
-    course_id: course.id,
+    offering_id: study_unit.id,
     year: new Date().getFullYear(),
     semester: 'AUTUMN'
   });
@@ -24,7 +24,7 @@ const ManageOfferings = ({ course }) => {
   const fetchOfferings = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/api/v1/academic/${course.id}/offerings`);
+      const res = await api.get(`/api/v1/academic/${study_unit.id}/offerings`);
       setOfferings(res.data.data || []);
     } catch (err) {
       console.error(err);
@@ -37,13 +37,13 @@ const ManageOfferings = ({ course }) => {
     if (isDialogOpen) {
       fetchOfferings();
     }
-  }, [isDialogOpen, course.id]);
+  }, [isDialogOpen, study_unit.id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await api.post(`/api/v1/academic/${course.id}/offerings`, formData);
+      const res = await api.post(`/api/v1/academic/${study_unit.id}/offerings`, formData);
       if (res.data.status === 'success') {
         toast({ title: "Offering added successfully!" });
         setFormData({ ...formData, year: new Date().getFullYear(), semester: 'AUTUMN' });
@@ -69,7 +69,7 @@ const ManageOfferings = ({ course }) => {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Manage Offerings - {course.code}</DialogTitle>
+          <DialogTitle>Manage Offerings - {study_unit.code}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-4">
           <div className="border border-border rounded-lg p-4 bg-muted/20">

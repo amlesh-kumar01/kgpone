@@ -4,36 +4,42 @@ from typing import List, Dict, Any, Optional
 from src.services.analysis.base import BaseAnalysisJob, AnalysisInput, AnalysisResult, AnalysisProvenance
 from src.repositories.s3.storage_repository import S3Storage
 from src.infrastructure.llm_factory import LLMFactory
+from src.infrastructure.database import SessionLocal
+from src.models.document_model import Document
 import logging
 
 logger = logging.getLogger("course_summarizer")
 
-class CourseSummarizer(BaseAnalysisJob):
+class StudyUnitSummarizer(BaseAnalysisJob):
     def __init__(self, s3_client=None, llm=None):
         self.s3 = s3_client or S3Storage()
         self.llm_factory = LLMFactory()
         self.llm = llm or self.llm_factory.get_llm("groq/llama-3.3-70b-versatile")
         
     async def run(self, input_data: AnalysisInput, analysis_id: str) -> AnalysisResult:
-        logger.info(f"Generating Course Summary {analysis_id}")
+        logger.info(f"Generating StudyUnit Summary {analysis_id}")
         
         all_summaries = []
         source_nodes = []
         
-        for doc_id in input_data.documents:
-            # We assume artifact_manager.read_json can get chunks.json or canonical.json
-            try:
-                # We can either read the pre-existing document summary or summarize chunks.
-                # Let's read the chunks and do a high level summary, or read existing document summaries.
-                # If a document doesn't have an existing summary, we could summarize it on the fly,
-                # but since we want course-level intelligence without PDF merging,
-                # let's just grab the chunks and sample them or summarize the entities.
-                # To keep it lightweight, let's grab entities and a subset of chunks.
-                key = f"documents/{doc_id}/artifacts/entities.json"
-                entities_data = self.s3.read_json(key)
-                
-                chunks_key = f"documents/{doc_id}/artifacts/chunks.json"
-                chunks_data = self.s3.read_json(chunks_key)
+        with SessionLocal() as db:
+            for doc_id in input_data.documents:
+                # We assume artifact_manager.read_json can get chunks.json or canonical.json
+                try:
+                    doc = db.query(Document).filter(Document.id == doc_id).first()
+                    s3_prefix = doc.s3_prefix if doc and doc.s3_prefix else f"documents/UNKNOWN/{doc_id}"
+                    
+                    # We can either read the pre-existing document summary or summarize chunks.
+                    # Let's read the chunks and do a high level summary, or read existing document summaries.
+                    # If a document doesn't have an existing summary, we could summarize it on the fly,
+                    # but since we want course-level intelligence without PDF merging,
+                    # let's just grab the chunks and sample them or summarize the entities.
+                    # To keep it lightweight, let's grab entities and a subset of chunks.
+                    key = f"{s3_prefix}/artifacts/entities.json"
+                    entities_data = self.s3.read_json(key)
+                    
+                    chunks_key = f"{s3_prefix}/artifacts/chunks.json"
+                    chunks_data = self.s3.read_json(chunks_key)
                 
                 if entities_data and isinstance(entities_data, list):
                     all_summaries.append({
@@ -54,7 +60,7 @@ class CourseSummarizer(BaseAnalysisJob):
         # Format map-reduce for course summary
         prompt = """You are an expert educational AI. 
         I will provide you with a high-level overview (entities/chunks) from multiple documents in a course.
-        Your task is to generate a single, cohesive 'Course Summary' that synthesizes the main topics across all these documents.
+        Your task is to generate a single, cohesive 'StudyUnit Summary' that synthesizes the main topics across all these documents.
         
         Return a beautiful markdown string containing:
         - A high-level overview of the course themes.
@@ -76,10 +82,10 @@ class CourseSummarizer(BaseAnalysisJob):
             md_text = response.content.strip()
         except Exception as e:
             logger.error(f"Failed to generate course summary via LLM: {e}")
-            md_text = "# Course Summary\n\nFailed to generate summary."
+            md_text = "# StudyUnit Summary\n\nFailed to generate summary."
             
         json_data = {
-            "title": "Course Summary",
+            "title": "StudyUnit Summary",
             "summary_md": md_text,
             "documents_included": input_data.documents
         }

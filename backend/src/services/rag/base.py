@@ -73,7 +73,7 @@ class BaseCitationFormatter(ABC):
 
         Returns:
             List of citation dicts with keys like citation_id, source_title,
-            course_code, confidence, score, text_snippet, etc.
+            study_unit_code, confidence, score, text_snippet, etc.
         """
         pass
 
@@ -122,7 +122,7 @@ class BaseSemanticCache(ABC):
         Args:
             query: The raw query string.
             query_embedding: The embedding vector for the query.
-            scope_key: Optional scoping key (e.g. course_offering_id).
+            scope_key: Optional scoping key (e.g. study_unit_id).
 
         Returns:
             Cached response dict if found, None otherwise.

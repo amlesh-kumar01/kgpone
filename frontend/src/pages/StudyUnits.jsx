@@ -13,13 +13,13 @@ import { useAcademic } from '../context/AcademicContext';
 import ManageOfferings from '../components/ManageOfferings';
 import { useNavigate } from 'react-router-dom';
 
-const Courses = () => {
-  const { departments, courses, loading, refreshAcademicData } = useAcademic();
+const StudyUnits = () => {
+  const { orgUnits, studyUnits, loading, refreshAcademicData } = useAcademic();
   const navigate = useNavigate();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   const [formData, setFormData] = useState({ 
-    department_id: '', 
+    org_unit_id: '', 
     code: '', 
     title: '', 
     description: '', 
@@ -34,15 +34,15 @@ const Courses = () => {
     try {
       const res = await api.post('/api/v1/academic/', formData);
       if (res.data.status === 'success') {
-        toast({ title: "Course created successfully!" });
+        toast({ title: "StudyUnit created successfully!" });
         setIsDialogOpen(false);
-        setFormData({ department_id: '', code: '', title: '', description: '', credits: 4 });
+        setFormData({ org_unit_id: '', code: '', title: '', description: '', credits: 4 });
         refreshAcademicData();
       }
     } catch (err) {
       toast({
         variant: "destructive",
-        title: "Failed to create course",
+        title: "Failed to create study_unit",
         description: err.response?.data?.message || err.message,
       });
     } finally {
@@ -54,33 +54,33 @@ const Courses = () => {
     <div className="flex flex-col gap-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Courses</h1>
-          <p className="text-slate-500">Manage academic courses across departments.</p>
+          <h1 className="text-3xl font-bold tracking-tight">StudyUnits</h1>
+          <p className="text-slate-500">Manage academic studyUnits across orgUnits.</p>
         </div>
         
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>
-              <Plus className="mr-2 h-4 w-4" /> Add Course
+              <Plus className="mr-2 h-4 w-4" /> Add StudyUnit
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create New Course</DialogTitle>
+              <DialogTitle>Create New StudyUnit</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label htmlFor="department">Department</Label>
+                <Label htmlFor="org_unit">OrgUnit</Label>
                 <Select 
-                  value={formData.department_id} 
-                  onValueChange={(val) => setFormData({...formData, department_id: val})}
+                  value={formData.org_unit_id} 
+                  onValueChange={(val) => setFormData({...formData, org_unit_id: val})}
                   required
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a department" />
+                    <SelectValue placeholder="Select a org_unit" />
                   </SelectTrigger>
                   <SelectContent>
-                    {departments.map(dept => (
+                    {orgUnits.map(dept => (
                       <SelectItem key={dept.id} value={dept.id}>{dept.code} - {dept.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -88,7 +88,7 @@ const Courses = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="code">Course Code</Label>
+                  <Label htmlFor="code">StudyUnit Code</Label>
                   <Input 
                     id="code" placeholder="e.g., CS101"
                     value={formData.code} 
@@ -107,7 +107,7 @@ const Courses = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="title">Course Title</Label>
+                <Label htmlFor="title">StudyUnit Title</Label>
                 <Input 
                   id="title" 
                   value={formData.title} 
@@ -125,7 +125,7 @@ const Courses = () => {
               </div>
               <Button type="submit" className="w-full" disabled={submitting}>
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Course
+                Save StudyUnit
               </Button>
             </form>
           </DialogContent>
@@ -140,7 +140,7 @@ const Courses = () => {
                 <TableHead>Code</TableHead>
                 <TableHead>Title</TableHead>
                 <TableHead>Credits</TableHead>
-                <TableHead>Department</TableHead>
+                <TableHead>OrgUnit</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -151,35 +151,35 @@ const Courses = () => {
                     <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                   </TableCell>
                 </TableRow>
-              ) : courses.length === 0 ? (
+              ) : studyUnits.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-8 text-slate-500">
                     <div className="flex flex-col items-center justify-center space-y-3">
                       <BookOpen className="h-10 w-10 text-slate-300" />
-                      <p>No courses found. Create one to get started.</p>
+                      <p>No studyUnits found. Create one to get started.</p>
                     </div>
                   </TableCell>
                 </TableRow>
               ) : (
-                courses.map((course) => (
-                  <TableRow key={course.id}>
-                    <TableCell className="font-medium text-primary">{course.code}</TableCell>
-                    <TableCell>{course.title}</TableCell>
-                    <TableCell>{course.credits}</TableCell>
+                studyUnits.map((study_unit) => (
+                  <TableRow key={study_unit.id}>
+                    <TableCell className="font-medium text-primary">{study_unit.code}</TableCell>
+                    <TableCell>{study_unit.title}</TableCell>
+                    <TableCell>{study_unit.credits}</TableCell>
                     <TableCell>
-                      {departments.find(d => d.id === course.department_id)?.code || 'Unknown'}
+                      {orgUnits.find(d => d.id === study_unit.org_unit_id)?.code || 'Unknown'}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end items-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => navigate(`/courses/${course.id}/analyze`)}
+                          onClick={() => navigate(`/study-units/${study_unit.id}/analyze`)}
                           className="gap-1.5 text-accent border-accent/30 hover:bg-accent/5"
                         >
-                          <BrainCircuit className="w-4 h-4" /> Course Studio
+                          <BrainCircuit className="w-4 h-4" /> StudyUnit Studio
                         </Button>
-                        <ManageOfferings course={course} />
+                        <ManageOfferings study_unit={study_unit} />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -193,4 +193,4 @@ const Courses = () => {
   );
 };
 
-export default Courses;
+export default StudyUnits;

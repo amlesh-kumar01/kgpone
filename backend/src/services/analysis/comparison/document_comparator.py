@@ -4,6 +4,8 @@ from typing import List, Dict, Any, Optional
 from src.services.analysis.base import BaseAnalysisJob, AnalysisInput, AnalysisResult, AnalysisProvenance
 from src.repositories.s3.storage_repository import S3Storage
 from src.infrastructure.llm_factory import LLMFactory
+from src.infrastructure.database import SessionLocal
+from src.models.document_model import Document
 import logging
 
 logger = logging.getLogger("document_comparator")
@@ -23,20 +25,23 @@ class DocumentComparator(BaseAnalysisJob):
         doc_data = {}
         source_nodes = []
         
-        for doc_id in input_data.documents:
-            doc_data[doc_id] = {"entities": [], "formulas": []}
-            try:
-                e_key = f"documents/{doc_id}/artifacts/entities.json"
-                entities_data = self.s3.read_json(e_key)
-                if entities_data and isinstance(entities_data, list):
-                    doc_data[doc_id]["entities"] = [e.get("name") for e in entities_data if isinstance(e, dict) and e.get("name")]
-                
-                f_key = f"documents/{doc_id}/artifacts/formulas.json"
-                formulas_data = self.s3.read_json(f_key)
-                if formulas_data and isinstance(formulas_data, list):
-                    doc_data[doc_id]["formulas"] = [f.get("name") for f in formulas_data if isinstance(f, dict) and f.get("name")]
-            except Exception as e:
-                logger.warning(f"Failed to load artifacts for {doc_id}: {e}")
+        with SessionLocal() as db:
+            for doc_id in input_data.documents:
+                doc_data[doc_id] = {"entities": [], "formulas": []}
+                try:
+                    doc = db.query(Document).filter(Document.id == doc_id).first()
+                    s3_prefix = doc.s3_prefix if doc and doc.s3_prefix else f"documents/UNKNOWN/{doc_id}"
+                    e_key = f"{s3_prefix}/artifacts/entities.json"
+                    entities_data = self.s3.read_json(e_key)
+                    if entities_data and isinstance(entities_data, list):
+                        doc_data[doc_id]["entities"] = [e.get("name") for e in entities_data if isinstance(e, dict) and e.get("name")]
+                    
+                    f_key = f"{s3_prefix}/artifacts/formulas.json"
+                    formulas_data = self.s3.read_json(f_key)
+                    if formulas_data and isinstance(formulas_data, list):
+                        doc_data[doc_id]["formulas"] = [f.get("name") for f in formulas_data if isinstance(f, dict) and f.get("name")]
+                except Exception as e:
+                    logger.warning(f"Failed to load artifacts for {doc_id}: {e}")
                 
         # For simplicity, we just compare Doc A vs everything else if > 2, but usually it's [A, B]
         doc_ids = input_data.documents

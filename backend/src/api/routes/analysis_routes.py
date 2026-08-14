@@ -112,7 +112,7 @@ async def generate_course_summary(req: MultiDocumentRequest, user: User = Depend
     
     return StandardResponse(
         status="success",
-        message="Course summary job started successfully",
+        message="StudyUnit summary job started successfully",
         data={"analysis_id": new_job.id}
     )
 

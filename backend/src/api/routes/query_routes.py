@@ -54,8 +54,8 @@ def get_rag_services(db: Session = Depends(get_db)):
 async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_services)):
     """Full hybrid RAG pipeline: Cache Check -> Plan -> Retrieve -> Rerank -> Answer"""
     query = req.query
-    course_code = req.course_code
-    course_offering_id = req.course_offering_id
+    study_unit_code = req.study_unit_code
+    study_unit_id = req.study_unit_id
     
     # 0. Semantic Cache Check
     cache_hit = False
@@ -70,7 +70,7 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
         query_embedding = []
     
     if query_embedding:
-        scope_key = course_offering_id if course_offering_id else None
+        scope_key = study_unit_id if study_unit_id else None
         cached = await semantic_cache.get(query, query_embedding, scope_key=scope_key)
         if cached:
             # Return cached response directly
@@ -82,7 +82,7 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
             )
     
     # 1. Plan
-    plan = await services["planner"].detect_intent(query, course_code, course_offering_id)
+    plan = await services["planner"].detect_intent(query, study_unit_code, study_unit_id)
     
     # 2. Retrieve
     context = await services["retriever"].retrieve_context(query, plan)
@@ -116,7 +116,7 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
             sources.append({
                 "document_id": doc_id,
                 "title": payload.get("document_title", payload.get("title", "Unknown")),
-                "course_code": payload.get("course_code", ""),
+                "study_unit_code": payload.get("study_unit_code", ""),
                 "doc_type": payload.get("document_type", "Notes"),
                 "s3_key": payload.get("s3_key", "")
             })
@@ -134,7 +134,7 @@ async def ask_question(req: QueryRequest, services: dict = Depends(get_rag_servi
     
     # 6. Cache the response for future identical queries
     if query_embedding:
-        scope_key = course_offering_id if course_offering_id else None
+        scope_key = study_unit_id if study_unit_id else None
         try:
             await semantic_cache.set(
                 query,
@@ -169,8 +169,8 @@ async def ask_question_stream(
     BYOK keys are used only for this request and are never stored.
     """
     query = req.query
-    course_code = req.course_code
-    course_offering_id = req.course_offering_id
+    study_unit_code = req.study_unit_code
+    study_unit_id = req.study_unit_id
     t0 = time.time()
     
     # ── 1. FAST PATH: Semantic Cache Check ──
@@ -187,7 +187,7 @@ async def ask_question_stream(
     logger.info(f"[PERF-DEBUG] Embed query took: {t_embed - t0:.4f}s")
         
     if query_embedding:
-        scope_key = course_offering_id if course_offering_id else None
+        scope_key = study_unit_id if study_unit_id else None
         cached = await semantic_cache.get(query, query_embedding, scope_key=scope_key)
         
         t_cache = time.time()
@@ -294,7 +294,7 @@ async def ask_question_stream(
         plan = QueryPlan(intent="deep_research", execution_strategy="map_reduce", backends_needed=[])
         logger.info("[Mode] Deep Research Map-Reduce explicitly requested")
     else:
-        plan = await planner.detect_intent(query, course_code, course_offering_id)
+        plan = await planner.detect_intent(query, study_unit_code, study_unit_id)
     t1 = time.time()
     logger.info(f"[PERF] Planner took: {t1 - t0:.4f}s")
 
@@ -403,7 +403,7 @@ async def ask_question_stream(
             sources.append({
                 "document_id": doc_id,
                 "title": payload.get("document_title", payload.get("title", "Unknown")),
-                "course_code": payload.get("course_code", ""),
+                "study_unit_code": payload.get("study_unit_code", ""),
                 "doc_type": payload.get("document_type", "Notes"),
                 "s3_key": payload.get("s3_key", "")
             })
@@ -461,7 +461,7 @@ async def ask_question_stream(
         
         # Cache the response for future identical queries
         if query_embedding:
-            scope_key = course_offering_id if course_offering_id else None
+            scope_key = study_unit_id if study_unit_id else None
             try:
                 cache_payload = {
                     "answer": full_response,
@@ -533,10 +533,10 @@ def _enrich_citations_with_document_urls(citations: list) -> None:
 async def semantic_search(req: QueryRequest, services: dict = Depends(get_rag_services)):
     """Vector-only search returning ranked document chunks"""
     query = req.query
-    course_code = req.course_code
-    course_offering_id = req.course_offering_id
+    study_unit_code = req.study_unit_code
+    study_unit_id = req.study_unit_id
     
-    plan = await services["planner"].detect_intent(query, course_code, course_offering_id)
+    plan = await services["planner"].detect_intent(query, study_unit_code, study_unit_id)
     # Force semantic search
     plan.backends_needed = ["qdrant"]
     
@@ -550,7 +550,7 @@ async def semantic_search(req: QueryRequest, services: dict = Depends(get_rag_se
             results.append(SearchResult(
                 document_id=payload.get("document_id"),
                 title=payload.get("document_title", payload.get("title", "Unknown")),
-                course_code=payload.get("course_code", ""),
+                study_unit_code=payload.get("study_unit_code", ""),
                 doc_type=payload.get("document_type", "Notes"),
                 snippet=payload.get("content", payload.get("text", ""))[:300],
                 score=chunk.get("final_score", chunk.get("score", 0.0)),

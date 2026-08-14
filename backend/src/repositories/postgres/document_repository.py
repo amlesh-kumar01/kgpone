@@ -19,13 +19,13 @@ class DocumentRepository:
         stmt = select(func.count()).select_from(Document)
         return self.session.scalar(stmt) or 0
 
-    def get_documents_by_offering(self, offering_id: UUID) -> list[Document]:
-        stmt = select(Document).where(Document.course_offering_id == offering_id)
+    def get_documents_by_study_unit(self, study_unit_id: UUID) -> list[Document]:
+        stmt = select(Document).where(Document.study_unit_id == study_unit_id)
         return list(self.session.scalars(stmt).all())
 
     def create_document(self, doc_in: DocumentCreate) -> Document:
         doc = Document(
-            course_offering_id=doc_in.course_offering_id,
+            study_unit_id=doc_in.study_unit_id,
             uploader_id=doc_in.uploader_id,
             title=doc_in.title,
             description=doc_in.description,

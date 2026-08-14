@@ -26,7 +26,7 @@ class DocumentBase(BaseModel):
 
 class DocumentCreate(DocumentBase):
     id: UUID | None = None
-    course_offering_id: UUID
+    study_unit_id: UUID
     uploader_id: UUID | None = None
     s3_key: str
     s3_prefix: str | None = None
@@ -36,7 +36,7 @@ class DocumentCreate(DocumentBase):
 
 class DocumentRead(DocumentBase):
     id: UUID
-    course_offering_id: UUID
+    study_unit_id: UUID
     uploader_id: UUID | None
     s3_key: str
     s3_prefix: str | None = None
@@ -61,7 +61,7 @@ class DocumentUpdate(BaseModel):
 class PresignedUrlRequest(BaseModel):
     filename: str
     content_type: str
-    course_offering_id: UUID
+    study_unit_id: UUID
 
 class PresignedUrlResponse(BaseModel):
     upload_url: str

@@ -10,7 +10,7 @@ class PrerequisiteService:
         self.query_service = GraphQueryService()
         self.neo4j = Neo4jRepo()
 
-    def diagnose_missing_prerequisites(self, query: str, active_course_code: str) -> Dict[str, Any]:
+    def diagnose_missing_prerequisites(self, query: str, active_study_unit_code: str) -> Dict[str, Any]:
         """
         Scans a query for mention of known advanced concepts, walks the graph backwards,
         and returns missing prerequisite information along with a serialized node-link graph
@@ -73,7 +73,7 @@ class PrerequisiteService:
                 nodes.append({
                     "id": concept,
                     "label": concept,
-                    "course": active_course_code,
+                    "course": active_study_unit_code,
                     "type": "target"  # The subject the user asked about
                 })
 
@@ -81,7 +81,7 @@ class PrerequisiteService:
         for link in unique_links:
             src = link["source_concept"]
             prereq = link["prereq_concept"]
-            course = link["course_code"]
+            course = link["study_unit_code"]
             desc = link.get("description", "")
 
             # Add source node if not present
@@ -90,7 +90,7 @@ class PrerequisiteService:
                 nodes.append({
                     "id": src,
                     "label": src,
-                    "course": active_course_code,
+                    "course": active_study_unit_code,
                     "type": "intermediate"
                 })
 

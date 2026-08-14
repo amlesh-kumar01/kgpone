@@ -1,57 +1,54 @@
 from pydantic import BaseModel, ConfigDict
 from uuid import UUID
 from datetime import datetime
-from src.models.academic_model import SemesterType
 
-# ----------------- Department Schemas -----------------
-class DepartmentBase(BaseModel):
+# ----------------- Organizational Unit Schemas -----------------
+class OrganizationalUnitBase(BaseModel):
     code: str
     name: str
 
-class DepartmentCreate(DepartmentBase):
+class OrganizationalUnitCreate(OrganizationalUnitBase):
     pass
 
-class DepartmentRead(DepartmentBase):
+class OrganizationalUnitRead(OrganizationalUnitBase):
     id: UUID
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
-# ----------------- Course Schemas -----------------
-class CourseBase(BaseModel):
+# ----------------- Offering Schemas -----------------
+class OfferingBase(BaseModel):
     code: str
-    title: str
-    description: str | None = None
-    credits: int | None = None
+    name: str
 
-class CourseCreate(CourseBase):
-    department_id: UUID
+class OfferingCreate(OfferingBase):
+    org_unit_id: UUID | None = None
 
-# ----------------- CourseOffering Schemas -----------------
-class CourseOfferingBase(BaseModel):
-    year: int
-    semester: SemesterType
-
-class CourseOfferingCreate(CourseOfferingBase):
-    course_id: UUID
-
-class CourseOfferingRead(CourseOfferingBase):
+class OfferingRead(OfferingBase):
     id: UUID
-    course_id: UUID
+    org_unit_id: UUID
     model_config = ConfigDict(from_attributes=True)
 
-class CourseRead(CourseBase):
+# ----------------- Study Unit Schemas -----------------
+class StudyUnitBase(BaseModel):
+    code: str
+    name: str
+    description: str | None = None
+    credits: int | None = 0
+
+class StudyUnitCreate(StudyUnitBase):
+    org_unit_id: UUID | None = None
+
+class StudyUnitRead(StudyUnitBase):
     id: UUID
-    department_id: UUID
+    org_unit_id: UUID
     created_at: datetime
     updated_at: datetime
-    prerequisites: list[CourseBase] = []
-    offerings: list[CourseOfferingRead] = []
+    offerings: list[OfferingRead] = []
+    prerequisites: list[StudyUnitBase] = []
     model_config = ConfigDict(from_attributes=True)
 
-class CoursePrerequisiteAdd(BaseModel):
+class StudyUnitPrerequisiteAdd(BaseModel):
     prerequisite_id: UUID
-
-
 
 # ----------------- FacultyInfo Schemas -----------------
 class FacultyInfoBase(BaseModel):
@@ -61,10 +58,10 @@ class FacultyInfoBase(BaseModel):
     office_hours: str | None = None
 
 class FacultyInfoCreate(FacultyInfoBase):
-    course_offering_id: UUID
+    offering_id: UUID
 
 class FacultyInfoRead(FacultyInfoBase):
     id: UUID
-    course_offering_id: UUID
+    offering_id: UUID
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)

@@ -10,13 +10,13 @@ class BaseGraphBuilder(ABC):
     """
 
     @abstractmethod
-    def add_course_node(self, course_code: str, title: str, academic_year: str) -> bool:
-        """Adds or updates a Course node in the graph."""
+    def add_course_node(self, study_unit_code: str, title: str, academic_year: str) -> bool:
+        """Adds or updates a StudyUnit node in the graph."""
         pass
 
     @abstractmethod
-    def add_concept_node(self, name: str, course_code: str, description: str = "") -> bool:
-        """Adds or updates a Concept node and links it to its parent Course."""
+    def add_concept_node(self, name: str, study_unit_code: str, description: str = "") -> bool:
+        """Adds or updates a Concept node and links it to its parent StudyUnit."""
         pass
 
     @abstractmethod
@@ -40,7 +40,7 @@ class BaseGraphQuerier(ABC):
         Returns a list of dicts with keys:
             - source_concept: str
             - prereq_concept: str
-            - course_code: str
+            - study_unit_code: str
             - description: str
         """
         pass
@@ -60,7 +60,7 @@ class BasePrerequisiteDiagnoser(ABC):
 
     @abstractmethod
     def diagnose_missing_prerequisites(
-        self, query: str, active_course_code: str
+        self, query: str, active_study_unit_code: str
     ) -> dict[str, Any]:
         """
         Scans a query for mentions of known concepts, walks the graph

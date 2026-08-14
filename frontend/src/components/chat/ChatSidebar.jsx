@@ -5,13 +5,13 @@ import { ChevronLeft, Sparkles, Settings as SettingsIcon, ChevronDown, MessageSq
 
 export const ChatSidebar = ({
   navigate,
-  departments,
-  filteredCourses,
+  orgUnits,
+  filteredStudyUnits,
   offerings,
   selectedDeptId,
   setSelectedDeptId,
-  selectedCourseId,
-  setSelectedCourseId,
+  selectedStudyUnitId,
+  setSelectedStudyUnitId,
   selectedOfferingId,
   setSelectedOfferingId,
   useCitations,

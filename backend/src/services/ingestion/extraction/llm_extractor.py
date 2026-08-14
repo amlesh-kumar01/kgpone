@@ -71,7 +71,7 @@ class LLMEntityExtractor(BaseEntityExtractor):
             
         self.prompt_template = ChatPromptTemplate.from_messages([
             ("system", "You are an expert academic knowledge graph extractor. Extract educational entities from the text chunks provided by the user. Do not include any explanations, just the structured data."),
-            ("user", "Document Context:\nTitle: {title}\nCourse: {course}\nType: {type}\n\nText Chunks:\n{text}")
+            ("user", "Document Context:\nTitle: {title}\nStudyUnit: {course}\nType: {type}\n\nText Chunks:\n{text}")
         ])
 
     async def extract(self, chunks: List[str], context: Dict[str, Any]) -> Dict[str, Any]:
@@ -98,7 +98,7 @@ class LLMEntityExtractor(BaseEntityExtractor):
             try:
                 result = await chain.ainvoke({
                     "title": context.get('title', 'Unknown'),
-                    "course": context.get('course_code', 'Unknown'),
+                    "course": context.get('study_unit_code', 'Unknown'),
                     "type": context.get('doc_type', 'Unknown'),
                     "text": batch_text
                 })

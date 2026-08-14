@@ -5,6 +5,8 @@ from src.services.analysis.base import BaseAnalysisJob, AnalysisInput, AnalysisR
 from src.repositories.s3.storage_repository import S3Storage
 from src.repositories.neo4j.graph_repository import Neo4jRepo
 from src.infrastructure.llm_factory import LLMFactory
+from src.infrastructure.database import SessionLocal
+from src.models.document_model import Document
 import logging
 
 logger = logging.getLogger("formula_revision")
@@ -23,10 +25,13 @@ class FormulaRevisionGenerator(BaseAnalysisJob):
         source_nodes = []
         
         # Load formulas.json
-        for doc_id in input_data.documents:
-            try:
-                key = f"documents/{doc_id}/artifacts/formulas.json"
-                formulas_data = self.s3.read_json(key)
+        with SessionLocal() as db:
+            for doc_id in input_data.documents:
+                try:
+                    doc = db.query(Document).filter(Document.id == doc_id).first()
+                    s3_prefix = doc.s3_prefix if doc and doc.s3_prefix else f"documents/UNKNOWN/{doc_id}"
+                    key = f"{s3_prefix}/artifacts/formulas.json"
+                    formulas_data = self.s3.read_json(key)
                 if formulas_data and isinstance(formulas_data, list):
                     all_formulas.extend(formulas_data)
                     for f in formulas_data:

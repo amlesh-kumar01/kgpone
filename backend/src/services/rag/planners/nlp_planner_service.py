@@ -109,7 +109,7 @@ class NLPPlannerService(BaseQueryPlanner):
             predicted_intent, confidence = self._classify_intent(clean_query)
 
         # Step 2: Extract entities
-        course_code = self._extract_course_code(query) or context_course
+        study_unit_code = self._extract_study_unit_code(query) or context_course
         entities = self._extract_entities(query)
 
         # Step 3: Deterministic backend routing
@@ -117,8 +117,8 @@ class NLPPlannerService(BaseQueryPlanner):
 
         return QueryPlan(
             intent=predicted_intent,
-            course_code=course_code,
-            course_offering_id=context_offering,
+            study_unit_code=study_unit_code,
+            study_unit_id=context_offering,
             entities_mentioned=entities,
             backends_needed=backends,
             confidence_score=float(confidence),
@@ -178,7 +178,7 @@ class NLPPlannerService(BaseQueryPlanner):
 
         return "general_qa", 0.50
 
-    def _extract_course_code(self, query: str) -> Optional[str]:
+    def _extract_study_unit_code(self, query: str) -> Optional[str]:
         """Extracts standard course codes deterministically via regex."""
         match = self.course_pattern.search(query)
         if match:

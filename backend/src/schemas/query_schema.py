@@ -5,8 +5,8 @@ from datetime import datetime
 
 class QueryPlan(BaseModel):
     intent: str
-    course_code: Optional[str] = None
-    course_offering_id: Optional[str] = None
+    study_unit_code: Optional[str] = None
+    study_unit_id: Optional[str] = None
     entities_mentioned: List[str] = []
     backends_needed: List[str] = []
     confidence_score: float = 1.0
@@ -29,8 +29,8 @@ class AgentSummary(BaseModel):
 class QueryRequest(BaseModel):
     query: str
     conversation_id: Optional[UUID] = None
-    course_code: Optional[str] = None
-    course_offering_id: Optional[str] = None
+    study_unit_code: Optional[str] = None
+    study_unit_id: Optional[str] = None
     use_citations: bool = True
     # Controls which pipeline is used: basic = fast NLP, advanced = tool-calling agent, general = direct LLM, deep_research = map_reduce
     analysis_mode: Literal["basic", "advanced", "general", "deep_research"] = "basic"
@@ -43,7 +43,7 @@ class CitationRead(BaseModel):
     citation_id: str
     document_id: Optional[str] = None
     source_title: str = "Lecture Notes"
-    course_code: str = "GEN101"
+    study_unit_code: str = "GEN101"
     academic_year: str = ""
     page_number: Optional[int] = None
     section: str = "General"
@@ -64,7 +64,7 @@ class CitationRead(BaseModel):
 class SourceRead(BaseModel):
     document_id: str
     title: str
-    course_code: str
+    study_unit_code: str
     doc_type: str
     s3_key: str
 
@@ -81,7 +81,7 @@ class QueryResponse(BaseModel):
 class SearchResult(BaseModel):
     document_id: str
     title: str
-    course_code: str
+    study_unit_code: str
     doc_type: str
     snippet: str
     score: float

@@ -87,9 +87,9 @@ If they ask for code, provide it. Use markdown formatting beautifully."""),
         for idx, chunk in enumerate(ranked_chunks):
             payload = chunk["payload"]
             cit_id = f"CIT-{idx + 1}"
-            course_code = payload.get("course_code", "Unknown Course")
+            study_unit_code = payload.get("study_unit_code", "Unknown StudyUnit")
             is_prereq = payload.get("is_prereq", False)
-            prereq_str = " (Prerequisite Course Content)" if is_prereq else " (Active Course Content)"
+            prereq_str = " (Prerequisite StudyUnit Content)" if is_prereq else " (Active StudyUnit Content)"
             chunk_type = payload.get("chunk_type", "text")
             page_info = f", Page {payload.get('page_number')}" if payload.get('page_number') else ""
 
@@ -109,12 +109,12 @@ If they ask for code, provide it. Use markdown formatting beautifully."""),
 
             if use_citations:
                 context_blocks.append(
-                    f"Source: [{cit_id}] (Course: {course_code}{prereq_str}{page_info}, Type: {chunk_type})\n"
+                    f"Source: [{cit_id}] (StudyUnit: {study_unit_code}{prereq_str}{page_info}, Type: {chunk_type})\n"
                     f"Content:\n{rich_content}\n---"
                 )
             else:
                 context_blocks.append(
-                    f"Course: {course_code}{prereq_str}{page_info}\n"
+                    f"StudyUnit: {study_unit_code}{prereq_str}{page_info}\n"
                     f"Content:\n{rich_content}\n---"
                 )
 
@@ -327,7 +327,7 @@ If they ask for code, provide it. Use markdown formatting beautifully."""),
         if prereq_citations:
             p_cit = prereq_citations[0]
             concept = p_cit.get("prerequisite_concept", "foundational concept")
-            course = p_cit.get("course_code", "previous course")
+            course = p_cit.get("study_unit_code", "previous course")
             answer_parts.append(
                 f"**[Curriculum Time Travel Alert]** I noticed your query requires a foundational concept **{concept}** "
                 f"from your prerequisite course **{course}** (which you completed in a previous semester). "
@@ -340,7 +340,7 @@ If they ask for code, provide it. Use markdown formatting beautifully."""),
         # Active course context
         if active_citations:
             a_cit = active_citations[0]
-            answer_parts.append(f"Regarding the main course query in **{a_cit['course_code']}**:\n\n")
+            answer_parts.append(f"Regarding the main course query in **{a_cit['study_unit_code']}**:\n\n")
             for c in active_citations[:2]:
                 snippet = c.get("text_snippet", "").replace("...", "")
                 answer_parts.append(f"- **From {c['source_title']} (Section: {c['section']}):** {snippet} [[{c['citation_id']}](#{c['citation_id']})]\n")

@@ -140,7 +140,7 @@ def apply_node_edits(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
         
-    s3_prefix = doc.s3_prefix or f"documents/UNKNOWN/UNKNOWN/UNKNOWN/{document_id}"
+    s3_prefix = doc.s3_prefix or f"documents/UNKNOWN/{document_id}"
     am = ArtifactManager(str(document_id), s3_prefix, S3Storage())
     
     # 1. Fetch current AST

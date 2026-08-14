@@ -36,8 +36,7 @@ const DashboardLayout = () => {
   const navItems = [
     { label: 'Dashboard', path: '/', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['ADMIN', 'PUBLISHER', 'STUDENT'] },
     { label: 'Assistant', path: '/chat', icon: <MessageSquare className="w-5 h-5 text-primary" />, roles: ['ADMIN', 'PUBLISHER', 'STUDENT'] },
-    { label: 'Departments', path: '/departments', icon: <Library className="w-5 h-5" />, roles: ['ADMIN', 'PUBLISHER'] },
-    { label: 'Courses', path: '/courses', icon: <BookOpen className="w-5 h-5" />, roles: ['ADMIN', 'PUBLISHER'] },
+    { label: 'Academic Config', path: '/academic-management', icon: <Library className="w-5 h-5" />, roles: ['ADMIN', 'PUBLISHER'] },
     { label: 'Marketplace', path: '/marketplace', icon: <Library className="w-5 h-5" />, roles: ['STUDENT'] },
     { label: 'Documents', path: '/documents', icon: <FileText className="w-5 h-5" />, roles: ['ADMIN', 'PUBLISHER'] },
     { label: 'Users', path: '/users', icon: <Users className="w-5 h-5" />, roles: ['ADMIN'] },

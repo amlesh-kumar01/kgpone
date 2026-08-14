@@ -19,7 +19,7 @@ from alembic import context
 # pyrefly: ignore [missing-import]
 from src.infrastructure.database import Base
 from src.models.user_model import User, RefreshToken, EmailOtp
-from src.models.academic_model import Department, Course, CourseOffering, FacultyInfo
+from src.models.academic_model import OrganizationalUnit, Offering, StudyUnit, FacultyInfo, StudyUnitPrerequisite
 from src.models.document_model import Document, DocumentMetadata
 from src.models.ingestion_job_model import IngestionJob
 from src.models.knowledge_model import ExtractedEntity, ExtractedFormula, ExtractedQuestion

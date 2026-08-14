@@ -16,7 +16,7 @@ class GraphQueryService:
             {
                 "source_concept": str,
                 "prereq_concept": str,
-                "course_code": str,
+                "study_unit_code": str,
                 "description": str
             }
         ]
@@ -31,7 +31,7 @@ class GraphQueryService:
         RETURN 
             startNode(r).id AS source_concept, 
             endNode(r).id AS prereq_concept, 
-            endNode(r).course_code AS course_code, 
+            endNode(r).study_unit_code AS study_unit_code, 
             endNode(r).description AS description
         """
         try:

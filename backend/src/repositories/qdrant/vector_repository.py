@@ -115,8 +115,8 @@ class QdrantRepository(IVectorRepo):
             )
             
             # Create payload indexes for frequently filtered fields
-            self.client.create_payload_index(collection_name, "course_code", field_schema=PayloadSchemaType.KEYWORD)
-            self.client.create_payload_index(collection_name, "course_offering_id", field_schema=PayloadSchemaType.KEYWORD)
+            self.client.create_payload_index(collection_name, "study_unit_code", field_schema=PayloadSchemaType.KEYWORD)
+            self.client.create_payload_index(collection_name, "study_unit_id", field_schema=PayloadSchemaType.KEYWORD)
             self.client.create_payload_index(collection_name, "document_type", field_schema=PayloadSchemaType.KEYWORD)
             self.client.create_payload_index(collection_name, "semester", field_schema=PayloadSchemaType.KEYWORD)
             self.client.create_payload_index(collection_name, "year", field_schema=PayloadSchemaType.INTEGER)

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import {
-  triggerCourseSummary, triggerQuiz, triggerFormulaRevision, triggerComparison,
+  triggerStudyUnitSummary, triggerQuiz, triggerFormulaRevision, triggerComparison,
   getAnalysisDownloadUrls, pollAnalysisJob, fetchArtifactMarkdown, fetchArtifactJson
 } from '@/lib/analysisApi';
 import MarkdownResult from '@/components/analysis/MarkdownResult';
@@ -124,7 +124,7 @@ const MdPanel = ({ title, description, icon, iconColor = 'text-accent', triggerF
         </div>
         {disabled && (
           <p className="mt-3 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
-            Select a course offering above to enable this feature.
+            Select a study_unit offering above to enable this feature.
           </p>
         )}
       </div>
@@ -144,9 +144,9 @@ const MdPanel = ({ title, description, icon, iconColor = 'text-accent', triggerF
   );
 };
 
-// ─── Course Quiz Panel ────────────────────────────────────────────────────────
+// ─── StudyUnit Quiz Panel ────────────────────────────────────────────────────────
 
-const CourseQuizPanel = ({ docIds, disabled }) => {
+const StudyUnitQuizPanel = ({ docIds, disabled }) => {
   const [jobs, setJobs] = useState([]);
   const [triggering, setTriggering] = useState(false);
   const [allQuestions, setAllQuestions] = useState([]);
@@ -218,7 +218,7 @@ const CourseQuizPanel = ({ docIds, disabled }) => {
             </div>
             <div>
               <h3 className="font-serif font-bold text-foreground text-lg">Master Quiz Bank</h3>
-              <p className="text-muted-foreground text-sm">Comprehensive MCQs generated from all course documents</p>
+              <p className="text-muted-foreground text-sm">Comprehensive MCQs generated from all study_unit documents</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -376,7 +376,7 @@ const FormulaBankPanel = ({ docIds, disabled }) => {
             </div>
             <div>
               <h3 className="font-serif font-bold text-foreground text-lg">Formula Bank</h3>
-              <p className="text-muted-foreground text-sm">Searchable reference of all formulas across the course</p>
+              <p className="text-muted-foreground text-sm">Searchable reference of all formulas across the study_unit</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -534,10 +534,10 @@ const PYQPanel = ({ documents }) => {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-const CourseAnalysisStudio = () => {
-  const { courseId } = useParams();
+const StudyUnitAnalysisStudio = () => {
+  const { study_unitId } = useParams();
   const navigate = useNavigate();
-  const [course, setCourse] = useState(null);
+  const [study_unit, setStudyUnit] = useState(null);
   const [offerings, setOfferings] = useState([]);
   const [selectedOffering, setSelectedOffering] = useState('');
   const [documents, setDocuments] = useState([]);
@@ -545,18 +545,18 @@ const CourseAnalysisStudio = () => {
   const [loadingDocs, setLoadingDocs] = useState(false);
 
   useEffect(() => {
-    if (!courseId) return;
+    if (!study_unitId) return;
     Promise.all([
-      api.get(`/api/v1/academic/${courseId}`),
-      api.get(`/api/v1/academic/${courseId}/offerings`),
-    ]).then(([courseRes, offeringsRes]) => {
-      setCourse(courseRes.data.data);
+      api.get(`/api/v1/academic/${study_unitId}`),
+      api.get(`/api/v1/academic/${study_unitId}/offerings`),
+    ]).then(([study_unitRes, offeringsRes]) => {
+      setStudyUnit(study_unitRes.data.data);
       const offs = offeringsRes.data.data || [];
       setOfferings(offs);
       if (offs.length > 0) setSelectedOffering(offs[0].id);
     }).catch(err => console.error(err))
       .finally(() => setLoading(false));
-  }, [courseId]);
+  }, [study_unitId]);
 
   useEffect(() => {
     if (!selectedOffering) { setDocuments([]); return; }
@@ -592,9 +592,9 @@ const CourseAnalysisStudio = () => {
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="min-w-0 flex-1">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Course Analysis Studio</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">StudyUnit Analysis Studio</p>
           <h1 className="text-2xl font-serif font-bold text-foreground truncate">
-            {course?.code ? `${course.code} — ` : ''}{course?.title || 'Course Studio'}
+            {study_unit?.code ? `${study_unit.code} — ` : ''}{study_unit?.title || 'StudyUnit Studio'}
           </h1>
         </div>
       </div>
@@ -636,7 +636,7 @@ const CourseAnalysisStudio = () => {
         <TabsList className="w-full h-auto bg-muted/50 border border-border rounded-xl p-1 flex flex-wrap gap-1">
           {[
             { value: 'overview',  label: 'Overview',      icon: <Layers className="w-4 h-4" /> },
-            { value: 'summary',   label: 'Course Summary', icon: <BookOpen className="w-4 h-4" /> },
+            { value: 'summary',   label: 'StudyUnit Summary', icon: <BookOpen className="w-4 h-4" /> },
             { value: 'quiz',      label: 'Quiz Bank',      icon: <HelpCircle className="w-4 h-4" /> },
             { value: 'formulas',  label: 'Formula Bank',   icon: <FlaskConical className="w-4 h-4" /> },
             { value: 'pyq',       label: 'PYQ Patterns',   icon: <GraduationCap className="w-4 h-4" /> },
@@ -695,14 +695,14 @@ const CourseAnalysisStudio = () => {
           )}
         </TabsContent>
 
-        {/* ── Course Summary ── */}
+        {/* ── StudyUnit Summary ── */}
         <TabsContent value="summary" className="mt-5">
           <MdPanel
-            title="Course Summary"
-            description={`Synthesizes all ${docIds.length} processed documents into a unified course overview with learning path.`}
+            title="StudyUnit Summary"
+            description={`Synthesizes all ${docIds.length} processed documents into a unified study_unit overview with learning path.`}
             icon={<BookOpen className="w-5 h-5" />}
             iconColor="text-accent"
-            triggerFn={triggerCourseSummary}
+            triggerFn={triggerStudyUnitSummary}
             docIds={docIds}
             disabled={!hasDocuments}
           />
@@ -710,7 +710,7 @@ const CourseAnalysisStudio = () => {
 
         {/* ── Quiz Bank ── */}
         <TabsContent value="quiz" className="mt-5">
-          <CourseQuizPanel docIds={docIds} disabled={!hasDocuments} />
+          <StudyUnitQuizPanel docIds={docIds} disabled={!hasDocuments} />
         </TabsContent>
 
         {/* ── Formula Bank ── */}
@@ -745,4 +745,4 @@ const CourseAnalysisStudio = () => {
   );
 };
 
-export default CourseAnalysisStudio;
+export default StudyUnitAnalysisStudio;

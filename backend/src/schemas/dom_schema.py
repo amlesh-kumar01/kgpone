@@ -24,7 +24,7 @@ class DOMMetadata(BaseModel):
         description="S3 key of the extracted image for figure nodes"
     )
     document_id: Optional[str] = None
-    course_offering_id: Optional[str] = None
+    study_unit_id: Optional[str] = None
     extra: Dict[str, Any] = Field(default_factory=dict)
 
 class DOMNode(BaseModel):

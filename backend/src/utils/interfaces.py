@@ -49,7 +49,7 @@ class IGraphRepository(ABC):
         pass
 
     @abstractmethod
-    def delete_course_subgraph(self, course_code: str) -> bool:
+    def delete_course_subgraph(self, study_unit_code: str) -> bool:
         pass
 
     @abstractmethod
@@ -62,7 +62,7 @@ class IGraphRepository(ABC):
 
 class IRetrievalService(ABC):
     @abstractmethod
-    async def retrieve_context(self, query: str, course_code: str) -> dict:
+    async def retrieve_context(self, query: str, study_unit_code: str) -> dict:
         """
         Coordinates context retrieval for the query.
         Returns a dictionary containing retrieved_chunks, graph_visualization, and metadata.

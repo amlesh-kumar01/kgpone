@@ -7,7 +7,7 @@ a hash of the query embedding vector. Semantically identical queries
 so they hit the same cache bucket.
 
 Cache scope:
-- If course_offering_id is present, the cache is scoped per offering
+- If study_unit_id is present, the cache is scoped per offering
 - Otherwise, the cache is global
 
 Provides a placeholder interface for a future local sentence-transformer

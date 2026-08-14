@@ -2,24 +2,26 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../lib/api';
 import { useToast } from "@/hooks/use-toast";
 
+import { academicApi } from '../lib/academicApi';
+
 const AcademicContext = createContext(null);
 
 export const AcademicProvider = ({ children }) => {
-  const [departments, setDepartments] = useState([]);
-  const [courses, setCourses] = useState([]);
+  const [orgUnits, setOrgUnits] = useState([]);
+  const [studyUnits, setStudyUnits] = useState([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   const fetchAcademicData = async () => {
     setLoading(true);
     try {
-      // Fetch both departments and courses concurrently
-      const [deptRes, courseRes] = await Promise.all([
-        api.get('/api/v1/academic/departments'),
-        api.get('/api/v1/academic/')
+      // Fetch both orgUnits and studyUnits concurrently
+      const [deptRes, study_unitRes] = await Promise.all([
+        academicApi.getOrgUnits(),
+        academicApi.getAllStudyUnits()
       ]);
-      setDepartments(deptRes.data.data || []);
-      setCourses(courseRes.data.data || []);
+      setOrgUnits(deptRes.data.data || []);
+      setStudyUnits(study_unitRes.data.data || []);
     } catch (err) {
       console.error("Failed to fetch academic data:", err);
       toast({
@@ -40,22 +42,22 @@ export const AcademicProvider = ({ children }) => {
     await fetchAcademicData();
   };
 
-  const addDepartment = async (departmentData) => {
+  const addOrgUnit = async (org_unitData) => {
     try {
-      const res = await api.post('/api/v1/academic/departments', departmentData);
+      const res = await academicApi.createOrgUnit(org_unitData);
       if (res.data.status === 'success') {
-        setDepartments(prev => [...prev, res.data.data]);
+        setOrgUnits(prev => [...prev, res.data.data]);
         return res.data.data;
       }
       throw new Error(res.data.message);
     } catch (err) {
-      console.error("Failed to add department:", err);
+      console.error("Failed to add org_unit:", err);
       throw err;
     }
   };
 
   return (
-    <AcademicContext.Provider value={{ departments, courses, loading, refreshAcademicData, addDepartment }}>
+    <AcademicContext.Provider value={{ orgUnits, studyUnits, loading, refreshAcademicData, addOrgUnit }}>
       {children}
     </AcademicContext.Provider>
   );
