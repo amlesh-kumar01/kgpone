@@ -4,118 +4,74 @@
 
 @layer base {
   :root {
-    /* Knowledge OS Theme - Light */
-    --background: 38 33% 96%;
-    /* #faf7f2 */
-    --foreground: 30 8% 9%;
-    /* #1a1816 */
+    /* Aura Gurukul Theme - Light */
+    --background: 42 30% 95%; /* #f7f3ed - subtle warm off-white */
+    --foreground: 220 80% 6%; /* Deep Navy Text */
 
-    --card: 0 0% 100%;
-    /* #ffffff */
-    --card-foreground: 30 8% 9%;
+    --card: 0 0% 100%; /* Pure White */
+    --card-foreground: 220 80% 6%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 30 8% 9%;
+    --popover-foreground: 220 80% 6%;
 
-    --primary: 24 13% 15%;
-    /* #2a2420 */
-    --primary-foreground: 38 33% 96%;
-    /* #faf7f2 */
+    /* Primary Buttons & Accents - Deep Navy */
+    --primary: 220 80% 6%; 
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 31 29% 87%;
-    /* #e8dfd6 */
-    --secondary-foreground: 24 13% 15%;
+    /* Secondary / Accent - Amber Gold */
+    --secondary: 41 50% 40%; 
+    --secondary-foreground: 0 0% 100%; 
 
-    --muted: 31 29% 87%;
-    /* #e8dfd6 */
-    --muted-foreground: 16 5% 40%;
-    /* #6b6360 */
+    /* Muted areas */
+    --muted: 0 0% 96%; /* slightly grey/white for contrast */
+    --muted-foreground: 220 20% 40%;
 
-    --accent: 46 65% 52%;
-    /* #d4af37 */
+    --accent: 41 50% 40%; 
     --accent-foreground: 0 0% 100%;
-    /* #ffffff */
 
-    --destructive: 0 84.2% 60.2%;
-    /* #ef4444 */
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 74% 42%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 31 29% 87%;
-    /* #e8dfd6 */
-    --input: 31 29% 87%;
-    --ring: 46 65% 52%;
-    /* #d4af37 */
+    --border: 0 0% 90%; 
+    --input: 42 30% 90%; 
+    --ring: 220 80% 6%;
 
-    --radius: 0.5rem;
+    --radius: 0.375rem; /* 6px */
   }
 
   .dark {
-    /* Soft Dark Theme (Neutral/Zinc inspired - easy on the eyes) */
-    --background: 0 0% 8%;
-    --foreground: 0 0% 90%;
-    --card: 0 0% 11%;
+    /* Gemini/ChatGPT Style Dark Mode */
+    /* Background: #212121 */
+    --background: 0 0% 13%; 
+    --foreground: 0 0% 90%; 
+    
+    /* Surface: #2f2f2f */
+    --card: 0 0% 18%; 
     --card-foreground: 0 0% 90%;
-    --popover: 0 0% 11%;
+    
+    --popover: 0 0% 18%;
     --popover-foreground: 0 0% 90%;
-    --primary: 0 0% 96%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 15%;
-    --secondary-foreground: 0 0% 96%;
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 60%;
-    --accent: 0 0% 15%;
-    --accent-foreground: 0 0% 96%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 0 0% 30%;
-  }
-
-  .dark.theme-slate {
-    /* Slate/Blueish Dark Theme (the old one) */
-    --background: 222 47% 11%;
-    --foreground: 214 32% 91%;
-    --card: 222 47% 11%;
-    --card-foreground: 214 32% 91%;
-    --popover: 222 47% 11%;
-    --popover-foreground: 214 32% 91%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 213 27% 84%;
-  }
-
-  .dark.theme-black {
-    /* OLED Black Theme */
-    --background: 0 0% 0%;
-    --foreground: 0 0% 90%;
-    --card: 0 0% 4%;
-    --card-foreground: 0 0% 90%;
-    --popover: 0 0% 4%;
-    --popover-foreground: 0 0% 90%;
-    --primary: 0 0% 96%;
-    --primary-foreground: 0 0% 0%;
-    --secondary: 0 0% 10%;
-    --secondary-foreground: 0 0% 96%;
-    --muted: 0 0% 10%;
-    --muted-foreground: 0 0% 60%;
-    --accent: 0 0% 10%;
-    --accent-foreground: 0 0% 96%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14%;
-    --input: 0 0% 14%;
-    --ring: 0 0% 30%;
+    
+    /* Primary buttons */
+    --primary: 0 0% 90%; /* Light grey/white buttons */
+    --primary-foreground: 0 0% 13%; /* Dark text */
+    
+    --secondary: 0 0% 30%; 
+    --secondary-foreground: 0 0% 90%;
+    
+    /* Muted background for sidebar or secondary areas */
+    --muted: 0 0% 18%; 
+    --muted-foreground: 0 0% 65%;
+    
+    --accent: 0 0% 25%;
+    --accent-foreground: 0 0% 90%;
+    
+    --destructive: 0 60% 50%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 0 0% 25%;
+    --input: 0 0% 25%;
+    --ring: 0 0% 50%;
   }
 }
 
@@ -128,12 +84,16 @@
     @apply bg-background text-foreground font-sans;
   }
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
+  h1, h2, h3, h4, h5, h6 {
     @apply font-serif;
   }
+}
+
+/* Base structural utilities */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

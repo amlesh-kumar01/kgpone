@@ -12,10 +12,15 @@ module.exports = {
       center: true,
       padding: "2rem",
       screens: {
-        "2xl": "1400px",
+        "2xl": "1280px", // Updated to 1280px based on DESIGN.md
       },
     },
     extend: {
+      fontFamily: {
+        serif: ['"Libre Caslon Text"', 'serif'],
+        sans: ['Manrope', 'sans-serif'],
+        mono: ['"Hanken Grotesk"', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

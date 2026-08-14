@@ -236,7 +236,7 @@ const DocumentPipeline = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full">
       <Button variant="ghost" onClick={() => navigate('/documents')} className="mb-4 text-muted-foreground -ml-4">
         <ArrowLeft size={16} className="mr-2" /> Back to Documents
       </Button>

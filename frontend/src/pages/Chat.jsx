@@ -13,6 +13,8 @@ import { MemoryViewerDialog } from '../components/chat/MemoryViewerDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText, Sigma, ImageIcon, Table2, Settings, MessageSquare, Zap, Brain, Globe, Database, Network } from "lucide-react";
 
+import { APP_CONFIG } from '../config/appConfig';
+
 /* ── Inline styles injected once ──────────────────────────────────────── */
 const GLOBAL_STYLES = `
 @keyframes kgp-cursor-blink {
@@ -96,7 +98,7 @@ const Chat = () => {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: 'Hello! I am the **KnowledgeOS Assistant**. Ask me about your curriculum, prerequisites, formulas, or any concept from your study_unit materials.',
+      content: `Hello! I am the **${APP_CONFIG.APP_NAME} Assistant**. Ask me about your curriculum, prerequisites, formulas, or any concept from your study materials.`,
     }
   ]);
   const [input, setInput] = useState('');
@@ -106,9 +108,21 @@ const Chat = () => {
   const [analysisMode, setAnalysisMode] = useState('basic');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const [selectedDeptId, setSelectedDeptId] = useState('');
-  const [selectedStudyUnitId, setSelectedStudyUnitId] = useState('');
-  const [selectedOfferingId, setSelectedOfferingId] = useState('');
+  const [selectedDeptId, setSelectedDeptId] = useState(() => localStorage.getItem('kgpone_docs_dept_id') || '');
+  const [selectedStudyUnitId, setSelectedStudyUnitId] = useState(() => localStorage.getItem('kgpone_docs_study_unit_id') || '');
+  const [selectedOfferingId, setSelectedOfferingId] = useState(() => localStorage.getItem('kgpone_docs_offering_id') || '');
+
+  useEffect(() => {
+    localStorage.setItem('kgpone_docs_dept_id', selectedDeptId);
+  }, [selectedDeptId]);
+
+  useEffect(() => {
+    localStorage.setItem('kgpone_docs_study_unit_id', selectedStudyUnitId);
+  }, [selectedStudyUnitId]);
+
+  useEffect(() => {
+    localStorage.setItem('kgpone_docs_offering_id', selectedOfferingId);
+  }, [selectedOfferingId]);
 
   const [byokProvider, setByokProvider] = useState('');
   const [byokModel, setByokModel] = useState('');
@@ -180,7 +194,7 @@ const Chat = () => {
   const createNewChat = () => {
     setMessages([{
       role: 'assistant',
-      content: 'Hello! I am the **KnowledgeOS Assistant**. Ask me about your curriculum, prerequisites, formulas, or any concept from your study_unit materials.',
+      content: `Hello! I am the **${APP_CONFIG.APP_NAME} Assistant**. Ask me about your curriculum, prerequisites, formulas, or any concept from your study materials.`,
     }]);
     setActiveConversationId(null);
     setIsShared(false);
@@ -380,17 +394,17 @@ const Chat = () => {
 
   const renderBackendBadge = useCallback((backend) => {
     if (backend === 'neo4j') return (
-      <span key="neo4j" className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+      <span key="neo4j" className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-muted text-foreground border border-border">
         <Network className="w-3 h-3" /> Graph
       </span>
     );
     if (backend === 'qdrant') return (
-      <span key="qdrant" className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 uppercase tracking-wider border">
+      <span key="qdrant" className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-secondary/10 text-secondary border border-secondary/20 uppercase tracking-wider">
         <Database className="w-3 h-3" /> Vector
       </span>
     );
     if (backend === 'postgresql') return (
-      <span key="postgresql" className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+      <span key="postgresql" className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
         <Database className="w-3 h-3" /> Catalog
       </span>
     );
@@ -398,7 +412,7 @@ const Chat = () => {
   }, []);
 
   return (
-    <div className="flex flex-col md:flex-row h-screen w-full bg-background p-4 gap-6">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-4.5rem)] sm:h-[calc(100vh-3rem)] lg:h-[calc(100vh-4rem)] w-full bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
 
       {/* ── Sidebar ──────────────────────────────────────────────────── */}
       <ChatSidebar
@@ -440,10 +454,10 @@ const Chat = () => {
       />
 
       {/* ── Main chat area ────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-h-0 bg-transparent rounded-2xl max-w-5xl mx-auto w-full relative">
+      <div className="flex-1 flex flex-col min-h-0 bg-transparent w-full relative border-l border-border/50">
         
         {/* Top Header / Share */}
-        <div className="flex-none flex justify-between items-center px-4 py-3 bg-card/80 backdrop-blur border-b border-border rounded-t-2xl shadow-sm z-10">
+        <div className="flex-none flex justify-between items-center px-4 py-3 bg-card/50 backdrop-blur border-b border-border shadow-sm z-10">
           {/* Left Side: Model Selector */}
           <div className="flex items-center gap-3">
             <Select value={analysisMode} onValueChange={setAnalysisMode}>
@@ -455,13 +469,13 @@ const Chat = () => {
                   <div className="flex items-center gap-2"><MessageSquare className="w-3.5 h-3.5 text-muted-foreground" /> General QA</div>
                 </SelectItem>
                 <SelectItem value="basic">
-                  <div className="flex items-center gap-2"><Zap className="w-3.5 h-3.5 text-blue-500" /> Basic Search</div>
+                  <div className="flex items-center gap-2"><Zap className="w-3.5 h-3.5 text-primary" /> Basic Search</div>
                 </SelectItem>
                 <SelectItem value="advanced">
-                  <div className="flex items-center gap-2"><Brain className="w-3.5 h-3.5 text-purple-500" /> Advanced Agent</div>
+                  <div className="flex items-center gap-2"><Brain className="w-3.5 h-3.5 text-primary" /> Advanced Agent</div>
                 </SelectItem>
                 <SelectItem value="deep_research">
-                  <div className="flex items-center gap-2"><Globe className="w-3.5 h-3.5 text-orange-500" /> Deep Research</div>
+                  <div className="flex items-center gap-2"><Globe className="w-3.5 h-3.5 text-primary" /> Deep Research</div>
                 </SelectItem>
               </SelectContent>
             </Select>

@@ -175,7 +175,7 @@ const AcademicManagement = () => {
   };
 
   return (
-    <div className="w-full space-y-6 max-w-6xl mx-auto p-4 md:p-6 pb-20">
+    <div className="w-full space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-4xl font-bold tracking-tight text-foreground">Academic Console</h1>
@@ -200,7 +200,11 @@ const AcademicManagement = () => {
           </CardHeader>
           <CardContent className="p-0 overflow-y-auto flex-1">
             {loading ? (
-              <div className="p-6 text-center text-muted-foreground">Loading...</div>
+              <div className="p-4 space-y-3">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="h-16 w-full bg-muted animate-pulse rounded-lg"></div>
+                ))}
+              </div>
             ) : orgUnits.length === 0 ? (
               <div className="p-6 text-center text-sm text-muted-foreground">
                 No organizations found. Create one.

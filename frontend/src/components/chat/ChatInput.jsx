@@ -40,7 +40,7 @@ export const ChatInput = ({
         </Button>
       </form>
       <div className="flex items-center justify-between mt-3 px-1">
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+        <div className="flex items-center gap-1.5 text-[11px] text-primary/70 font-medium uppercase tracking-wide">
           <Bot className="w-3.5 h-3.5" />
           <span>AI responses may be inaccurate.</span>
         </div>

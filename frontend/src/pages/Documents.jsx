@@ -206,7 +206,7 @@ const Documents = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
+    <div className="flex flex-col gap-8 w-full">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-4xl font-serif font-bold tracking-tight text-foreground mb-2">Knowledge Ingestion</h1>
@@ -364,11 +364,17 @@ const Documents = () => {
             </TableHeader>
             <TableBody>
               {loading && selectedStudyUnitId ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-16 text-muted-foreground">
-                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-accent" />
-                  </TableCell>
-                </TableRow>
+                <>
+                  {[1, 2, 3].map(i => (
+                    <TableRow key={i}>
+                      <TableCell><div className="h-5 w-3/4 bg-muted animate-pulse rounded"></div></TableCell>
+                      <TableCell><div className="h-5 w-16 bg-muted animate-pulse rounded"></div></TableCell>
+                      <TableCell><div className="h-5 w-24 bg-muted animate-pulse rounded-full"></div></TableCell>
+                      <TableCell><div className="h-5 w-20 bg-muted animate-pulse rounded ml-auto"></div></TableCell>
+                      <TableCell><div className="h-8 w-24 bg-muted animate-pulse rounded ml-auto"></div></TableCell>
+                    </TableRow>
+                  ))}
+                </>
               ) : documents.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-20">

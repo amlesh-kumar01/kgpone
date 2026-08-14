@@ -77,7 +77,7 @@ export const ChatSettingsSheet = ({
               onValueChange={(val) => setSelectedOfferingId(val === 'all' ? '' : val)}
               disabled={!selectedStudyUnitId || offerings.length === 0}
             >
-              <SelectTrigger className="h-10 text-sm rounded-lg bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm focus:ring-2 focus:ring-primary/20">
+              <SelectTrigger className="h-10 text-sm rounded-lg bg-muted border-border shadow-sm focus:ring-2 focus:ring-primary/20">
                 <SelectValue placeholder={offerings.length === 0 && selectedStudyUnitId ? 'No offerings' : '3. Offering'} />
               </SelectTrigger>
               <SelectContent>
@@ -92,7 +92,7 @@ export const ChatSettingsSheet = ({
                   type="checkbox"
                   checked={useCitations}
                   onChange={(e) => setUseCitations(e.target.checked)}
-                  className="mr-3 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary transition-all shadow-sm"
+                  className="mr-3 h-4 w-4 rounded border-border text-primary focus:ring-primary accent-primary transition-all shadow-sm"
                 />
                 Enable Inline Citations
               </label>
