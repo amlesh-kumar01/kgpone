@@ -58,8 +58,8 @@ class AcademicService:
         cleanup_org_unit_task.delay(str(org_unit_id), str(job.id))
         
         self.cache_repo.delete("academic:org_units:v1")
-        self.cache_repo.delete_pattern(f"academic:offerings:v1:org_unit:{org_unit_id}:*")
-        self.cache_repo.delete_pattern(f"academic:study_units:v1:org_unit:{org_unit_id}:*")
+        self.cache_repo.delete_pattern("academic:offerings:v1:*")
+        self.cache_repo.delete_pattern("academic:study_units:v1:*")
         
         return org_unit
 
@@ -69,7 +69,7 @@ class AcademicService:
         if not org_unit or org_unit.is_deleted:
             raise HTTPException(status_code=404, detail="Organizational Unit not found")
         offering = self.repository.create_offering(offering_in)
-        self.cache_repo.delete(f"academic:offerings:v1:org_unit:{offering_in.org_unit_id}")
+        self.cache_repo.delete_pattern("academic:offerings:v1:*")
         return offering
 
     def get_offerings(self, org_unit_id: UUID | None = None):
@@ -95,7 +95,7 @@ class AcademicService:
             raise HTTPException(status_code=404, detail="Offering not found")
         self.repository.session.delete(offering)
         self.repository.session.commit()
-        self.cache_repo.delete(f"academic:offerings:v1:org_unit:{offering.org_unit_id}")
+        self.cache_repo.delete_pattern("academic:offerings:v1:*")
         return offering
 
     # --- Study Units ---
@@ -104,7 +104,7 @@ class AcademicService:
         if not org_unit or org_unit.is_deleted:
             raise HTTPException(status_code=404, detail="Organizational Unit not found")
         study_unit = self.repository.create_study_unit(study_unit_in)
-        self.cache_repo.delete_pattern(f"academic:study_units:v1:org_unit:{study_unit_in.org_unit_id}:*")
+        self.cache_repo.delete_pattern("academic:study_units:v1:*")
         return study_unit
 
     def get_study_units(self, org_unit_id: UUID | None = None, offering_id: UUID | None = None):
@@ -141,20 +141,18 @@ class AcademicService:
         
         cleanup_study_unit_task.delay(str(study_unit_id), str(job.id))
         
-        
-        self.cache_repo.delete_pattern("academic:study_units:v1:all:*")
-        self.cache_repo.delete_pattern(f"academic:study_units:v1:org_unit:{study_unit.org_unit_id}:*")
+        self.cache_repo.delete_pattern("academic:study_units:v1:*")
         
         return study_unit
 
     def link_offering(self, study_unit_id: UUID, offering_id: UUID) -> StudyUnit:
         study_unit = self.repository.link_offering(study_unit_id, offering_id)
-        self.cache_repo.delete_pattern(f"academic:study_units:v1:org_unit:{study_unit.org_unit_id}:*")
+        self.cache_repo.delete_pattern("academic:study_units:v1:*")
         return study_unit
 
     def unlink_offering(self, study_unit_id: UUID, offering_id: UUID) -> StudyUnit:
         study_unit = self.repository.unlink_offering(study_unit_id, offering_id)
-        self.cache_repo.delete_pattern(f"academic:study_units:v1:org_unit:{study_unit.org_unit_id}:*")
+        self.cache_repo.delete_pattern("academic:study_units:v1:*")
         return study_unit
 
     def add_prerequisite(self, study_unit_id: UUID, prerequisite_id: UUID) -> StudyUnit:
