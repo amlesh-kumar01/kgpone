@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, ArrowLeft, Play, RefreshCw, CheckCircle2, AlertCircle, FileJson, Link as LinkIcon, Database, Check } from "lucide-react";
 import api from '../lib/api';
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 const DocumentPipeline = () => {
   const { documentId } = useParams();
   const navigate = useNavigate();
@@ -20,6 +22,29 @@ const DocumentPipeline = () => {
   const [astLoading, setAstLoading] = useState(false);
   const [edits, setEdits] = useState({});
   const [applyingEdits, setApplyingEdits] = useState(false);
+
+  // JSON Viewer State
+  const [jsonViewerOpen, setJsonViewerOpen] = useState(false);
+  const [jsonViewerData, setJsonViewerData] = useState(null);
+  const [jsonViewerTitle, setJsonViewerTitle] = useState("");
+  const [jsonViewerLoading, setJsonViewerLoading] = useState(false);
+
+  const handleViewOutput = async (job) => {
+    if (!job.output_url) return;
+    setJsonViewerTitle(`${job.stage} Output`);
+    setJsonViewerOpen(true);
+    setJsonViewerLoading(true);
+    setJsonViewerData(null);
+    try {
+      const res = await fetch(job.output_url);
+      const data = await res.json();
+      setJsonViewerData(data);
+    } catch (err) {
+      setJsonViewerData({ error: "Failed to fetch output data" });
+    } finally {
+      setJsonViewerLoading(false);
+    }
+  };
 
   const fetchPipeline = async () => {
     try {
@@ -135,9 +160,14 @@ const DocumentPipeline = () => {
                 </Button>
               )}
               {job.output_url && (
-                <a href={job.output_url} target="_blank" rel="noreferrer" className="text-xs text-accent hover:underline flex items-center gap-1">
-                  <FileJson size={12} /> View Output
-                </a>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  onClick={() => handleViewOutput(job)} 
+                  className="text-xs text-accent hover:text-accent hover:bg-accent/10 px-2 h-7"
+                >
+                  <FileJson size={12} className="mr-1" /> View Output
+                </Button>
               )}
             </div>
           </div>
@@ -294,6 +324,34 @@ const DocumentPipeline = () => {
           </Card>
         </div>
       </div>
+
+      {/* JSON Viewer Dialog */}
+      <Dialog open={jsonViewerOpen} onOpenChange={setJsonViewerOpen}>
+        <DialogContent className="sm:max-w-[80vw] sm:max-h-[85vh] bg-[#1e1e1e] border-border p-0 rounded-xl shadow-2xl flex flex-col overflow-hidden">
+          <DialogHeader className="p-4 border-b border-border/10 bg-[#252526] shrink-0">
+            <DialogTitle className="text-lg font-mono text-gray-200 flex items-center gap-2">
+              <FileJson className="text-accent" size={20} /> {jsonViewerTitle}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto bg-[#1e1e1e]">
+            {jsonViewerLoading ? (
+              <div className="flex items-center justify-center h-48">
+                <Loader2 className="animate-spin text-accent" size={32} />
+              </div>
+            ) : (
+              <SyntaxHighlighter
+                language="json"
+                style={vscDarkPlus}
+                customStyle={{ margin: 0, padding: '1.5rem', background: 'transparent', fontSize: '14px' }}
+                showLineNumbers={true}
+                wrapLines={true}
+              >
+                {jsonViewerData ? JSON.stringify(jsonViewerData, null, 2) : "No data available"}
+              </SyntaxHighlighter>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
