@@ -11,7 +11,7 @@ export const ChatMessageList = ({
   renderBackendBadge
 }) => {
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 py-4 space-y-8 no-scrollbar scroll-smooth">
+    <div ref={scrollRef} className="h-full overflow-y-auto px-2 py-4 space-y-8 no-scrollbar scroll-smooth">
       {isChatLoading ? (
         <div className="flex flex-col gap-6 animate-pulse p-4">
           <div className="w-2/3 h-20 bg-muted rounded-2xl" />

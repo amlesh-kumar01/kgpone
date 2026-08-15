@@ -16,6 +16,7 @@ import {
   getAnalysisDownloadUrls, pollAnalysisJob, fetchArtifactMarkdown, fetchArtifactJson
 } from '@/lib/analysisApi';
 import MarkdownResult from '@/components/analysis/MarkdownResult';
+import { StudioChatTab } from '@/components/chat/StudioChatTab';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -538,23 +539,17 @@ const StudyUnitAnalysisStudio = () => {
   const { study_unitId } = useParams();
   const navigate = useNavigate();
   const [study_unit, setStudyUnit] = useState(null);
-  const [offerings, setOfferings] = useState([]);
-  const [selectedOffering, setSelectedOffering] = useState('');
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingDocs, setLoadingDocs] = useState(false);
 
+  const [selectedDocIds, setSelectedDocIds] = useState(new Set());
+
   useEffect(() => {
     if (!study_unitId) return;
-    Promise.all([
-      api.get(`/api/v1/academic/${study_unitId}`),
-      api.get(`/api/v1/academic/${study_unitId}/offerings`),
-    ]).then(([study_unitRes, offeringsRes]) => {
-      setStudyUnit(study_unitRes.data.data);
-      const offs = offeringsRes.data.data || [];
-      setOfferings(offs);
-      if (offs.length > 0) setSelectedOffering(offs[0].id);
-    }).catch(err => console.error(err))
+    api.get(`/api/v1/academic/${study_unitId}`)
+      .then(res => setStudyUnit(res.data.data))
+      .catch(err => console.error(err))
       .finally(() => setLoading(false));
   }, [study_unitId]);
 
@@ -562,13 +557,31 @@ const StudyUnitAnalysisStudio = () => {
     if (!study_unitId) { setDocuments([]); return; }
     setLoadingDocs(true);
     api.get(`/api/v1/documents/study-unit/${study_unitId}`)
-      .then(res => setDocuments(res.data.data || []))
+      .then(res => {
+        const docs = res.data.data || [];
+        setDocuments(docs);
+        // Default select all completed docs
+        const completedIds = docs.filter(d => d.status === 'COMPLETED').map(d => d.id);
+        setSelectedDocIds(new Set(completedIds));
+      })
       .catch(() => setDocuments([]))
       .finally(() => setLoadingDocs(false));
   }, [study_unitId]);
 
-  const docIds = documents.filter(d => d.status === 'COMPLETED').map(d => d.id);
-  const hasDocuments = docIds.length > 0;
+  const toggleDocSelection = (docId) => {
+    setSelectedDocIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(docId)) {
+        newSet.delete(docId);
+      } else {
+        newSet.add(docId);
+      }
+      return newSet;
+    });
+  };
+
+  const activeDocIds = Array.from(selectedDocIds);
+  const hasDocuments = activeDocIds.length > 0;
 
   // Aggregate stats
   const totalDocs = documents.length;
@@ -582,165 +595,171 @@ const StudyUnitAnalysisStudio = () => {
     );
   }
 
-  const currentOffering = offerings.find(o => o.id === selectedOffering);
-
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 flex flex-col gap-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="shrink-0">
-          <ArrowLeft className="w-5 h-5" />
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
+      {/* Ultra-compact Header */}
+      <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-2 shrink-0">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="h-8 w-8 shrink-0 rounded-full hover:bg-muted">
+          <ArrowLeft className="w-4 h-4 text-muted-foreground" />
         </Button>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">StudyUnit Analysis Studio</p>
-          <h1 className="text-2xl font-serif font-bold text-foreground truncate">
-            {study_unit?.code ? `${study_unit.code} — ` : ''}{study_unit?.title || 'StudyUnit Studio'}
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-accent" />
+          <h1 className="text-base font-serif font-bold text-foreground">
+            {study_unit?.code ? <span className="text-accent">{study_unit.code}</span> : ''} {study_unit?.code ? '—' : ''} {study_unit?.title || 'Studio'}
           </h1>
         </div>
       </div>
 
-      {/* Offering selector */}
-      <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-4">
-        <div className="flex-1">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Academic Offering</p>
-          <Select value={selectedOffering} onValueChange={setSelectedOffering} disabled={offerings.length === 0}>
-            <SelectTrigger className="w-full max-w-xs">
-              <SelectValue placeholder="Select an offering…" />
-            </SelectTrigger>
-            <SelectContent>
-              {offerings.map(o => (
-                <SelectItem key={o.id} value={o.id}>{o.semester} {o.year}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {currentOffering && (
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <span className="px-2 py-1 bg-muted rounded text-xs font-mono">{currentOffering.semester} {currentOffering.year}</span>
-          </div>
-        )}
-      </div>
+      <div className="flex-1 overflow-hidden p-4">
+        {/* Sidebar Layout */}
+        <Tabs defaultValue="overview" className="flex flex-col md:flex-row gap-6 items-start h-full" orientation="vertical">
+          <TabsList className="flex flex-col h-fit w-full md:w-60 shrink-0 bg-card border border-border rounded-xl p-2 space-y-1">
+            <div className="px-3 py-2 mb-1 border-b border-border">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Analysis Tools</p>
+            </div>
+            {[
+              { value: 'overview',  label: 'Document Selector', icon: <Layers className="w-4 h-4" /> },
+              { value: 'assistant', label: 'AI Tutor',       icon: <Sparkles className="w-4 h-4 text-purple-500" /> },
+              { value: 'summary',   label: 'StudyUnit Summary', icon: <BookOpen className="w-4 h-4" /> },
+              { value: 'quiz',      label: 'Quiz Bank',      icon: <HelpCircle className="w-4 h-4" /> },
+              { value: 'formulas',  label: 'Formula Bank',   icon: <FlaskConical className="w-4 h-4" /> },
+              { value: 'pyq',       label: 'PYQ Patterns',   icon: <GraduationCap className="w-4 h-4" /> },
+              { value: 'compare',   label: 'Compare Docs',   icon: <GitCompare className="w-4 h-4" /> },
+            ].map(tab => (
+              <TabsTrigger key={tab.value} value={tab.value}
+                className="w-full flex items-center justify-start gap-3 py-2.5 px-3 data-[state=active]:bg-accent/10 data-[state=active]:text-accent hover:bg-muted rounded-lg text-sm font-medium transition-colors">
+                {tab.icon} <span>{tab.label}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-      {/* Stats row */}
-      {selectedOffering && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard icon={<FileText className="w-5 h-5 text-accent" />} label="Total Documents" value={loadingDocs ? '…' : totalDocs} />
-          <StatCard icon={<CheckCircle2 className="w-5 h-5 text-emerald-500" />} label="Processed" value={loadingDocs ? '…' : completedDocs} color="emerald-500" />
-          <StatCard icon={<HelpCircle className="w-5 h-5 text-purple-500" />} label="PYQ Docs" value={loadingDocs ? '…' : documents.filter(d => d.doc_type === 'PYQ').length} color="purple-500" />
-          <StatCard icon={<GraduationCap className="w-5 h-5 text-blue-500" />} label="Ready to Analyze" value={loadingDocs ? '…' : docIds.length} color="blue-500" />
-        </div>
-      )}
-
-      {/* Main tabs */}
-      <Tabs defaultValue="overview" className="space-y-0">
-        <TabsList className="w-full h-auto bg-muted/50 border border-border rounded-xl p-1 flex flex-wrap gap-1">
-          {[
-            { value: 'overview',  label: 'Overview',      icon: <Layers className="w-4 h-4" /> },
-            { value: 'summary',   label: 'StudyUnit Summary', icon: <BookOpen className="w-4 h-4" /> },
-            { value: 'quiz',      label: 'Quiz Bank',      icon: <HelpCircle className="w-4 h-4" /> },
-            { value: 'formulas',  label: 'Formula Bank',   icon: <FlaskConical className="w-4 h-4" /> },
-            { value: 'pyq',       label: 'PYQ Patterns',   icon: <GraduationCap className="w-4 h-4" /> },
-            { value: 'compare',   label: 'Compare',        icon: <GitCompare className="w-4 h-4" /> },
-          ].map(tab => (
-            <TabsTrigger key={tab.value} value={tab.value}
-              className="flex-1 gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm rounded-lg py-2 text-xs sm:text-sm">
-              {tab.icon} <span className="hidden sm:inline">{tab.label}</span>
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        {/* ── Overview ── */}
-        <TabsContent value="overview" className="mt-5">
+          <div className="flex-1 w-full h-full min-w-0 bg-transparent overflow-y-auto pr-2 custom-scrollbar">
+            {/* ── Overview ── */}
+            <TabsContent value="overview" className="mt-0 h-full outline-none">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                <StatCard icon={<FileText className="w-5 h-5 text-accent" />} label="Total Documents" value={loadingDocs ? '…' : totalDocs} />
+                <StatCard icon={<CheckCircle2 className="w-5 h-5 text-emerald-500" />} label="Processed" value={loadingDocs ? '…' : completedDocs} color="emerald-500" />
+                <StatCard icon={<HelpCircle className="w-5 h-5 text-purple-500" />} label="PYQ Docs" value={loadingDocs ? '…' : documents.filter(d => d.doc_type === 'PYQ').length} color="purple-500" />
+                <StatCard icon={<GraduationCap className="w-5 h-5 text-blue-500" />} label="Selected for Analysis" value={loadingDocs ? '…' : activeDocIds.length} color="blue-500" />
+              </div>
           {loadingDocs ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="w-8 h-8 animate-spin text-accent" />
             </div>
-          ) : !selectedOffering ? (
-            <div className="rounded-xl border border-border bg-card p-12 text-center">
-              <BookOpen className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-muted-foreground font-medium">Select an offering to get started</p>
-            </div>
           ) : documents.length === 0 ? (
             <div className="rounded-xl border border-border bg-card p-12 text-center">
               <FileText className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-muted-foreground font-medium">No documents in this offering yet</p>
+              <p className="text-muted-foreground font-medium">No documents in this Study Unit yet</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {documents.map(doc => (
-                <div key={doc.id} className="rounded-xl border border-border bg-card p-4 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                      <FileText className="w-4 h-4 text-accent" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium text-foreground truncate">{doc.title}</p>
-                      <p className="text-xs text-muted-foreground">{doc.doc_type} · {Math.round((doc.file_size_bytes || 0) / 1024)} KB</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={`text-xs px-2 py-1 rounded-full border font-medium ${
-                      doc.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-700'
-                      : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:border-amber-700'
-                    }`}>
-                      {doc.status === 'COMPLETED' ? '✓ Processed' : 'Processing…'}
-                    </span>
-                    <Button variant="outline" size="sm" onClick={() => navigate(`/analyze/${doc.id}`)}>
-                      Open Studio
-                    </Button>
-                  </div>
+            <div className="space-y-4">
+              <div className="bg-muted/30 p-4 rounded-xl border border-border flex justify-between items-center">
+                <div>
+                  <h3 className="font-semibold text-foreground">Select Documents for Analysis</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">The AI tools in the other tabs will only analyze the documents you select here.</p>
                 </div>
-              ))}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium bg-accent/10 text-accent px-3 py-1 rounded-full">{activeDocIds.length} selected</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {documents.map(doc => {
+                  const isCompleted = doc.status === 'COMPLETED';
+                  const isSelected = selectedDocIds.has(doc.id);
+                  return (
+                    <div 
+                      key={doc.id} 
+                      className={`rounded-xl border p-4 flex items-start gap-4 transition-all ${
+                        isSelected ? 'border-accent bg-accent/5 ring-1 ring-accent' : 'border-border bg-card hover:bg-muted/50'
+                      } ${!isCompleted ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                      onClick={() => isCompleted && toggleDocSelection(doc.id)}
+                    >
+                      <div className="pt-1">
+                        <input 
+                          type="checkbox"
+                          className="w-5 h-5 rounded border-border text-accent focus:ring-accent accent-accent bg-card cursor-pointer disabled:cursor-not-allowed"
+                          checked={isSelected} 
+                          disabled={!isCompleted}
+                          onChange={() => isCompleted && toggleDocSelection(doc.id)}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex justify-between items-start gap-2">
+                          <p className={`font-semibold truncate ${isSelected ? 'text-accent' : 'text-foreground'}`}>{doc.title}</p>
+                        </div>
+                        <div className="flex items-center gap-3 mt-2">
+                          <span className="text-xs font-mono bg-muted text-muted-foreground px-2 py-0.5 rounded">{doc.doc_type}</span>
+                          <span className={`text-[10px] uppercase font-bold tracking-wider ${isCompleted ? 'text-emerald-500' : 'text-amber-500'}`}>
+                            {isCompleted ? 'Ready' : 'Processing'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
-        </TabsContent>
+          </TabsContent>
 
-        {/* ── StudyUnit Summary ── */}
-        <TabsContent value="summary" className="mt-5">
+          {/* ── StudyUnit Summary ── */}
+          <TabsContent value="summary" className="mt-0 outline-none">
           <MdPanel
             title="StudyUnit Summary"
-            description={`Synthesizes all ${docIds.length} processed documents into a unified study_unit overview with learning path.`}
+            description={`Synthesizes all ${activeDocIds.length} selected documents into a unified study overview with learning path.`}
             icon={<BookOpen className="w-5 h-5" />}
             iconColor="text-accent"
             triggerFn={triggerStudyUnitSummary}
-            docIds={docIds}
+            docIds={activeDocIds}
             disabled={!hasDocuments}
           />
-        </TabsContent>
+          </TabsContent>
 
-        {/* ── Quiz Bank ── */}
-        <TabsContent value="quiz" className="mt-5">
-          <StudyUnitQuizPanel docIds={docIds} disabled={!hasDocuments} />
-        </TabsContent>
+          {/* ── Quiz Bank ── */}
+          <TabsContent value="quiz" className="mt-0 outline-none">
+            <StudyUnitQuizPanel docIds={activeDocIds} disabled={!hasDocuments} />
+          </TabsContent>
 
-        {/* ── Formula Bank ── */}
-        <TabsContent value="formulas" className="mt-5">
-          <FormulaBankPanel docIds={docIds} disabled={!hasDocuments} />
-        </TabsContent>
+          {/* ── Formula Bank ── */}
+          <TabsContent value="formulas" className="mt-0 outline-none">
+            <FormulaBankPanel docIds={activeDocIds} disabled={!hasDocuments} />
+          </TabsContent>
 
-        {/* ── PYQ ── */}
-        <TabsContent value="pyq" className="mt-5">
-          <PYQPanel documents={documents} />
-        </TabsContent>
+          {/* ── PYQ ── */}
+          <TabsContent value="pyq" className="mt-0 outline-none">
+            <PYQPanel documents={documents} />
+          </TabsContent>
 
-        {/* ── Compare ── */}
-        <TabsContent value="compare" className="mt-5">
+          {/* ── Compare ── */}
+          <TabsContent value="compare" className="mt-0 outline-none">
           <MdPanel
             title="Document Comparison"
             description="AI diff of concepts and formulas between all selected documents — find gaps in your study materials."
             icon={<GitCompare className="w-5 h-5" />}
             iconColor="text-blue-500"
             triggerFn={triggerComparison}
-            docIds={docIds.slice(0, 2)}
-            disabled={docIds.length < 2}
+            docIds={activeDocIds.slice(0, 2)}
+            disabled={activeDocIds.length < 2}
           />
-          {docIds.length < 2 && docIds.length > 0 && (
+          {activeDocIds.length < 2 && activeDocIds.length > 0 && (
             <p className="text-xs text-amber-600 mt-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700 px-4 py-2 rounded-lg">
-              At least 2 processed documents are needed for comparison. Currently: {docIds.length}.
+              At least 2 selected documents are needed for comparison. Currently: {activeDocIds.length}.
             </p>
           )}
-        </TabsContent>
+          </TabsContent>
+
+          {/* ── Assistant ── */}
+          <TabsContent value="assistant" className="mt-0 h-full outline-none">
+            <div className="h-full pb-4">
+              <StudioChatTab 
+                studyUnitId={study_unit?.id} 
+                studyUnitCode={study_unit?.code} 
+              />
+            </div>
+          </TabsContent>
+        </div>
       </Tabs>
+      </div>
     </div>
   );
 };

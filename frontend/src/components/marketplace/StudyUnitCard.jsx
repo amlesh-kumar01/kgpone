@@ -34,9 +34,19 @@ const StudyUnitCard = ({ study_unit, org_unitName }) => {
           <p className="text-sm text-muted-foreground line-clamp-3 mb-4 leading-relaxed">
             {study_unit.description || "No description available for this study_unit. Please contact the org_unit for more details."}
           </p>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-            <Library size={14} className="text-accent" />
-            <span>{org_unitName}</span>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+              <Library size={14} className="text-accent" />
+              <span>{org_unitName}</span>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-1">
+              <span className="inline-flex items-center gap-1 bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-purple-500/20">
+                <BrainCircuit size={12} /> AI Tutor
+              </span>
+              <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-emerald-500/20">
+                Artifacts & Quizzes
+              </span>
+            </div>
           </div>
         </CardContent>
         <CardFooter className="pt-4 pb-6 px-6 border-t border-border/50 bg-background/50 flex flex-col gap-2">

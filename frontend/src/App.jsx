@@ -62,7 +62,7 @@ const AppRoutes = () => {
           <Route path="/analyze/:documentId" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER']}><AnalysisStudio /></ProtectedRoute>} />
           <Route path="/study-units/:study_unitId/analyze" element={<ProtectedRoute allowedRoles={['ADMIN', 'PUBLISHER', 'STUDENT']}><StudyUnitAnalysisStudio /></ProtectedRoute>} />
         </Route>
-        <Route path="/marketplace" element={<ProtectedRoute allowedRoles={['STUDENT']}><Marketplace /></ProtectedRoute>} />
+        <Route path="/marketplace" element={<ProtectedRoute allowedRoles={['STUDENT', 'ADMIN', 'PUBLISHER']}><Marketplace /></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute allowedRoles={['ADMIN']}><UsersPage /></ProtectedRoute>} />
       </Route>
     </Routes>

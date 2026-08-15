@@ -4,39 +4,39 @@
 
 @layer base {
   :root {
-    /* Aura Gurukul Theme - Light */
-    --background: 42 30% 95%; /* #f7f3ed - subtle warm off-white */
-    --foreground: 220 80% 6%; /* Deep Navy Text */
+    /* Aura Gurukul Theme - Light (Strictly from DESIGN.md) */
+    --background: 0 0% 98%; /* #f9f9f9 */
+    --foreground: 220 100% 6%; /* #000b21 */
 
-    --card: 0 0% 100%; /* Pure White */
-    --card-foreground: 220 80% 6%;
+    --card: 0 0% 100%; /* #ffffff */
+    --card-foreground: 220 100% 6%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 80% 6%;
+    --popover-foreground: 220 100% 6%;
 
-    /* Primary Buttons & Accents - Deep Navy */
-    --primary: 220 80% 6%; 
+    /* Primary - Deep Navy */
+    --primary: 220 100% 6%; /* #000b21 */
     --primary-foreground: 0 0% 100%;
 
     /* Secondary / Accent - Amber Gold */
-    --secondary: 41 50% 40%; 
+    --secondary: 42 65% 28%; /* #775a19 */
     --secondary-foreground: 0 0% 100%; 
 
     /* Muted areas */
-    --muted: 0 0% 96%; /* slightly grey/white for contrast */
-    --muted-foreground: 220 20% 40%;
+    --muted: 0 0% 95%; /* #f3f3f3 */
+    --muted-foreground: 222 7% 29%; /* #44474e */
 
-    --accent: 41 50% 40%; 
+    --accent: 42 65% 28%; /* #775a19 */
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 74% 42%;
+    --destructive: 0 84% 41%; /* #ba1a1a */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 90%; 
-    --input: 42 30% 90%; 
-    --ring: 220 80% 6%;
+    --border: 228 11% 79%; /* #c4c6ce */
+    --input: 228 11% 79%; 
+    --ring: 220 100% 6%;
 
-    --radius: 0.375rem; /* 6px */
+    --radius: 0.5rem; /* 8px */
   }
 
   .dark {

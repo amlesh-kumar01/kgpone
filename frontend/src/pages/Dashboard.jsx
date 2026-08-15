@@ -133,7 +133,7 @@ const Dashboard = () => {
       className="flex flex-col gap-8 w-full"
     >
       <div className="mb-4">
-        <h1 className="text-4xl font-serif font-bold text-foreground mb-3">
+        <h1 className="text-3xl font-serif font-bold text-foreground mb-3">
           Dashboard Overview
         </h1>
         <p className="text-muted-foreground text-lg max-w-2xl">

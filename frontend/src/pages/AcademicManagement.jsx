@@ -21,6 +21,7 @@ const AcademicManagement = () => {
   
   // UI State
   const [loading, setLoading] = useState(true);
+  const [contentLoading, setContentLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("org-units");
   
   // Modals
@@ -44,8 +45,15 @@ const AcademicManagement = () => {
   // Fetch children when OrgUnit selected
   useEffect(() => {
     if (selectedOrgUnit) {
-      fetchOfferings(selectedOrgUnit.id);
-      fetchStudyUnits(selectedOrgUnit.id);
+      const loadData = async () => {
+        setContentLoading(true);
+        await Promise.all([
+          fetchOfferings(selectedOrgUnit.id),
+          fetchStudyUnits(selectedOrgUnit.id)
+        ]);
+        setContentLoading(false);
+      };
+      loadData();
     } else {
       setOfferings([]);
       setStudyUnits([]);
@@ -178,8 +186,8 @@ const AcademicManagement = () => {
     <div className="w-full space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight text-foreground">Academic Console</h1>
-          <p className="text-muted-foreground mt-1">Manage hierarchical curriculum structures.</p>
+          <h1 className="text-3xl font-serif font-bold text-foreground">Academic Console</h1>
+          <p className="text-muted-foreground text-sm mt-1 max-w-2xl">Manage hierarchical curriculum structures.</p>
         </div>
       </div>
 
@@ -251,8 +259,20 @@ const AcademicManagement = () => {
                   <TabsTrigger value="study-units" className="flex items-center gap-2"><BookOpen className="w-4 h-4"/> Study Units</TabsTrigger>
                 </TabsList>
                 
-                {/* Offerings Tab */}
-                <TabsContent value="org-units" className="mt-6 space-y-4">
+                {contentLoading ? (
+                  <div className="mt-6 space-y-4">
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="h-8 w-40 bg-muted animate-pulse rounded"></div>
+                      <div className="h-8 w-32 bg-muted animate-pulse rounded"></div>
+                    </div>
+                    {[1, 2].map(i => (
+                      <div key={i} className="h-32 w-full bg-muted animate-pulse rounded-xl border border-border/50"></div>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    {/* Offerings Tab */}
+                    <TabsContent value="org-units" className="mt-6 space-y-4">
                   <div className="flex justify-between items-center">
                     <h3 className="text-xl font-semibold">Offerings ({offerings.length})</h3>
                     <Button onClick={() => setIsAddOfferingOpen(true)}>
@@ -354,6 +374,8 @@ const AcademicManagement = () => {
                     )}
                   </div>
                 </TabsContent>
+                </>
+              )}
               </Tabs>
             </div>
           ) : (

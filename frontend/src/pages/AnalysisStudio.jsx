@@ -16,6 +16,7 @@ import {
 } from '@/lib/analysisApi';
 import MarkdownResult from '@/components/analysis/MarkdownResult';
 import ArtifactViewer from '@/components/analysis/ArtifactViewer';
+import { StudioChatTab } from '@/components/chat/StudioChatTab';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -358,6 +359,7 @@ const AnalysisStudio = () => {
             { value: 'summary',   label: 'Summary',   icon: <BookOpen className="w-4 h-4" /> },
             { value: 'quiz',      label: 'Quiz',      icon: <HelpCircle className="w-4 h-4" /> },
             { value: 'formulas',  label: 'Formulas',  icon: <FlaskConical className="w-4 h-4" /> },
+            { value: 'assistant', label: 'Assistant', icon: <BrainCircuit className="w-4 h-4 text-purple-500" /> },
           ].map(tab => (
             <TabsTrigger key={tab.value} value={tab.value}
               className="flex-1 gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm rounded-lg py-2 text-sm">
@@ -427,6 +429,15 @@ const AnalysisStudio = () => {
             icon={<FlaskConical className="w-5 h-5 text-rose-500" />}
             triggerFn={triggerFormulaRevision}
             documentId={documentId}
+          />
+        </TabsContent>
+
+        {/* ── Assistant ── */}
+        <TabsContent value="assistant" className="mt-5">
+          <StudioChatTab 
+            documentId={documentId} 
+            studyUnitId={doc?.study_unit_id} 
+            studyUnitCode={doc?.study_unit_code} 
           />
         </TabsContent>
       </Tabs>

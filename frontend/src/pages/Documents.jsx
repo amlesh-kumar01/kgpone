@@ -209,14 +209,14 @@ const Documents = () => {
     <div className="flex flex-col gap-8 w-full">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-4xl font-serif font-bold tracking-tight text-foreground mb-2">Knowledge Ingestion</h1>
-          <p className="text-muted-foreground text-lg">Upload and process documents for the global semantic graph.</p>
+          <h1 className="text-3xl font-serif font-bold text-foreground mb-1">Knowledge Ingestion</h1>
+          <p className="text-muted-foreground text-sm max-w-2xl">Upload and process documents for the global semantic graph.</p>
         </div>
         
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button 
-              className="px-6 py-3 bg-accent text-accent-foreground font-medium rounded-lg hover:bg-opacity-90 transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-accent text-accent-foreground text-sm font-medium rounded-lg hover:bg-opacity-90 transition-colors flex items-center gap-2"
               disabled={!selectedStudyUnitId}
               onClick={(e) => {
                 if (!selectedStudyUnitId) {
@@ -225,7 +225,7 @@ const Documents = () => {
                 }
               }}
             >
-              <UploadCloud size={20} /> Upload Knowledge
+              <UploadCloud size={16} /> Upload Knowledge
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto bg-card border border-border p-8 rounded-xl shadow-xl">
