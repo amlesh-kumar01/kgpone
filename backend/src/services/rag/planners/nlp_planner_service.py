@@ -20,7 +20,7 @@ logger = logging.getLogger("nlp_planner_service")
 
 # Resolved model paths (relative to backend/ root)
 _MODELS_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))),
     "models",
 )
 _DEFAULT_CLASSIFIER_PATH = os.path.join(_MODELS_DIR, "intent_classifier.pkl")

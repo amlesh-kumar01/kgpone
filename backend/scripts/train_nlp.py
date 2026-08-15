@@ -6,7 +6,7 @@ from sklearn.svm import SVC
 from sklearn.pipeline import make_pipeline
 
 # Ensure models directory exists
-MODELS_DIR = os.path.join(os.path.dirname(__file__), '..', 'src', 'models')
+MODELS_DIR = os.path.join(os.path.dirname(__file__), '..', 'models')
 os.makedirs(MODELS_DIR, exist_ok=True)
 
 CLASSIFIER_PATH = os.path.join(MODELS_DIR, 'intent_classifier.pkl')
