@@ -3,11 +3,17 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ArrowLeft, Play, RefreshCw, CheckCircle2, AlertCircle, FileJson, Link as LinkIcon, Database, Check } from "lucide-react";
+import { Loader2, ArrowLeft, Play, RefreshCw, CheckCircle2, AlertCircle, FileJson, Link as LinkIcon, Database, Check, ChevronRight } from "lucide-react";
 import api from '../lib/api';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+const PIPELINE_STAGES = [
+  { group: 'Phase 1: Parse', icon: <FileJson size={14} />, stages: ['PARSE', 'AST'] },
+  { group: 'Phase 2: Knowledge Extraction', icon: <LinkIcon size={14} />, stages: ['FORMULA', 'QUESTION', 'ENTITY', 'RELATION'] },
+  { group: 'Phase 3: Indexing', icon: <Database size={14} />, stages: ['CHUNK', 'EMBED', 'GRAPH', 'MANIFEST'] },
+];
+
 const DocumentPipeline = () => {
   const { documentId } = useParams();
   const navigate = useNavigate();
@@ -17,34 +23,9 @@ const DocumentPipeline = () => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // AST state
-  const [astData, setAstData] = useState(null);
-  const [astLoading, setAstLoading] = useState(false);
-  const [edits, setEdits] = useState({});
-  const [applyingEdits, setApplyingEdits] = useState(false);
-
-  // JSON Viewer State
-  const [jsonViewerOpen, setJsonViewerOpen] = useState(false);
-  const [jsonViewerData, setJsonViewerData] = useState(null);
-  const [jsonViewerTitle, setJsonViewerTitle] = useState("");
-  const [jsonViewerLoading, setJsonViewerLoading] = useState(false);
-
-  const handleViewOutput = async (job) => {
-    if (!job.output_url) return;
-    setJsonViewerTitle(`${job.stage} Output`);
-    setJsonViewerOpen(true);
-    setJsonViewerLoading(true);
-    setJsonViewerData(null);
-    try {
-      const res = await fetch(job.output_url);
-      const data = await res.json();
-      setJsonViewerData(data);
-    } catch (err) {
-      setJsonViewerData({ error: "Failed to fetch output data" });
-    } finally {
-      setJsonViewerLoading(false);
-    }
-  };
+  const [selectedStage, setSelectedStage] = useState('PARSE');
+  const [outputData, setOutputData] = useState(null);
+  const [outputLoading, setOutputLoading] = useState(false);
 
   const fetchPipeline = async () => {
     try {
@@ -67,7 +48,6 @@ const DocumentPipeline = () => {
 
   useEffect(() => {
     fetchPipeline();
-    // Poll every 5s if anything is running
     const interval = setInterval(() => {
       setJobs(currentJobs => {
         const isRunning = currentJobs.some(j => j.status === 'RUNNING' || j.status === 'PENDING');
@@ -81,18 +61,30 @@ const DocumentPipeline = () => {
   }, [documentId]);
 
   useEffect(() => {
-    const astJob = jobs.find(j => j.stage === 'AST');
-    if (astJob && astJob.status === 'COMPLETED' && astJob.output_url && !astData && !astLoading) {
-      setAstLoading(true);
-      fetch(astJob.output_url)
-        .then(res => res.json())
-        .then(data => setAstData(data))
-        .catch(err => console.error("Failed to load AST", err))
-        .finally(() => setAstLoading(false));
-    }
-  }, [jobs]);
+    const fetchOutput = async () => {
+      const job = jobs.find(j => j.stage === selectedStage);
+      if (!job || !job.output_url) {
+        setOutputData(null);
+        return;
+      }
+      
+      setOutputLoading(true);
+      try {
+        const res = await fetch(job.output_url);
+        const data = await res.json();
+        setOutputData(data);
+      } catch (err) {
+        setOutputData({ error: "Failed to fetch output data" });
+      } finally {
+        setOutputLoading(false);
+      }
+    };
 
-  const handleTrigger = async (stage) => {
+    fetchOutput();
+  }, [selectedStage, jobs]);
+
+  const handleTrigger = async (stage, e) => {
+    e.stopPropagation();
     try {
       await api.post(`/api/v1/ingestion/${documentId}/jobs/${stage}/retry`);
       toast({ title: `Triggered ${stage}` });
@@ -102,128 +94,42 @@ const DocumentPipeline = () => {
     }
   };
 
-  const handleApplyEdits = async () => {
-    if (Object.keys(edits).length === 0) return;
-    setApplyingEdits(true);
-    try {
-      await api.post(`/api/v1/ingestion/${documentId}/apply-node-edits`, edits);
-      toast({ title: "Edits applied successfully. Pipeline continuing..." });
-      setEdits({});
-      fetchPipeline();
-    } catch (err) {
-      toast({ variant: "destructive", title: "Failed to apply edits", description: err.message });
-    } finally {
-      setApplyingEdits(false);
-    }
-  };
-
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'COMPLETED': return <CheckCircle2 className="text-green-500" size={20} />;
-      case 'FAILED': return <AlertCircle className="text-red-500" size={20} />;
+      case 'COMPLETED': return <CheckCircle2 className="text-emerald-500 bg-background relative z-10" size={18} />;
+      case 'FAILED': return <AlertCircle className="text-rose-500 bg-background relative z-10" size={18} />;
       case 'RUNNING':
-      case 'PENDING': return <Loader2 className="text-amber-500 animate-spin" size={20} />;
-      default: return <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30" />;
+      case 'PENDING': return <Loader2 className="text-amber-500 animate-spin bg-background relative z-10" size={18} />;
+      default: return <div className="w-[18px] h-[18px] rounded-full border-2 border-muted-foreground/30 bg-background relative z-10" />;
     }
   };
 
-  const renderJobCard = (job) => {
-    if (!job) return null;
-    return (
-      <Card key={job.stage} className="border-border shadow-sm mb-4 relative overflow-hidden group">
-        <div className={`absolute top-0 left-0 w-1 h-full ${job.status === 'COMPLETED' ? 'bg-green-500' : job.status === 'FAILED' ? 'bg-red-500' : job.status === 'RUNNING' ? 'bg-amber-500' : 'bg-muted-foreground/20'}`} />
-        <CardContent className="p-4 pl-5">
-          <div className="flex justify-between items-start">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                {getStatusIcon(job.status)}
-                <h3 className="font-semibold text-lg">{job.stage}</h3>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {job.started_at ? new Date(job.started_at).toLocaleTimeString() : 'Not started'} 
-                {job.completed_at && ` - ${new Date(job.completed_at).toLocaleTimeString()}`}
-              </p>
-              {job.error_message && (
-                <div className="mt-2 p-2 bg-red-50 text-red-700 text-xs rounded border border-red-100 max-w-sm break-words">
-                  {job.error_message}
-                </div>
-              )}
-            </div>
-            <div className="flex flex-col gap-2 items-end">
-              {(job.status === 'PENDING' || job.status === 'SKIPPED' || job.status === undefined) ? (
-                <Button size="sm" variant="outline" onClick={() => handleTrigger(job.stage)}>
-                  <Play size={14} className="mr-1" /> Trigger
-                </Button>
-              ) : (
-                <Button size="sm" variant="outline" onClick={() => handleTrigger(job.stage)} title="Retry (will clear downstream data)">
-                  <RefreshCw size={14} className="mr-1" /> Retry
-                </Button>
-              )}
-              {job.output_url && (
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  onClick={() => handleViewOutput(job)} 
-                  className="text-xs text-accent hover:text-accent hover:bg-accent/10 px-2 h-7"
-                >
-                  <FileJson size={12} className="mr-1" /> View Output
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
-
-  const getJob = (stage) => jobs.find(j => j.stage === stage);
-
   const renderASTNode = (node, depth = 0) => {
-    // We only care about rendering blocks of text/equations for review
     if (!node.text_content && !node.latex && (!node.children || node.children.length === 0)) return null;
     
     const confidence = node.source?.confidence ?? 1.0;
-    let bgColor = "bg-green-50/50 border-green-200";
-    if (confidence < 0.5) bgColor = "bg-red-50 border-red-200";
-    else if (confidence < 0.8) bgColor = "bg-amber-50 border-amber-200";
-
-    const isEdited = edits[node.id] !== undefined;
-    const currentText = isEdited && edits[node.id].text_content !== undefined ? edits[node.id].text_content : node.text_content;
-    const currentLatex = isEdited && edits[node.id].latex !== undefined ? edits[node.id].latex : node.latex;
+    let bgColor = "bg-emerald-50/50 border-emerald-200/50";
+    if (confidence < 0.5) bgColor = "bg-rose-50/50 border-rose-200/50";
+    else if (confidence < 0.8) bgColor = "bg-amber-50/50 border-amber-200/50";
 
     return (
-      <div key={node.id} className="mb-2">
+      <div key={node.id} className="mb-2 text-sm">
         {(node.text_content || node.latex) && (
-          <div className={`p-3 rounded-md border ${bgColor} relative group transition-all`}>
-            <div className="flex justify-between items-start gap-4">
-              <div className="flex-1 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono bg-background/50 px-1.5 py-0.5 rounded text-muted-foreground">{node.type}</span>
-                  <span className="text-xs text-muted-foreground">Confidence: {Math.round(confidence * 100)}%</span>
-                  {isEdited && <span className="text-xs text-accent font-medium flex items-center gap-1"><Check size={12}/> Edited</span>}
-                </div>
-                {node.text_content && (
-                  <textarea 
-                    className="w-full text-sm bg-transparent border-b border-transparent hover:border-border focus:border-accent focus:outline-none focus:bg-background resize-y"
-                    value={currentText || ""}
-                    onChange={(e) => setEdits(prev => ({ ...prev, [node.id]: { ...prev[node.id], text_content: e.target.value } }))}
-                    rows={currentText.split('\n').length || 1}
-                  />
-                )}
-                {node.latex && (
-                  <textarea 
-                    className="w-full text-sm font-mono bg-background/50 border-b border-transparent hover:border-border focus:border-accent focus:outline-none resize-y mt-1 p-1"
-                    value={currentLatex || ""}
-                    onChange={(e) => setEdits(prev => ({ ...prev, [node.id]: { ...prev[node.id], latex: e.target.value } }))}
-                    rows={currentLatex.split('\n').length || 1}
-                  />
-                )}
-              </div>
+          <div className={`px-4 py-3 rounded-lg border ${bgColor}`}>
+            <div className="flex items-center gap-3 mb-1.5">
+              <span className="text-[10px] font-bold tracking-widest uppercase bg-background/60 px-2 py-0.5 rounded text-muted-foreground">{node.type}</span>
+              <span className="text-xs text-muted-foreground font-medium">Confidence: {Math.round(confidence * 100)}%</span>
             </div>
+            {node.text_content && (
+              <p className="text-foreground leading-relaxed whitespace-pre-wrap">{node.text_content}</p>
+            )}
+            {node.latex && (
+              <p className="font-mono text-accent leading-relaxed mt-1 p-2 bg-background/50 rounded">{node.latex}</p>
+            )}
           </div>
         )}
         {node.children && node.children.length > 0 && (
-          <div className="pl-6 border-l-2 border-border/30 mt-2">
+          <div className="pl-6 border-l-2 border-border/40 mt-2">
             {node.children.map(c => renderASTNode(c, depth + 1))}
           </div>
         )}
@@ -235,123 +141,132 @@ const DocumentPipeline = () => {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-accent" size={32} /></div>;
   }
 
+  const selectedJobObj = jobs.find(j => j.stage === selectedStage);
+
   return (
-    <div className="w-full">
-      <Button variant="ghost" onClick={() => navigate('/documents')} className="mb-4 text-muted-foreground -ml-4">
-        <ArrowLeft size={16} className="mr-2" /> Back to Documents
-      </Button>
-      
-      <div className="mb-8">
-        <h1 className="text-3xl font-serif font-bold text-foreground flex items-center gap-3">
-          Pipeline: {doc?.title}
+    <div className="w-full h-screen flex flex-col overflow-hidden bg-background">
+      <div className="flex-none px-6 py-4 border-b border-border bg-card/50">
+        <Button variant="ghost" onClick={() => navigate(-1)} className="mb-2 text-muted-foreground h-8 -ml-3 hover:bg-muted/50">
+          <ArrowLeft size={14} className="mr-2" /> Back to Documents
+        </Button>
+        <h1 className="text-2xl font-serif font-bold text-foreground">
+          {doc?.title}
         </h1>
-        <p className="text-muted-foreground font-mono mt-1 text-sm">{documentId}</p>
+        <p className="text-muted-foreground font-mono mt-0.5 text-xs">Document Pipeline • {documentId}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Pipeline Column */}
-        <div className="lg:col-span-1 space-y-6">
-          <div>
-            <h2 className="text-sm font-bold tracking-wider text-muted-foreground uppercase mb-3 flex items-center gap-2">
-              <FileJson size={16} /> Phase 1: Parse
-            </h2>
-            {renderJobCard(getJob('PARSE'))}
-            {renderJobCard(getJob('AST'))}
-          </div>
+      <div className="flex-1 flex overflow-hidden">
+        {/* Timeline Sidebar */}
+        <div className="w-80 flex-none border-r border-border bg-card/30 overflow-y-auto custom-scrollbar p-6">
+          <div className="relative">
+            {PIPELINE_STAGES.map((phase, pIndex) => (
+              <div key={pIndex} className="mb-10 last:mb-0">
+                <div className="flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-muted-foreground mb-5">
+                  {phase.icon} {phase.group}
+                </div>
+                
+                <div className="relative pl-1 space-y-2">
+                  <div className="absolute left-[13px] top-3 bottom-0 w-px border-l-2 border-dashed border-border/60 -z-10"></div>
+                  {phase.stages.map((stageName) => {
+                    const job = jobs.find(j => j.stage === stageName) || { stage: stageName, status: 'PENDING' };
+                    const isSelected = selectedStage === stageName;
+                    
+                    return (
+                      <div key={stageName} className="relative flex items-start gap-4 group">
+                        {/* Timeline Icon */}
+                        <div className="relative z-10 bg-background rounded-full mt-2.5 p-0.5">
+                          {getStatusIcon(job.status)}
+                        </div>
 
-          <div>
-            <h2 className="text-sm font-bold tracking-wider text-muted-foreground uppercase mb-3 flex items-center gap-2">
-              <LinkIcon size={16} /> Phase 2: Knowledge Extraction
-            </h2>
-            <div className="pl-4 border-l-2 border-border/50">
-              {renderJobCard(getJob('FORMULA'))}
-              {renderJobCard(getJob('QUESTION'))}
-              {renderJobCard(getJob('ENTITY'))}
-              {renderJobCard(getJob('RELATION'))}
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-sm font-bold tracking-wider text-muted-foreground uppercase mb-3 flex items-center gap-2">
-              <Database size={16} /> Phase 3: Indexing
-            </h2>
-            {renderJobCard(getJob('CHUNK'))}
-            {renderJobCard(getJob('EMBED'))}
-            {renderJobCard(getJob('GRAPH'))}
-            {renderJobCard(getJob('MANIFEST'))}
-          </div>
-        </div>
-
-        {/* Verification Column */}
-        <div className="lg:col-span-2">
-          <Card className="h-[calc(100vh-12rem)] flex flex-col bg-card border-border shadow-md">
-            <CardHeader className="border-b border-border bg-muted/20 shrink-0 flex flex-row justify-between items-center">
-              <div>
-                <CardTitle className="font-serif">Data Verification</CardTitle>
-                <CardDescription>Review and correct the parsed canonical AST before extracting knowledge.</CardDescription>
+                        {/* Clickable Card */}
+                        <div 
+                          onClick={() => setSelectedStage(stageName)}
+                          className={`flex-1 flex flex-col py-2 px-3 rounded-lg transition-all border cursor-pointer
+                            ${isSelected ? 'bg-muted shadow-sm border-border' : 'border-transparent hover:bg-muted/40'}
+                          `}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className={`font-semibold text-sm ${isSelected ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                              {stageName}
+                            </span>
+                            
+                            {/* Actions */}
+                            <div className={`transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                              {(job.status === 'PENDING' || job.status === 'SKIPPED' || !job.started_at) ? (
+                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={(e) => handleTrigger(stageName, e)}>
+                                  <Play size={12} className="text-muted-foreground hover:text-foreground" />
+                                </Button>
+                              ) : (
+                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={(e) => handleTrigger(stageName, e)} title="Retry">
+                                  <RefreshCw size={12} className="text-muted-foreground hover:text-foreground" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            {job.started_at ? new Date(job.started_at).toLocaleTimeString() : 'Pending'}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              {Object.keys(edits).length > 0 && (
-                <Button 
-                  onClick={handleApplyEdits} 
-                  disabled={applyingEdits}
-                  className="bg-accent text-accent-foreground hover:bg-accent/90"
-                >
-                  {applyingEdits ? <Loader2 className="animate-spin mr-2" size={16}/> : <CheckCircle2 className="mr-2" size={16}/>}
-                  Apply {Object.keys(edits).length} Fixes & Continue
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="flex-1 overflow-y-auto p-6 bg-muted/5">
-              {!astData ? (
-                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                  {astLoading ? (
-                    <><Loader2 className="animate-spin mb-2 text-accent" size={32} /> Loading AST preview...</>
-                  ) : (
-                    <><FileJson className="mb-2 opacity-50" size={32} /> Complete the Parse and AST stages to view the document structure here.</>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex gap-4 mb-4 text-xs font-medium text-muted-foreground p-3 bg-card rounded-lg border border-border">
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-green-500"></div> High Confidence (&gt;80%)</div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-amber-500"></div> Medium Confidence</div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-red-500"></div> Low Confidence (&lt;50%)</div>
-                  </div>
-                  {astData.nodes?.map(n => renderASTNode(n))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* JSON Viewer Dialog */}
-      <Dialog open={jsonViewerOpen} onOpenChange={setJsonViewerOpen}>
-        <DialogContent className="sm:max-w-[80vw] sm:max-h-[85vh] bg-[#1e1e1e] border-border p-0 rounded-xl shadow-2xl flex flex-col overflow-hidden">
-          <DialogHeader className="p-4 border-b border-border/10 bg-[#252526] shrink-0">
-            <DialogTitle className="text-lg font-mono text-gray-200 flex items-center gap-2">
-              <FileJson className="text-accent" size={20} /> {jsonViewerTitle}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-auto bg-[#1e1e1e]">
-            {jsonViewerLoading ? (
-              <div className="flex items-center justify-center h-48">
-                <Loader2 className="animate-spin text-accent" size={32} />
+        {/* Output Area */}
+        <div className="flex-1 flex flex-col bg-[#1e1e1e] overflow-hidden relative">
+          <div className="flex-none p-4 border-b border-[#2d2d2d] bg-[#252526] flex items-center justify-between shadow-sm z-10">
+            <div>
+              <h2 className="text-gray-200 font-semibold flex items-center gap-2">
+                <ChevronRight size={16} className="text-accent" />
+                {selectedStage} Output
+              </h2>
+              {selectedJobObj?.status && (
+                <p className="text-xs text-gray-400 ml-6 mt-0.5">Status: {selectedJobObj.status}</p>
+              )}
+            </div>
+            {selectedStage === 'AST' && (
+              <div className="flex gap-4 text-[10px] font-medium text-gray-400 bg-[#1e1e1e] px-3 py-1.5 rounded border border-[#2d2d2d]">
+                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> &gt;80%</div>
+                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-500"></div> &gt;50%</div>
+                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500"></div> &lt;50%</div>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex-1 overflow-auto custom-scrollbar">
+            {!selectedJobObj?.output_url ? (
+              <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                <FileJson className="mb-3 opacity-20" size={48} />
+                <p>No output available for this stage yet.</p>
+              </div>
+            ) : outputLoading ? (
+              <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                <Loader2 className="animate-spin mb-3 text-accent" size={32} />
+                <p>Loading output...</p>
+              </div>
+            ) : selectedStage === 'AST' && outputData?.nodes ? (
+              <div className="p-6 bg-background min-h-full">
+                {outputData.nodes.map(n => renderASTNode(n))}
               </div>
             ) : (
               <SyntaxHighlighter
                 language="json"
                 style={vscDarkPlus}
-                customStyle={{ margin: 0, padding: '1.5rem', background: 'transparent', fontSize: '14px' }}
+                customStyle={{ margin: 0, padding: '1.5rem', background: 'transparent', fontSize: '13px' }}
                 showLineNumbers={true}
                 wrapLines={true}
               >
-                {jsonViewerData ? JSON.stringify(jsonViewerData, null, 2) : "No data available"}
+                {outputData ? JSON.stringify(outputData, null, 2) : "No data available"}
               </SyntaxHighlighter>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </div>
     </div>
   );
 };

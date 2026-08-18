@@ -186,6 +186,7 @@ async def ask_question_stream(
     t_embed = time.time()
     logger.info(f"[PERF-DEBUG] Embed query took: {t_embed - t0:.4f}s")
         
+    t_cache = time.time()
     if query_embedding:
         scope_key = study_unit_id if study_unit_id else None
         cached = await semantic_cache.get(query, query_embedding, scope_key=scope_key)
