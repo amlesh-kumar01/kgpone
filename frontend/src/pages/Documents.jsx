@@ -16,7 +16,6 @@ const Documents = () => {
   const navigate = useNavigate();
   const [documents, setDocuments] = useState([]);
   const [filteredStudyUnits, setFilteredStudyUnits] = useState([]);
-  const [offerings, setOfferings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);

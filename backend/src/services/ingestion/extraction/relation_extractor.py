@@ -20,7 +20,11 @@ class RelationExtractor:
         node_to_entities = {}
         for ent in entities:
             # ent has surface_forms and source_node_ids (which is a list)
-            for node_id in ent.get("source_node_ids", []):
+            node_ids = ent.get("source_node_ids", [])
+            if not node_ids and ent.get("source_node_id"):
+                node_ids = [ent.get("source_node_id")]
+                
+            for node_id in node_ids:
                 if node_id not in node_to_entities:
                     node_to_entities[node_id] = []
                 node_to_entities[node_id].append(ent)

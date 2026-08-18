@@ -9,14 +9,11 @@ from src.models.user_model import utcnow
 
 class IngestionStage(str, enum.Enum):
     PARSE = "PARSE"
-    QUALITY = "QUALITY"
     AST = "AST"
-    FORMULA = "FORMULA"
-    QUESTION = "QUESTION"
-    ENTITY = "ENTITY"
-    RELATION = "RELATION"
     CHUNK = "CHUNK"
     EMBED = "EMBED"
+    ENTITY = "ENTITY"
+    RELATION = "RELATION"
     GRAPH = "GRAPH"
     MANIFEST = "MANIFEST"
 

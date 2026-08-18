@@ -27,7 +27,7 @@ class DocumentSummarizer(BaseAnalysisJob):
             doc = db.query(Document).filter(Document.id == doc_id).first()
             if not doc:
                 raise ValueError(f"Document {doc_id} not found")
-            s3_prefix = doc.s3_prefix or f"documents/UNKNOWN/{doc_id}"
+            s3_prefix = doc.s3_prefix or f"documents/{doc.study_unit_id}/{doc_id}"
             
             # Using synchronous ArtifactManager directly
             from src.repositories.s3.storage_repository import S3Storage

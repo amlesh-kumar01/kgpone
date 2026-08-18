@@ -69,3 +69,19 @@ class PresignedUrlResponse(BaseModel):
     document_id: UUID
     s3_prefix: str
     original_s3_key: str
+
+# ----------------- Quiz Schemas -----------------
+class QuizGenerationRequest(BaseModel):
+    topic: str
+    quiz_type: str
+    prompt: str
+
+class QuizQuestion(BaseModel):
+    question: str
+    options: list[str] | None = None
+    answer: str
+    explanation: str | None = None
+
+class QuizGenerationResponse(BaseModel):
+    title: str
+    questions: list[QuizQuestion]

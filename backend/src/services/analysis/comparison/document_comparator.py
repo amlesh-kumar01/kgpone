@@ -30,7 +30,7 @@ class DocumentComparator(BaseAnalysisJob):
                 doc_data[doc_id] = {"entities": [], "formulas": []}
                 try:
                     doc = db.query(Document).filter(Document.id == doc_id).first()
-                    s3_prefix = doc.s3_prefix if doc and doc.s3_prefix else f"documents/UNKNOWN/{doc_id}"
+                    s3_prefix = doc.s3_prefix if doc and doc.s3_prefix else f"documents/{doc.study_unit_id}/{doc_id}"
                     e_key = f"{s3_prefix}/artifacts/entities.json"
                     entities_data = self.s3.read_json(e_key)
                     if entities_data and isinstance(entities_data, list):

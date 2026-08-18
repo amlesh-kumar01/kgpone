@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from src.infrastructure.database import get_db
 from src.schemas.document_schema import (
     DocumentCreate, DocumentRead, DocumentUpdate,
-    PresignedUrlRequest, PresignedUrlResponse
+    PresignedUrlRequest, PresignedUrlResponse,
+    QuizGenerationRequest, QuizGenerationResponse
 )
 from src.repositories.postgres.document_repository import DocumentRepository
 from src.services.ingestion.upload_manager.document_service import DocumentService
@@ -100,8 +101,6 @@ def retry_document_stage(
     doc_id_str = str(document_id)
     if stage_enum == IngestionStage.PARSE: tasks.parse_document_task.delay(doc_id_str)
     elif stage_enum == IngestionStage.AST: tasks.build_canonical_ast_task.delay(doc_id_str)
-    elif stage_enum == IngestionStage.FORMULA: tasks.extract_formulas_task.delay(doc_id_str)
-    elif stage_enum == IngestionStage.QUESTION: tasks.extract_questions_task.delay(doc_id_str)
     elif stage_enum == IngestionStage.ENTITY: tasks.extract_entities_task.delay(doc_id_str)
     elif stage_enum == IngestionStage.RELATION: tasks.extract_relations_task.delay(doc_id_str)
     elif stage_enum == IngestionStage.CHUNK: tasks.build_chunks_task.delay(doc_id_str)
@@ -110,3 +109,52 @@ def retry_document_stage(
     elif stage_enum == IngestionStage.MANIFEST: tasks.finalize_manifest_task.delay(doc_id_str)
 
     return StandardResponse(status="success", message=f"Stage {stage_enum.value} retry dispatched", data="")
+
+@router.post("/{document_id}/quiz", response_model=StandardResponse[QuizGenerationResponse])
+def generate_document_quiz(
+    document_id: UUID, 
+    req: QuizGenerationRequest,
+    db: Session = Depends(get_db), 
+    user: User = Depends(get_current_user)
+):
+    from src.repositories.qdrant.vector_repository import QdrantRepository
+    from src.infrastructure.llm_factory import LLMFactory
+    from langchain_core.prompts import ChatPromptTemplate
+    import asyncio
+    import json
+    
+    # 1. Query Qdrant for topic context
+    repo = QdrantRepository()
+    embedder = LLMFactory().get_embedder()
+    topic_embedding = asyncio.run(embedder.embed_query(req.topic))
+    filter_dict = {"document_id": str(document_id)}
+    
+    results = repo.search("documents", topic_embedding, limit=5, filter_dict=filter_dict)
+    context_text = "\n\n".join([r.payload.get("text", "") for r in results])
+    
+    # 2. Use LLM to generate Quiz
+    llm = LLMFactory().get_llm(temperature=0.7)
+    
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are an expert tutor. Generate a quiz based on the following text context. "
+                   "The user wants a quiz about '{topic}' of type '{quiz_type}'. "
+                   "User custom instructions: {prompt}\n\n"
+                   "You MUST respond ONLY with valid JSON matching this schema: "
+                   "{{\"title\": \"Quiz Title\", \"questions\": [{{\"question\": \"...\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"answer\": \"...\", \"explanation\": \"...\"}}]}} "
+                   "Omit 'options' if it's not a multiple choice quiz."),
+        ("user", "Context:\n{context}")
+    ])
+    
+    chain = prompt | llm
+    try:
+        res = asyncio.run(chain.ainvoke({"topic": req.topic, "quiz_type": req.quiz_type, "prompt": req.prompt, "context": context_text}))
+        
+        # Parse JSON
+        content = res.content
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0]
+        quiz_data = json.loads(content.strip())
+        
+        return StandardResponse(status="success", message="Quiz generated successfully", data=QuizGenerationResponse(**quiz_data))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Quiz generation failed: {str(e)}")

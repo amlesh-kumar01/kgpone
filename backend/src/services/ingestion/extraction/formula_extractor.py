@@ -11,6 +11,7 @@ class FormulaExtractor:
         # Matches inline LaTeX between single $ or double $$
         self.inline_regex = re.compile(r'(?<!\$)\$([^$]+)\$(?!\$)')
         self.block_regex = re.compile(r'\$\$([^$]+)\$\$')
+        self.env_regex = re.compile(r'\\begin\{(equation|align|eqnarray\*?|math|displaymath)\}(.*?)\\end\{\1\}', re.DOTALL)
         
     def extract(self, nodes: List[ASTNode], context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -37,6 +38,17 @@ class FormulaExtractor:
                     formulas.append({
                         "id": str(uuid.uuid4()),
                         "latex": match.group(1).strip(),
+                        "equation_label": None,
+                        "source_node_id": node.id,
+                        "source_page": node.source.page_start if node.source else None,
+                        "variables": self._extract_variables(node, nodes, idx)
+                    })
+                    
+                # Check standard environments
+                for match in self.env_regex.finditer(text):
+                    formulas.append({
+                        "id": str(uuid.uuid4()),
+                        "latex": match.group(2).strip(),
                         "equation_label": None,
                         "source_node_id": node.id,
                         "source_page": node.source.page_start if node.source else None,

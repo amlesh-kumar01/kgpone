@@ -27,7 +27,7 @@ class StudyUnitSummarizer(BaseAnalysisJob):
                 # We assume artifact_manager.read_json can get chunks.json or canonical.json
                 try:
                     doc = db.query(Document).filter(Document.id == doc_id).first()
-                    s3_prefix = doc.s3_prefix if doc and doc.s3_prefix else f"documents/UNKNOWN/{doc_id}"
+                    s3_prefix = doc.s3_prefix if doc and doc.s3_prefix else f"documents/{doc.study_unit_id}/{doc_id}"
                     
                     # We can either read the pre-existing document summary or summarize chunks.
                     # Let's read the chunks and do a high level summary, or read existing document summaries.

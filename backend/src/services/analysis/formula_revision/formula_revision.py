@@ -29,7 +29,7 @@ class FormulaRevisionGenerator(BaseAnalysisJob):
             for doc_id in input_data.documents:
                 try:
                     doc = db.query(Document).filter(Document.id == doc_id).first()
-                    s3_prefix = doc.s3_prefix if doc and doc.s3_prefix else f"documents/UNKNOWN/{doc_id}"
+                    s3_prefix = doc.s3_prefix if doc and doc.s3_prefix else f"documents/{doc.study_unit_id}/{doc_id}"
                     key = f"{s3_prefix}/artifacts/formulas.json"
                     formulas_data = self.s3.read_json(key)
                 if formulas_data and isinstance(formulas_data, list):

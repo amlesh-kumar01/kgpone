@@ -19,8 +19,6 @@ def dispatch_stage_task(stage: IngestionStage, document_id: str):
     from src.workers.tasks.ingestion_tasks import (
         parse_document_task,
         build_canonical_ast_task,
-        extract_formulas_task,
-        extract_questions_task,
         extract_entities_task,
         extract_relations_task,
         build_chunks_task,
@@ -33,10 +31,6 @@ def dispatch_stage_task(stage: IngestionStage, document_id: str):
         parse_document_task.delay(document_id)
     elif stage == IngestionStage.AST:
         build_canonical_ast_task.delay(document_id)
-    elif stage == IngestionStage.FORMULA:
-        extract_formulas_task.delay(document_id)
-    elif stage == IngestionStage.QUESTION:
-        extract_questions_task.delay(document_id)
     elif stage == IngestionStage.ENTITY:
         extract_entities_task.delay(document_id)
     elif stage == IngestionStage.RELATION:
@@ -66,9 +60,9 @@ def get_ingestion_jobs(
     jobs = db.query(IngestionJob).filter(IngestionJob.document_id == document_id).all()
     
     all_stages = [
-        IngestionStage.PARSE, IngestionStage.AST, IngestionStage.FORMULA,
-        IngestionStage.QUESTION, IngestionStage.ENTITY, IngestionStage.RELATION,
-        IngestionStage.CHUNK, IngestionStage.EMBED, IngestionStage.GRAPH, IngestionStage.MANIFEST
+        IngestionStage.PARSE, IngestionStage.AST,
+        IngestionStage.CHUNK, IngestionStage.EMBED, IngestionStage.ENTITY,
+        IngestionStage.RELATION, IngestionStage.GRAPH, IngestionStage.MANIFEST
     ]
     
     job_map = {job.stage: job for job in jobs}
@@ -125,8 +119,15 @@ def retry_ingestion_job(
     reset_job(stage_enum)
     
     # Cascade resets
-    if stage_enum in [IngestionStage.PARSE, IngestionStage.AST]:
-        for s in [IngestionStage.FORMULA, IngestionStage.QUESTION, IngestionStage.ENTITY, IngestionStage.RELATION, IngestionStage.CHUNK, IngestionStage.EMBED, IngestionStage.GRAPH, IngestionStage.MANIFEST]:
+    stage_order = [
+        IngestionStage.PARSE, IngestionStage.AST,
+        IngestionStage.ENTITY, IngestionStage.RELATION, IngestionStage.GRAPH,
+        IngestionStage.CHUNK, IngestionStage.EMBED, IngestionStage.MANIFEST
+    ]
+    
+    if stage_enum in stage_order:
+        idx = stage_order.index(stage_enum)
+        for s in stage_order[idx+1:]:
             reset_job(s)
             
     db.commit()
@@ -148,7 +149,7 @@ def apply_node_edits(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
         
-    s3_prefix = doc.s3_prefix or f"documents/UNKNOWN/{document_id}"
+    s3_prefix = doc.s3_prefix or f"documents/{doc.study_unit_id}/{document_id}"
     am = ArtifactManager(str(document_id), s3_prefix, S3Storage())
     
     # 1. Fetch current AST
@@ -182,8 +183,8 @@ def apply_node_edits(
     
     # 4. Reset downstream jobs in DB
     downstream_stages = [
-        IngestionStage.FORMULA, IngestionStage.QUESTION, IngestionStage.ENTITY,
-        IngestionStage.RELATION, IngestionStage.CHUNK, IngestionStage.EMBED, IngestionStage.GRAPH
+        IngestionStage.CHUNK, IngestionStage.EMBED, IngestionStage.ENTITY,
+        IngestionStage.RELATION, IngestionStage.GRAPH
     ]
     for stage in downstream_stages:
         job = db.query(IngestionJob).filter_by(document_id=document_id, stage=stage).first()
@@ -193,7 +194,7 @@ def apply_node_edits(
             
     db.commit()
     
-    # 5. Trigger cascade starting from FORMULA
-    dispatch_stage_task(IngestionStage.FORMULA, str(document_id))
+    # 5. Trigger cascade starting from CHUNK
+    dispatch_stage_task(IngestionStage.CHUNK, str(document_id))
     
     return StandardResponse(status="success", message="Node edits applied and pipeline retriggered", data={})

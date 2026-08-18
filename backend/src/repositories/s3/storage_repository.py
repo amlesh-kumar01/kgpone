@@ -113,7 +113,7 @@ class S3Storage(IS3Storage):
 
     def upload_json(self, key: str, data: dict) -> str:
         """Uploads a dictionary as a JSON file to S3 and returns the key."""
-        json_str = json.dumps(data)
+        json_str = json.dumps(data, default=str)
         self.upload_text(key, json_str, content_type="application/json")
         return key
 
@@ -132,6 +132,8 @@ class S3Storage(IS3Storage):
             content = response['Body'].read().decode('utf-8')
             return json.loads(content)
         except Exception as e:
+            if 'NoSuchKey' in str(e):
+                return None
             logger.error(f"Failed to download JSON from S3 key '{key}': {e}")
             raise e
 

@@ -26,7 +26,31 @@ class DoclingParser:
         
         # Save raw docling output
         raw_output = docling_doc.export_to_dict()
-        self.artifact_manager.upload_json(self.artifact_manager.parser_key("docling"), raw_output)
+        
+        import base64
+        def extract_base64_uris(obj):
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if k == "uri" and isinstance(v, str) and v.startswith("data:image/"):
+                        try:
+                            # Extract base64
+                            header, encoded = v.split(",", 1)
+                            img_bytes = base64.b64decode(encoded)
+                            filename = f"extracted_{uuid.uuid4().hex[:8]}.png"
+                            key = self.artifact_manager.asset_key(filename)
+                            self.artifact_manager.s3.upload_image(key, img_bytes)
+                            obj[k] = key  # Store S3 key instead of base64
+                        except Exception as e:
+                            logger.error(f"Error extracting base64 image: {e}")
+                            obj[k] = "[ERROR EXTRACTING]"
+                    else:
+                        extract_base64_uris(v)
+            elif isinstance(obj, list):
+                for item in obj:
+                    extract_base64_uris(item)
+                    
+        extract_base64_uris(raw_output)
+        self.artifact_manager.upload_json(self.artifact_manager.parser_key("docling"), {"raw": raw_output})
         
         # 1. Export native markdown and save as document.md
         markdown_content = docling_doc.export_to_markdown()
@@ -36,11 +60,12 @@ class DoclingParser:
         pages_manifest = {}
         if hasattr(result, 'pages') and result.pages:
             from io import BytesIO
-            for page_no, page_info in result.pages.items():
+            for page_info in result.pages:
+                page_no = page_info.page_no
                 if hasattr(page_info, 'image') and page_info.image:
                     # Save the image
                     img_byte_arr = BytesIO()
-                    page_info.image.pil_image.save(img_byte_arr, format='PNG')
+                    page_info.image.save(img_byte_arr, format='PNG')
                     img_bytes = img_byte_arr.getvalue()
                     self.artifact_manager.s3.upload_image(self.artifact_manager.page_key(page_no), img_bytes)
                 
@@ -73,11 +98,12 @@ class DoclingParser:
     def _translate_docling_to_ast(self, docling_doc: Any) -> List[ASTNode]:
         """Maps docling native AST to Canonical AST."""
         canonical_nodes = []
+        stack = [] # (level, node)
         
         # docling_doc is a docling.datamodel.document.Document
         from docling.datamodel.document import DocItemLabel
         
-        # We'll just build a flat list. Hierarchy Engine will assemble the tree later.
+        # Build a hierarchical tree based on item level
         for item, level in docling_doc.iterate_items():
             node_type = self._map_docling_label(item.label)
             
@@ -106,9 +132,36 @@ class DoclingParser:
                 type=node_type,
                 level=level if level else None,
                 text_content=item.text if hasattr(item, "text") else "",
-                source=source
+                source=source,
+                children=[]
             )
-            canonical_nodes.append(node)
+            
+            # Extract image for figures
+            if node_type == NodeType.FIGURE and hasattr(item, "get_image"):
+                try:
+                    pil_img = item.get_image(docling_doc)
+                    if pil_img:
+                        from io import BytesIO
+                        img_byte_arr = BytesIO()
+                        pil_img.save(img_byte_arr, format='PNG')
+                        filename = f"figure_{node.id}.png"
+                        key = self.artifact_manager.asset_key(filename)
+                        self.artifact_manager.s3.upload_image(key, img_byte_arr.getvalue())
+                        node.image_s3_key = key
+                except Exception as e:
+                    logger.warning(f"Failed to extract image for FIGURE node {node.id}: {e}")
+            
+            while stack and stack[-1][0] >= level:
+                stack.pop()
+                
+            if stack:
+                parent_node = stack[-1][1]
+                node.parent_id = parent_node.id
+                parent_node.children.append(node)
+            else:
+                canonical_nodes.append(node)
+                
+            stack.append((level, node))
             
         return canonical_nodes
 

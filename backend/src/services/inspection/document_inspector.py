@@ -47,7 +47,7 @@ class DocumentInspector:
         if not doc:
             raise ValueError(f"Document {document_id} not found")
 
-        s3_prefix = doc.s3_prefix or f"documents/UNKNOWN/{document_id}"
+        s3_prefix = doc.s3_prefix or f"documents/{doc.study_unit_id}/{document_id}"
         artifact_manager = ArtifactManager(document_id, s3_prefix, self.s3)
         
         # 1. Manifest

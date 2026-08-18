@@ -30,7 +30,7 @@ class QuizGenerator(BaseAnalysisJob):
                 # We assume artifact_manager.read_json can get questions.json
                 try:
                     doc = db.query(Document).filter(Document.id == doc_id).first()
-                    s3_prefix = doc.s3_prefix if doc and doc.s3_prefix else f"documents/UNKNOWN/{doc_id}"
+                    s3_prefix = doc.s3_prefix if doc and doc.s3_prefix else f"documents/{doc.study_unit_id}/{doc_id}"
                     # The artifact manager is designed for canonical.json, chunks.json, entities.json
                     # We can construct the S3 key directly if needed or use artifact manager
                     key = f"{s3_prefix}/artifacts/questions.json"

@@ -8,8 +8,8 @@ logger = logging.getLogger("question_extractor")
 
 class QuestionExtractor:
     def __init__(self):
-        # Q1., Q1), 1., 1) followed by text
-        self.question_markers = re.compile(r'^(?:Q?\d+[.)\]]|(?:[a-d][.)\]]))\s*(.+)', re.IGNORECASE)
+        # Q1., Q1), 1., 1) followed by text, allowing spaces
+        self.question_markers = re.compile(r'^(?:Q?\s*\d+\s*[.)\]]|(?:[a-d]\s*[.)\]]))\s*(.+)', re.IGNORECASE)
         # Ends with question mark
         self.question_mark_end = re.compile(r'.*\?\s*$')
         
